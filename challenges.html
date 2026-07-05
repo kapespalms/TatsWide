@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tats & Wideass — Ultimate Showdown Arena</title>
+  <title>Challenges — Tats & Wideass Arena</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -12,42 +12,51 @@
   />
   <link rel="stylesheet" href="css/hero.css" />
 </head>
-<body>
-  <section class="hero" aria-label="Tats and Wideass Ultimate Showdown Arena">
-    <div class="hero-art-wrap">
-      <img
-        src="/tats_wideass_hero.jpg"
-        alt="Tats & Wideass Ultimate Showdown Arena"
-        class="hero-art"
-        width="1024"
-        height="682"
-      />
+<body class="page-shell">
+  <header class="page-header">
+    <nav class="nav" aria-label="Main navigation">
+      <a href="index.html" class="logo">
+        <span class="logo-line">
+          <span class="logo-tats">Tats</span>
+          <span class="logo-amp">&amp;</span>
+          <span class="logo-wideass">Wideass</span>
+        </span>
+        <span class="logo-arena">Arena</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Arena</a>
+        <a href="rankings.html">Rankings</a>
+        <a href="challenges.html" class="is-active">Challenges</a>
+        <a href="about.html">About</a>
+      </div>
+      <a href="challenges.html" class="nav-cta">Enter Arena</a>
+    </nav>
+  </header>
+
+  <main class="page-main">
+    <h1 class="page-title">Challenges</h1>
+    <p class="page-subtitle">Pick your fighter. Step into the arena. Face off in wild showdowns.</p>
+
+    <div class="card-grid">
+      <article class="card">
+        <h2>Tats vs Wideass — Main Event</h2>
+        <p>The ultimate showdown. Inked icon vs impossible-to-ignore legend. Only one walks out on top.</p>
+      </article>
+      <article class="card">
+        <h2>Stat Check Showdown</h2>
+        <p>Compare tattoos, stripes, and pure audacity. View stats. Talk trash. Climb the board.</p>
+      </article>
+      <article class="card">
+        <h2>Arena Crown Run</h2>
+        <p>Win streaks earn glory. Lose and you’re back to the bottom — where Wideass can’t find you.</p>
+      </article>
     </div>
 
-    <div class="hero-vignette" aria-hidden="true"></div>
-
-    <div class="hero-overlay">
-      <nav class="nav" aria-label="Main navigation">
-        <a href="index.html" class="logo">
-          <span class="logo-line">
-            <span class="logo-tats">Tats</span>
-            <span class="logo-amp">&amp;</span>
-            <span class="logo-wideass">Wideass</span>
-          </span>
-          <span class="logo-arena">Arena</span>
-        </a>
-
-        <div class="nav-links">
-          <a href="index.html" class="is-active">Arena</a>
-          <a href="rankings.html">Rankings</a>
-          <a href="challenges.html">Challenges</a>
-          <a href="about.html">About</a>
-        </div>
-
-        <a href="challenges.html" class="nav-cta">Enter Arena</a>
-      </nav>
+    <div class="cta-row">
+      <a href="rankings.html" class="btn">View Rankings</a>
+      <a href="index.html" class="btn btn--ghost">Back to Arena</a>
     </div>
-  </section>
+  </main>
 
   <footer class="arena-footer">
     <div class="arena-footer-inner">
