@@ -4,61 +4,62 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tats & Wideass — Ultimate Showdown Arena</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Rubik:wght@700;800;900&display=swap"
+    rel="stylesheet"
+  />
   <link rel="stylesheet" href="css/hero.css" />
 </head>
 <body class="home">
   <section class="hero" aria-label="Tats and Wideass Ultimate Showdown Arena">
-    <div class="hero-art-wrap">
-      <div class="hero-stage">
-        <img
-          src="/tats_wideass_hero.jpg"
-          alt="Tats & Wideass Ultimate Showdown Arena"
-          class="hero-art"
-          width="1024"
-          height="682"
-        />
+    <picture>
+      <source srcset="/tats_wideass_hero_1920.svg" type="image/svg+xml" />
+      <img
+        src="/tats_wideass_hero.jpg"
+        alt="Tats vs Wideass Ultimate Showdown Arena"
+        class="hero-art"
+        width="1920"
+        height="1080"
+      />
+    </picture>
 
-        <!-- Clickable regions aligned to buttons in the artwork -->
-        <nav class="hero-hotspots" aria-label="Main navigation">
-          <a href="index.html" class="hotspot hotspot--logo">
-            <span class="sr-only">Tats &amp; Wideass home</span>
-          </a>
-          <a href="index.html" class="hotspot hotspot--arena">
-            <span class="sr-only">Arena</span>
-          </a>
-          <a href="rankings.html" class="hotspot hotspot--rankings">
-            <span class="sr-only">Rankings</span>
-          </a>
-          <a href="challenges.html" class="hotspot hotspot--challenges">
-            <span class="sr-only">Challenges</span>
-          </a>
-          <a href="about.html" class="hotspot hotspot--about">
-            <span class="sr-only">About</span>
-          </a>
-          <a href="challenges.html" class="hotspot hotspot--enter">
-            <span class="sr-only">Enter Arena</span>
-          </a>
-          <a href="about.html#tats" class="hotspot hotspot--stats-left">
-            <span class="sr-only">View Tats stats</span>
-          </a>
-          <a href="about.html#wideass" class="hotspot hotspot--stats-right">
-            <span class="sr-only">View Wideass stats</span>
-          </a>
-          <a href="challenges.html" class="hotspot hotspot--footer-1">
-            <span class="sr-only">Epic Battles</span>
-          </a>
-          <a href="rankings.html" class="hotspot hotspot--footer-2">
-            <span class="sr-only">Climb the Ranks</span>
-          </a>
-          <a href="challenges.html" class="hotspot hotspot--footer-3">
-            <span class="sr-only">Earn Glory</span>
-          </a>
-          <a href="challenges.html" class="hotspot hotspot--footer-4">
-            <span class="sr-only">Join the Arena</span>
-          </a>
-        </nav>
+    <div class="hero-ui">
+      <h1>Tats vs Wideass</h1>
+      <p>Draw a card. Defend your take. Unlock the lore.</p>
+      <div class="hero-actions">
+        <button type="button" id="enterArenaBtn">Enter Arena</button>
+        <button type="button" id="drawChaosBtn">Draw Chaos Card</button>
+        <button type="button" id="chooseBattleBtn">Choose Battle</button>
       </div>
     </div>
   </section>
+
+  <section id="arena" class="page-section">
+    <div class="page-section-inner">
+      <h2 class="page-section-title">The Arena</h2>
+      <p class="page-section-text">Two legends. One crown. Step in and prove you belong.</p>
+      <a href="challenges.html" class="btn">View Challenges</a>
+    </div>
+  </section>
+
+  <section id="chaos" class="page-section page-section--alt">
+    <div class="page-section-inner">
+      <h2 class="page-section-title">Chaos Cards</h2>
+      <p class="page-section-text">Draw wild takes. Defend the chaos. Earn bragging rights.</p>
+      <a href="about.html" class="btn btn--ghost">Unlock the Lore</a>
+    </div>
+  </section>
+
+  <section id="games" class="page-section">
+    <div class="page-section-inner">
+      <h2 class="page-section-title">Choose Your Battle</h2>
+      <p class="page-section-text">Pick a showdown mode and climb the ranks.</p>
+      <a href="rankings.html" class="btn">See Rankings</a>
+    </div>
+  </section>
+
+  <script src="js/hero.js"></script>
 </body>
 </html>

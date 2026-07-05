@@ -45,92 +45,131 @@ button {
   background: none;
 }
 
-/* ── Hero ─────────────────────────────────────────────────────── */
+/* ── Hero (home) ──────────────────────────────────────────────── */
 .home {
-  min-height: 100dvh;
-}
-
-.home .hero {
-  min-height: 100dvh;
+  background: #050505;
 }
 
 .hero {
   position: relative;
-  flex: 1 1 auto;
-  min-height: calc(100dvh - var(--footer-h));
+  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
-  background: var(--black);
-  isolation: isolate;
+  background: #050505;
 }
 
-/* Stage matches image bounds so hotspots stay aligned */
-.hero-stage {
-  position: relative;
-  display: inline-block;
-  line-height: 0;
-  max-width: min(100%, 1024px);
-  max-height: 100%;
-}
-
-.hero-hotspots {
+/* Decorative artwork only — not interactive */
+.hero-art {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
-.hotspot {
-  position: absolute;
-  display: block;
-  background: transparent;
-  border: 2px solid transparent;
-  border-radius: 6px;
+.hero-ui {
+  position: relative;
+  z-index: 5;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 24px 72px;
+  text-align: center;
+  color: #fff4d6;
+}
+
+.hero-ui h1 {
+  font-family: "Permanent Marker", cursive;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  margin-bottom: 12px;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.9);
+}
+
+.hero-ui p {
+  font-size: clamp(0.9375rem, 2.5vw, 1.125rem);
+  font-weight: 700;
+  max-width: 28rem;
+  margin-bottom: 28px;
+  opacity: 0.92;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
+}
+
+.hero-actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.hero-actions button {
   cursor: pointer;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+  border: 3px solid #111;
+  border-radius: 999px;
+  padding: 14px 24px;
+  font-weight: 900;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: #ff3b1f;
+  color: #fff4d6;
+  box-shadow: 0 6px 0 #111;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
-.hotspot:hover,
-.hotspot:focus-visible {
-  background: rgba(232, 0, 0, 0.14);
-  border-color: rgba(232, 0, 0, 0.55);
-  box-shadow: 0 0 16px rgba(232, 0, 0, 0.25);
+.hero-actions button:hover {
+  background: #ff5236;
 }
 
-.hotspot:focus-visible {
-  outline: 2px solid var(--cream);
-  outline-offset: 2px;
+.hero-actions button:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #111;
 }
 
-/* Positions tuned to 1024×682 artwork */
-.hotspot--logo      { left:  1.5%; top:  3%; width: 19%; height: 10%; }
-.hotspot--arena     { left: 33.5%; top:  4%; width:  8%; height:  8%; }
-.hotspot--rankings  { left: 42.5%; top:  4%; width: 11%; height:  8%; }
-.hotspot--challenges{ left: 54.5%; top:  4%; width: 12%; height:  8%; }
-.hotspot--about     { left: 67.5%; top:  4%; width:  8%; height:  8%; }
-.hotspot--enter     { left: 79.5%; top:  3%; width: 18%; height: 11%; }
-.hotspot--stats-left  { left:  2%; top: 66%; width: 16%; height:  9%; }
-.hotspot--stats-right { left: 82%; top: 66%; width: 16%; height:  9%; }
-.hotspot--footer-1  { left:  0%; top: 88%; width: 25%; height: 12%; }
-.hotspot--footer-2  { left: 25%; top: 88%; width: 25%; height: 12%; }
-.hotspot--footer-3  { left: 50%; top: 88%; width: 25%; height: 12%; }
-.hotspot--footer-4  { left: 75%; top: 88%; width: 25%; height: 12%; }
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+/* Scroll target sections below hero */
+.page-section {
+  padding: clamp(48px, 8vw, 80px) 24px;
+  background: #050505;
+  color: #fff4d6;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Never upscale past native 1024×682 — keeps the JPG sharp */
-.hero-art-wrap {
+.page-section--alt {
+  background: #0a0a0a;
+}
+
+.page-section-inner {
+  max-width: 640px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.page-section-title {
+  font-family: "Permanent Marker", cursive;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  color: #ff3b1f;
+  margin-bottom: 12px;
+}
+
+.page-section-text {
+  font-size: 1rem;
+  opacity: 0.85;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+/* Subpages: hero shell with footer */
+body:not(.home) .hero {
+  min-height: calc(100dvh - var(--footer-h));
+}
+
+body:not(.home) .hero-art-wrap {
   position: absolute;
   inset: 0;
   display: flex;
@@ -138,54 +177,41 @@ button {
   justify-content: center;
 }
 
-.hero-art {
+body:not(.home) .hero-art {
+  position: static;
   display: block;
-  width: 100%;
+  width: auto;
   height: auto;
-  max-height: 100dvh;
+  max-width: min(100%, 1024px);
+  max-height: 100%;
+  object-fit: contain;
+  pointer-events: none;
 }
 
-/* Smaller screens: fill width, crop vertically if needed */
 @media (max-width: 1023px) {
-  .hero-stage {
+  body:not(.home) .hero-art {
     width: 100%;
     max-width: 100%;
     height: 100%;
-  }
-
-  .hero-art {
-    width: 100%;
-    height: 100%;
-    max-height: none;
     object-fit: cover;
     object-position: center 48%;
   }
 
-  .hotspot--logo       { left:  1%; top:  2%; width: 22%; height:  9%; }
-  .hotspot--arena      { left: 32%; top:  3%; width:  9%; height:  7%; }
-  .hotspot--rankings   { left: 41%; top:  3%; width: 12%; height:  7%; }
-  .hotspot--challenges { left: 53%; top:  3%; width: 13%; height:  7%; }
-  .hotspot--about      { left: 66%; top:  3%; width:  9%; height:  7%; }
-  .hotspot--enter      { left: 76%; top:  2%; width: 22%; height: 10%; }
-  .hotspot--stats-left   { left:  1%; top: 62%; width: 18%; height:  8%; }
-  .hotspot--stats-right  { left: 81%; top: 62%; width: 18%; height:  8%; }
-  .hotspot--footer-1   { display: none; }
-  .hotspot--footer-2   { display: none; }
-  .hotspot--footer-3   { display: none; }
-  .hotspot--footer-4   { display: none; }
+  .hero-art {
+    object-position: center 48%;
+  }
 }
 
 @media (max-width: 767px) {
-  .hero-art {
+  .hero-ui {
+    padding-bottom: 48px;
+  }
+
+  body:not(.home) .hero-art {
     object-position: center 42%;
   }
 }
 
-@media (max-width: 480px) {
-  .hero-art {
-    object-position: center 40%;
-  }
-}
 
 /* ── Overlays (legacy — used on subpages only) ───────────────── */
 .hero-vignette {
