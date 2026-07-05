@@ -227,6 +227,22 @@ button {
   box-shadow: 0 2px 0 #111;
 }
 
+/* Decorative footer bar (hero page only — no links) */
+.hero-footer-bar {
+  background: #000;
+  line-height: 0;
+}
+
+.hero-footer-art {
+  display: block;
+  width: 100%;
+  max-width: 1024px;
+  height: auto;
+  margin: 0 auto;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* Scroll target sections below hero */
 .page-section {
   padding: clamp(48px, 8vw, 80px) 24px;
