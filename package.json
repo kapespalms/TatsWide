@@ -3,6 +3,6 @@
   "private": true,
   "scripts": {
     "build": "mkdir -p dist && cp index.html dist/ && cp -r css dist/ && cp public/tats_wideass_hero.svg dist/",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && npx wrangler deploy"
   }
 }
