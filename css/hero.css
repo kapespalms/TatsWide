@@ -46,6 +46,14 @@ button {
 }
 
 /* ── Hero ─────────────────────────────────────────────────────── */
+.home {
+  min-height: 100dvh;
+}
+
+.home .hero {
+  min-height: 100dvh;
+}
+
 .hero {
   position: relative;
   flex: 1 1 auto;
@@ -53,6 +61,72 @@ button {
   overflow: hidden;
   background: var(--black);
   isolation: isolate;
+}
+
+/* Stage matches image bounds so hotspots stay aligned */
+.hero-stage {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  max-width: min(100%, 1024px);
+  max-height: 100%;
+}
+
+.hero-hotspots {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
+
+.hotspot {
+  position: absolute;
+  display: block;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.hotspot:hover,
+.hotspot:focus-visible {
+  background: rgba(232, 0, 0, 0.14);
+  border-color: rgba(232, 0, 0, 0.55);
+  box-shadow: 0 0 16px rgba(232, 0, 0, 0.25);
+}
+
+.hotspot:focus-visible {
+  outline: 2px solid var(--cream);
+  outline-offset: 2px;
+}
+
+/* Positions tuned to 1024×682 artwork */
+.hotspot--logo      { left:  1.5%; top:  3%; width: 19%; height: 10%; }
+.hotspot--arena     { left: 33.5%; top:  4%; width:  8%; height:  8%; }
+.hotspot--rankings  { left: 42.5%; top:  4%; width: 11%; height:  8%; }
+.hotspot--challenges{ left: 54.5%; top:  4%; width: 12%; height:  8%; }
+.hotspot--about     { left: 67.5%; top:  4%; width:  8%; height:  8%; }
+.hotspot--enter     { left: 79.5%; top:  3%; width: 18%; height: 11%; }
+.hotspot--stats-left  { left:  2%; top: 66%; width: 16%; height:  9%; }
+.hotspot--stats-right { left: 82%; top: 66%; width: 16%; height:  9%; }
+.hotspot--footer-1  { left:  0%; top: 88%; width: 25%; height: 12%; }
+.hotspot--footer-2  { left: 25%; top: 88%; width: 25%; height: 12%; }
+.hotspot--footer-3  { left: 50%; top: 88%; width: 25%; height: 12%; }
+.hotspot--footer-4  { left: 75%; top: 88%; width: 25%; height: 12%; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Never upscale past native 1024×682 — keeps the JPG sharp */
@@ -66,23 +140,39 @@ button {
 
 .hero-art {
   display: block;
-  width: auto;
+  width: 100%;
   height: auto;
-  max-width: min(100%, 1024px);
-  max-height: 100%;
-  object-fit: contain;
-  object-position: center center;
+  max-height: 100dvh;
 }
 
 /* Smaller screens: fill width, crop vertically if needed */
 @media (max-width: 1023px) {
-  .hero-art {
+  .hero-stage {
     width: 100%;
     max-width: 100%;
     height: 100%;
+  }
+
+  .hero-art {
+    width: 100%;
+    height: 100%;
+    max-height: none;
     object-fit: cover;
     object-position: center 48%;
   }
+
+  .hotspot--logo       { left:  1%; top:  2%; width: 22%; height:  9%; }
+  .hotspot--arena      { left: 32%; top:  3%; width:  9%; height:  7%; }
+  .hotspot--rankings   { left: 41%; top:  3%; width: 12%; height:  7%; }
+  .hotspot--challenges { left: 53%; top:  3%; width: 13%; height:  7%; }
+  .hotspot--about      { left: 66%; top:  3%; width:  9%; height:  7%; }
+  .hotspot--enter      { left: 76%; top:  2%; width: 22%; height: 10%; }
+  .hotspot--stats-left   { left:  1%; top: 62%; width: 18%; height:  8%; }
+  .hotspot--stats-right  { left: 81%; top: 62%; width: 18%; height:  8%; }
+  .hotspot--footer-1   { display: none; }
+  .hotspot--footer-2   { display: none; }
+  .hotspot--footer-3   { display: none; }
+  .hotspot--footer-4   { display: none; }
 }
 
 @media (max-width: 767px) {
@@ -97,7 +187,7 @@ button {
   }
 }
 
-/* ── Overlays ─────────────────────────────────────────────────── */
+/* ── Overlays (legacy — used on subpages only) ───────────────── */
 .hero-vignette {
   position: absolute;
   inset: 0;

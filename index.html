@@ -4,82 +4,61 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tats & Wideass — Ultimate Showdown Arena</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Rubik:wght@700;800;900&display=swap"
-    rel="stylesheet"
-  />
   <link rel="stylesheet" href="css/hero.css" />
 </head>
-<body>
+<body class="home">
   <section class="hero" aria-label="Tats and Wideass Ultimate Showdown Arena">
     <div class="hero-art-wrap">
-      <img
-        src="/tats_wideass_hero.jpg"
-        alt="Tats & Wideass Ultimate Showdown Arena"
-        class="hero-art"
-        width="1024"
-        height="682"
-      />
-    </div>
+      <div class="hero-stage">
+        <img
+          src="/tats_wideass_hero.jpg"
+          alt="Tats & Wideass Ultimate Showdown Arena"
+          class="hero-art"
+          width="1024"
+          height="682"
+        />
 
-    <div class="hero-vignette" aria-hidden="true"></div>
-
-    <div class="hero-overlay">
-      <nav class="nav" aria-label="Main navigation">
-        <a href="index.html" class="logo">
-          <span class="logo-line">
-            <span class="logo-tats">Tats</span>
-            <span class="logo-amp">&amp;</span>
-            <span class="logo-wideass">Wideass</span>
-          </span>
-          <span class="logo-arena">Arena</span>
-        </a>
-
-        <div class="nav-links">
-          <a href="index.html" class="is-active">Arena</a>
-          <a href="rankings.html">Rankings</a>
-          <a href="challenges.html">Challenges</a>
-          <a href="about.html">About</a>
-        </div>
-
-        <a href="challenges.html" class="nav-cta">Enter Arena</a>
-      </nav>
+        <!-- Clickable regions aligned to buttons in the artwork -->
+        <nav class="hero-hotspots" aria-label="Main navigation">
+          <a href="index.html" class="hotspot hotspot--logo">
+            <span class="sr-only">Tats &amp; Wideass home</span>
+          </a>
+          <a href="index.html" class="hotspot hotspot--arena">
+            <span class="sr-only">Arena</span>
+          </a>
+          <a href="rankings.html" class="hotspot hotspot--rankings">
+            <span class="sr-only">Rankings</span>
+          </a>
+          <a href="challenges.html" class="hotspot hotspot--challenges">
+            <span class="sr-only">Challenges</span>
+          </a>
+          <a href="about.html" class="hotspot hotspot--about">
+            <span class="sr-only">About</span>
+          </a>
+          <a href="challenges.html" class="hotspot hotspot--enter">
+            <span class="sr-only">Enter Arena</span>
+          </a>
+          <a href="about.html#tats" class="hotspot hotspot--stats-left">
+            <span class="sr-only">View Tats stats</span>
+          </a>
+          <a href="about.html#wideass" class="hotspot hotspot--stats-right">
+            <span class="sr-only">View Wideass stats</span>
+          </a>
+          <a href="challenges.html" class="hotspot hotspot--footer-1">
+            <span class="sr-only">Epic Battles</span>
+          </a>
+          <a href="rankings.html" class="hotspot hotspot--footer-2">
+            <span class="sr-only">Climb the Ranks</span>
+          </a>
+          <a href="challenges.html" class="hotspot hotspot--footer-3">
+            <span class="sr-only">Earn Glory</span>
+          </a>
+          <a href="challenges.html" class="hotspot hotspot--footer-4">
+            <span class="sr-only">Join the Arena</span>
+          </a>
+        </nav>
+      </div>
     </div>
   </section>
-
-  <footer class="arena-footer">
-    <div class="arena-footer-inner">
-      <a href="challenges.html" class="feature feature--link">
-        <span class="feature-icon feature-icon--trophy" aria-hidden="true"></span>
-        <p class="feature-text">
-          <strong>Epic Battles</strong>
-          <span>Face off in wild challenges</span>
-        </p>
-      </a>
-      <a href="rankings.html" class="feature feature--link">
-        <span class="feature-icon feature-icon--crown" aria-hidden="true"></span>
-        <p class="feature-text">
-          <strong>Climb the Ranks</strong>
-          <span>Prove you're the ultimate legend</span>
-        </p>
-      </a>
-      <a href="challenges.html" class="feature feature--link">
-        <span class="feature-icon feature-icon--chest" aria-hidden="true"></span>
-        <p class="feature-text">
-          <strong>Earn Glory</strong>
-          <span>Unlock rewards and bragging rights</span>
-        </p>
-      </a>
-      <a href="index.html" class="feature feature--link">
-        <span class="feature-icon feature-icon--bolt" aria-hidden="true"></span>
-        <p class="feature-text">
-          <strong>Join the Arena</strong>
-          <span>Step in. Stand out. Be remembered.</span>
-        </p>
-      </a>
-    </div>
-  </footer>
 </body>
 </html>
