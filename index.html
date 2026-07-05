@@ -4,10 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tats & Wideass — Ultimate Showdown Arena</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Rubik:wght@700;800;900&display=swap"
+    rel="stylesheet"
+  />
   <link rel="stylesheet" href="css/hero.css" />
 </head>
 <body>
-  <section class="hero">
+  <section class="hero" aria-label="Tats and Wideass Ultimate Showdown Arena">
     <img
       src="/tats_wideass_hero.jpg"
       alt="Tats & Wideass Ultimate Showdown Arena"
@@ -15,6 +21,62 @@
       width="1024"
       height="682"
     />
+
+    <div class="hero-vignette" aria-hidden="true"></div>
+
+    <div class="hero-overlay">
+      <nav class="nav" aria-label="Main navigation">
+        <a href="/" class="logo">
+          <span class="logo-line">
+            <span class="logo-tats">Tats</span>
+            <span class="logo-amp">&amp;</span>
+            <span class="logo-wideass">Wideass</span>
+          </span>
+          <span class="logo-arena">Arena</span>
+        </a>
+
+        <div class="nav-links">
+          <a href="#rankings">Rankings</a>
+          <a href="#challenges">Challenges</a>
+          <a href="#about">About</a>
+        </div>
+
+        <button type="button" class="nav-cta">Enter Arena</button>
+      </nav>
+    </div>
   </section>
+
+  <footer class="arena-footer">
+    <div class="arena-footer-inner">
+      <div class="feature">
+        <span class="feature-icon feature-icon--trophy" aria-hidden="true"></span>
+        <p class="feature-text">
+          <strong>Epic Battles</strong>
+          <span>Face off in wild challenges</span>
+        </p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon feature-icon--crown" aria-hidden="true"></span>
+        <p class="feature-text">
+          <strong>Climb the Ranks</strong>
+          <span>Prove you're the ultimate legend</span>
+        </p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon feature-icon--chest" aria-hidden="true"></span>
+        <p class="feature-text">
+          <strong>Earn Glory</strong>
+          <span>Unlock rewards and bragging rights</span>
+        </p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon feature-icon--bolt" aria-hidden="true"></span>
+        <p class="feature-text">
+          <strong>Join the Arena</strong>
+          <span>Step in. Stand out. Be remembered.</span>
+        </p>
+      </div>
+    </div>
+  </footer>
 </body>
 </html>
