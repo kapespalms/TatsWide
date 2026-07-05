@@ -55,14 +55,34 @@ button {
   isolation: isolate;
 }
 
-.hero-art {
+/* Never upscale past native 1024×682 — keeps the JPG sharp */
+.hero-art-wrap {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  /* Crop baked-in nav/footer from the full comp; keep arena center */
-  object-position: center 48%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-art {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 1024px);
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center center;
+}
+
+/* Smaller screens: fill width, crop vertically if needed */
+@media (max-width: 1023px) {
+  .hero-art {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 48%;
+  }
 }
 
 @media (max-width: 767px) {
@@ -74,8 +94,6 @@ button {
 @media (max-width: 480px) {
   .hero-art {
     object-position: center 40%;
-    transform: scale(1.04);
-    transform-origin: center center;
   }
 }
 
