@@ -7,30 +7,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Rubik:wght@700;800;900&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Rubik:wght@700;800;900&display=swap"
     rel="stylesheet"
   />
   <link rel="stylesheet" href="css/hero.css" />
 </head>
 <body class="home">
-  <header class="site-header">
-    <div class="site-header-inner">
-      <a href="index.html" class="site-logo">
-        <img
-          src="/tats_wideass_logo.png"
-          alt="Tats & Wideass"
-          width="463"
-          height="97"
-        />
-      </a>
-      <nav class="nav-links" aria-label="Main navigation">
-        <a href="index.html" class="is-active">Arena</a>
-        <a href="rankings.html">Rankings</a>
-        <a href="challenges.html">Challenges</a>
-        <a href="about.html">About</a>
-      </nav>
-      <a href="challenges.html" class="nav-cta">Enter Arena</a>
-    </div>
+  <header class="site-header site-header--minimal">
+    <button type="button" class="header-enter-btn">Enter Arena</button>
   </header>
 
   <section class="hero" aria-label="Tats and Wideass Ultimate Showdown Arena">
@@ -41,16 +25,6 @@
       width="1024"
       height="545"
     />
-
-    <div class="hero-ui">
-      <h1>Tats vs Wideass</h1>
-      <p>Draw a card. Defend your take. Unlock the lore.</p>
-      <div class="hero-actions">
-        <button type="button" id="enterArenaBtn">Enter Arena</button>
-        <button type="button" id="drawChaosBtn">Draw Chaos Card</button>
-        <button type="button" id="chooseBattleBtn">Choose Battle</button>
-      </div>
-    </div>
   </section>
 
   <div class="hero-footer-bar" aria-hidden="true">
@@ -62,31 +36,5 @@
       height="76"
     />
   </div>
-
-  <section id="arena" class="page-section">
-    <div class="page-section-inner">
-      <h2 class="page-section-title">The Arena</h2>
-      <p class="page-section-text">Two legends. One crown. Step in and prove you belong.</p>
-      <a href="challenges.html" class="btn">View Challenges</a>
-    </div>
-  </section>
-
-  <section id="chaos" class="page-section page-section--alt">
-    <div class="page-section-inner">
-      <h2 class="page-section-title">Chaos Cards</h2>
-      <p class="page-section-text">Draw wild takes. Defend the chaos. Earn bragging rights.</p>
-      <a href="about.html" class="btn btn--ghost">Unlock the Lore</a>
-    </div>
-  </section>
-
-  <section id="games" class="page-section">
-    <div class="page-section-inner">
-      <h2 class="page-section-title">Choose Your Battle</h2>
-      <p class="page-section-text">Pick a showdown mode and climb the ranks.</p>
-      <a href="rankings.html" class="btn">See Rankings</a>
-    </div>
-  </section>
-
-  <script src="js/hero.js"></script>
 </body>
 </html>

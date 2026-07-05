@@ -5,6 +5,7 @@
   --cream: #fff7ed;
   --footer-h: clamp(72px, 11vw, 92px);
   --header-h: 72px;
+  --hero-footer-h: clamp(48px, 8vw, 76px);
 }
 
 /* ── Reset ────────────────────────────────────────────────────── */
@@ -131,6 +132,42 @@ button {
   transform: translateY(-1px);
 }
 
+/* Home: header with centered Enter Arena button only */
+.site-header--minimal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.site-header--minimal .site-header-inner {
+  display: none;
+}
+
+.header-enter-btn {
+  cursor: pointer;
+  border: 3px solid #111;
+  border-radius: 999px;
+  padding: 12px 28px;
+  font-family: "Rubik", system-ui, sans-serif;
+  font-weight: 900;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: #ff3b1f;
+  color: #fff4d6;
+  box-shadow: 0 6px 0 #111;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.2s ease;
+}
+
+.header-enter-btn:hover {
+  background: #ff5236;
+}
+
+.header-enter-btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #111;
+}
+
 @media (min-width: 768px) {
   .site-header .nav-links {
     display: flex;
@@ -145,11 +182,15 @@ button {
 /* ── Hero (home) ──────────────────────────────────────────────── */
 .home {
   background: #050505;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
 
 .hero {
   position: relative;
-  min-height: calc(100dvh - var(--header-h));
+  flex: 1 1 auto;
+  min-height: calc(100dvh - var(--header-h) - var(--hero-footer-h));
   overflow: hidden;
   background: #050505;
 }
