@@ -8,7 +8,7 @@ export function ArenaDriver(props) {
   return (
     <group>
       <Kart {...props} />
-      <MascotBillboard driver={driver} scale={0.55} y={1.1} label />
+      <MascotBillboard driver={driver} />
     </group>
   );
 }

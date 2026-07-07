@@ -14,6 +14,22 @@
   user-select: none;
 }
 
+.arena-kart-mascot.is-seated {
+  width: 84px;
+  height: 108px;
+  overflow: hidden;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5));
+}
+.arena-kart-mascot.is-seated .arena-kart-mascot-svg {
+  margin-top: -4px;
+}
+.arena-kart-mascot.is-seated .arena-kart-mascot-svg svg {
+  width: 84px;
+  height: auto;
+  display: block;
+  transform: scale(0.5);
+  transform-origin: center top;
+}
 .arena-kart-mascot {
   width: 160px;
   height: 240px;
