@@ -55,11 +55,22 @@ window.KartRacerGame = (function () {
     });
   }
 
+  function scheduleArenaInit() {
+    pushArenaInit();
+    setTimeout(pushArenaInit, 120);
+    setTimeout(pushArenaInit, 600);
+  }
+
   function bindPoseRelay() {
     if (poseListener) return;
     poseListener = function (event) {
       const data = event.data;
-      if (!data || data.source !== "arena-kart" || data.type !== "pose") return;
+      if (!data || data.source !== "arena-kart") return;
+      if (data.type === "ready") {
+        scheduleArenaInit();
+        return;
+      }
+      if (data.type !== "pose") return;
       if (!started) return;
       const now = Date.now();
       if (now - lastPoseAt < SYNC_MS) return;
@@ -102,11 +113,32 @@ window.KartRacerGame = (function () {
     wrap.appendChild(actions);
   }
 
+  function renderCharPreview(wrap) {
+    if (!window.mascotSVG) return;
+    const row = el("div", "kart-char-preview");
+    const you = el("div", "kart-char-card is-you");
+    you.innerHTML = '<div class="kart-char-svg">' + window.mascotSVG(myChar()) + "</div>" +
+      '<span class="kart-char-name">' + charLabel(myChar()) + "</span>" +
+      '<span class="kart-char-tag">You</span>';
+    row.appendChild(you);
+    const peer = peerChar();
+    if (peer) {
+      row.appendChild(el("span", "kart-char-vs", "VS"));
+      const them = el("div", "kart-char-card is-peer");
+      them.innerHTML = '<div class="kart-char-svg">' + window.mascotSVG(peer) + "</div>" +
+        '<span class="kart-char-name">' + charLabel(peer) + "</span>" +
+        '<span class="kart-char-tag">Partner</span>';
+      row.appendChild(them);
+    }
+    wrap.appendChild(row);
+  }
+
   function renderLobby(panel) {
     panel.innerHTML = "";
     const wrap = el("div", "kart-pro");
     if (api.appendPlayModePicker) api.appendPlayModePicker(wrap);
     appendWaitBanner(wrap);
+    renderCharPreview(wrap);
     const peer = peerChar();
     const vs = peer ? charLabel(myChar()) + " vs " + charLabel(peer) : charLabel(myChar()) + " solo run";
     wrap.appendChild(el("p", "kart-pro-hint", "You race as " + charLabel(myChar()) + " — same character as your arena pick. W accelerate, mouse steer, Space drift."));
@@ -138,7 +170,7 @@ window.KartRacerGame = (function () {
     iframe.src = "/kart/index.html";
     iframe.title = "Arena Kart — " + charLabel(myChar());
     iframe.setAttribute("allow", "accelerometer; gamepad; fullscreen");
-    iframe.addEventListener("load", pushArenaInit);
+    iframe.addEventListener("load", scheduleArenaInit);
     bindPoseRelay();
     wrap.appendChild(iframe);
     panel.appendChild(wrap);
@@ -184,7 +216,7 @@ window.KartRacerGame = (function () {
   }
 
   function syncArenaChars() {
-    pushArenaInit();
+    scheduleArenaInit();
   }
 
   function destroy() {
@@ -197,7 +229,7 @@ window.KartRacerGame = (function () {
     render: render,
     handleMessage: handleMessage,
     syncArenaChars: syncArenaChars,
-    resync: function () { if (started) pushArenaInit(); },
+    resync: function () { if (started) scheduleArenaInit(); },
     destroy: destroy
   };
 })();

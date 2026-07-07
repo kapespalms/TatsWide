@@ -15,10 +15,10 @@
 }
 
 .arena-kart-mascot {
-  width: 140px;
-  height: 210px;
+  width: 160px;
+  height: 240px;
   background: transparent;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.55));
 }
 .arena-kart-mascot-svg svg {
   width: 100%;
@@ -29,13 +29,60 @@
   margin-top: 4px;
   text-align: center;
   font-family: "Orbitron", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 1px;
   color: #fff;
   text-shadow: 0 1px 3px #000, 0 0 8px rgba(255, 61, 31, 0.6);
 }
-
+.arena-kart-hud {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+}
+.arena-kart-hud-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(10, 12, 20, 0.82);
+  border: 3px solid #111;
+  border-radius: 10px;
+  padding: 6px 10px 8px;
+  box-shadow: 4px 4px 0 #111;
+  min-width: 88px;
+}
+.arena-kart-hud-card.is-you { border-color: #ff8a1f; }
+.arena-kart-hud-card.is-peer { border-color: #4da3ff; }
+.arena-kart-hud-svg svg { width: 72px; height: auto; display: block; }
+.arena-kart-hud-name {
+  font-family: "Orbitron", sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+.arena-kart-hud-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #ffb347;
+  text-transform: uppercase;
+}
+.arena-kart-hud-vs {
+  font-family: "Orbitron", sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+  color: #ff3d1f;
+  text-shadow: 0 2px 0 #111;
+  padding-bottom: 24px;
+}
 
 @font-face {
   src: url('https://assets.codepen.io/4175254/DIN2014-DemiBold.ttf') format('truetype');
@@ -227,26 +274,4 @@ canvas{
   50% {
     transform: translateY(-5px) skewX(-6deg);
   }
-}
-
-.arena-kart-mascot {
-  width: 140px;
-  height: 210px;
-  background: transparent;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
-}
-.arena-kart-mascot-svg svg {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-.arena-kart-mascot-label {
-  margin-top: 4px;
-  text-align: center;
-  font-family: "Orbitron", sans-serif;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  color: #fff;
-  text-shadow: 0 1px 3px #000, 0 0 8px rgba(255, 61, 31, 0.6);
 }

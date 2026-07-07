@@ -57,6 +57,10 @@ export function initArenaBridge() {
       useArenaBridge.getState().setPeerPose(data.payload);
     }
   });
+
+  if (window.parent !== window) {
+    window.parent.postMessage({ source: "arena-kart", type: "ready" }, "*");
+  }
 }
 
 export function postPoseToArena(position, rotationY) {

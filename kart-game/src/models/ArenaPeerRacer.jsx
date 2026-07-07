@@ -28,7 +28,7 @@ export function ArenaPeerRacer() {
   return (
     <group ref={group} scale={0.85}>
       <primitive object={kartClone} />
-      <MascotBillboard driver={peer} scale={0.34} y={0.88} label />
+      <MascotBillboard driver={peer} scale={0.5} y={1.05} label />
     </group>
   );
 }
