@@ -1,0 +1,274 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 168" role="img" aria-label="Board games">
+  <defs>
+    <!-- Wood grain -->
+    <linearGradient id="woodBase" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#b87842"/>
+      <stop offset="35%" stop-color="#9a5c30"/>
+      <stop offset="100%" stop-color="#5c3018"/>
+    </linearGradient>
+    <linearGradient id="woodHighlight" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#d4a574" stop-opacity="0"/>
+      <stop offset="45%" stop-color="#e8c898" stop-opacity=".22"/>
+      <stop offset="100%" stop-color="#d4a574" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="woodGrain" width="980" height="8" patternUnits="userSpaceOnUse">
+      <path d="M0 2 Q245 0 490 2 T980 2" fill="none" stroke="#3a1c09" stroke-width=".6" opacity=".35"/>
+      <path d="M0 5 Q245 7 490 5 T980 5" fill="none" stroke="#6b3a1f" stroke-width=".4" opacity=".25"/>
+      <path d="M0 7 Q245 6 490 7 T980 7" fill="none" stroke="#2a1408" stroke-width=".5" opacity=".2"/>
+    </pattern>
+    <!-- Arena halftone -->
+    <pattern id="halftone" width="10" height="10" patternUnits="userSpaceOnUse">
+      <circle cx="2.5" cy="2.5" r="1.1" fill="#fff1d6" opacity=".14"/>
+    </pattern>
+    <pattern id="halftoneRed" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="3" r="1.2" fill="#c41e1a" opacity=".12"/>
+    </pattern>
+    <!-- Panel shine -->
+    <linearGradient id="panelShine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff8e8" stop-opacity=".16"/>
+      <stop offset="55%" stop-color="#fff8e8" stop-opacity=".04"/>
+      <stop offset="100%" stop-color="#000" stop-opacity=".08"/>
+    </linearGradient>
+    <linearGradient id="goldAccent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffb347"/>
+      <stop offset="100%" stop-color="#f4b037"/>
+    </linearGradient>
+    <linearGradient id="redAccent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ef351f"/>
+      <stop offset="100%" stop-color="#c41e1a"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-12%" y="-12%" width="124%" height="124%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000" flood-opacity=".45"/>
+    </filter>
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Orbitron-style title path letters -->
+    <path id="ltB" d="M0 0 h5 v14 h6 q5 0 5 5 v2 q0 5 -5 5 h-6 v6 h-5 v-32 M5 5 v9 h5 q2 0 2 -2 v-5 q0 -2 -2 -2z"/>
+    <path id="ltO" d="M0 7 q0 -7 7 -7 t7 7 v4 q0 7 -7 7 t-7 -7z M5 7 v4 q0 3 3 3 t3 -3 v-4 q0 -3 -3 -3 t-3 3z"/>
+    <path id="ltA" d="M0 18 l7 -18 h4 l7 18 h-5 l-1 -3 h-6 l-1 3z M7 4 l-2 6 h4z"/>
+    <path id="ltR" d="M0 0 h8 q6 0 6 6 q0 4 -4 5 l5 7 h-6 l-4 -6 h-2 v6 h-5 v-18 M5 5 v4 h3 q2 0 2 -2 q0 -2 -2 -2z"/>
+    <path id="ltD" d="M0 0 h7 q8 0 8 9 t-8 9 h-7 v-18 M5 5 v8 h2 q4 0 4 -4 t-4 -4z"/>
+    <path id="ltG" d="M14 9 h-9 v-2 q0 -7 7 -7 q5 0 7 5 h-5 q-1 -2 -3 -2 q-3 0 -3 3 v4 q0 3 3 3 h4 v-3 h-3"/>
+    <path id="ltM" d="M0 0 h4 l4 10 l4 -10 h4 v18 h-4 v-11 l-4 11 l-4 -11 v11 h-4z"/>
+    <path id="ltE" d="M0 0 h12 v4 h-7 v3 h6 v4 h-6 v3 h7 v4 h-12z"/>
+    <path id="ltS" d="M12 0 q-5 0 -5 4 q0 3 4 4 l2 1 q5 2 5 6 q0 5 -6 5 q-6 0 -7 -5 h5 q1 2 3 2 q2 0 2 -2 q0 -2 -3 -3 l-2 -1 q-5 -2 -5 -6 q0 -5 6 -5 q5 0 6 5 h-5 q-1 -2 -3 -2z"/>
+  </defs>
+
+  <!-- Outer frame -->
+  <rect width="980" height="168" rx="10" fill="#090606"/>
+  <rect x="3" y="3" width="974" height="162" rx="9" fill="none" stroke="#22090c" stroke-width="2"/>
+  <rect x="6" y="6" width="968" height="156" rx="8" fill="url(#woodBase)" stroke="#111" stroke-width="3"/>
+  <rect x="6" y="6" width="968" height="156" rx="8" fill="url(#woodGrain)"/>
+  <rect x="6" y="6" width="968" height="156" rx="8" fill="url(#woodHighlight)"/>
+  <rect x="6" y="6" width="968" height="156" rx="8" fill="url(#halftone)"/>
+  <!-- Inner bevel -->
+  <rect x="10" y="10" width="960" height="148" rx="6" fill="none" stroke="#d4a574" stroke-width="1" opacity=".35"/>
+  <rect x="10" y="10" width="960" height="148" rx="6" fill="none" stroke="#3a1c09" stroke-width="1" opacity=".5"/>
+
+  <!-- Title bar -->
+  <rect x="18" y="12" width="944" height="26" rx="4" fill="#111" opacity=".55"/>
+  <rect x="18" y="12" width="944" height="26" rx="4" fill="url(#halftoneRed)"/>
+  <line x1="18" y1="38" x2="962" y2="38" stroke="#ffb347" stroke-width="1.5" opacity=".7"/>
+  <line x1="18" y1="39.5" x2="962" y2="39.5" stroke="#c41e1a" stroke-width=".8" opacity=".5"/>
+
+  <!-- BOARD GAMES title � geometric Orbitron-style lettering -->
+  <g transform="translate(392,14)" fill="#fff8e8" stroke="#22090c" stroke-width=".6">
+    <use href="#ltB" transform="scale(1.05)"/>
+    <use href="#ltO" transform="translate(18,0) scale(1.05)"/>
+    <use href="#ltA" transform="translate(36,0) scale(1.05)"/>
+    <use href="#ltR" transform="translate(54,0) scale(1.05)"/>
+    <use href="#ltD" transform="translate(72,0) scale(1.05)"/>
+    <g transform="translate(98,0)">
+      <use href="#ltG" transform="scale(1.05)"/>
+      <use href="#ltA" transform="translate(18,0) scale(1.05)"/>
+      <use href="#ltM" transform="translate(36,0) scale(1.05)"/>
+      <use href="#ltE" transform="translate(58,0) scale(1.05)"/>
+      <use href="#ltS" transform="translate(76,0) scale(1.05)"/>
+    </g>
+  </g>
+  <!-- Title gold underline accents -->
+  <rect x="420" y="33" width="50" height="2" rx="1" fill="url(#goldAccent)" opacity=".85"/>
+  <rect x="510" y="33" width="50" height="2" rx="1" fill="url(#goldAccent)" opacity=".85"/>
+
+  <!-- Column helper: 7 cols � 140px, panels 132�120 at y=44 -->
+
+  <!-- 1 � Bananagrams -->
+  <g transform="translate(4,44)" filter="url(#cardShadow)">
+    <rect width="132" height="120" rx="7" fill="#1a472a" stroke="#111" stroke-width="2.5"/>
+    <rect width="132" height="120" rx="7" fill="url(#panelShine)"/>
+    <!-- banana curve -->
+    <path d="M28 28 C38 18 58 16 72 24 C86 32 88 48 78 58 C68 68 48 66 38 56 C32 50 26 38 28 28Z" fill="#ffd34d" stroke="#8b6914" stroke-width="1.5"/>
+    <path d="M34 34 C42 28 54 28 64 34" fill="none" stroke="#ffb347" stroke-width="1.2" opacity=".6"/>
+    <!-- letter tiles -->
+    <rect x="18" y="62" width="16" height="16" rx="2" fill="#f0d080" stroke="#8b6914" stroke-width="1.2" transform="rotate(-8 26 70)"/>
+    <text x="26" y="73" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9" fill="#1a472a" transform="rotate(-8 26 70)">B</text>
+    <rect x="38" y="58" width="16" height="16" rx="2" fill="#f0d080" stroke="#8b6914" stroke-width="1.2" transform="rotate(5 46 66)"/>
+    <text x="46" y="69" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9" fill="#1a472a" transform="rotate(5 46 66)">A</text>
+    <rect x="58" y="62" width="16" height="16" rx="2" fill="#f0d080" stroke="#8b6914" stroke-width="1.2" transform="rotate(-3 66 70)"/>
+    <text x="66" y="73" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9" fill="#1a472a" transform="rotate(-3 66 70)">N</text>
+    <rect x="78" y="56" width="16" height="16" rx="2" fill="#f0d080" stroke="#8b6914" stroke-width="1.2" transform="rotate(10 86 64)"/>
+    <text x="86" y="67" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9" fill="#1a472a" transform="rotate(10 86 64)">A</text>
+    <rect x="98" y="60" width="16" height="16" rx="2" fill="#f0d080" stroke="#8b6914" stroke-width="1.2" transform="rotate(-6 106 68)"/>
+    <text x="106" y="71" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9" fill="#1a472a" transform="rotate(-6 106 68)">N</text>
+    <text x="66" y="102" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9.5" font-weight="900" fill="#fff8e8" letter-spacing=".5">BANANAGRAMS</text>
+  </g>
+
+  <!-- 2 � Rummikub -->
+  <g transform="translate(144,44)" filter="url(#cardShadow)">
+    <rect width="132" height="120" rx="7" fill="#0f4d2e" stroke="#111" stroke-width="2.5"/>
+    <rect width="132" height="120" rx="7" fill="url(#panelShine)"/>
+    <!-- tile rack -->
+    <rect x="14" y="78" width="104" height="10" rx="2" fill="#5c3018" stroke="#3a1c09" stroke-width="1"/>
+    <!-- tiles with numbers -->
+    <g transform="translate(18,58)">
+      <rect width="20" height="28" rx="3" fill="#f5f0e8" stroke="#111" stroke-width="1.2"/>
+      <text x="10" y="19" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="11" fill="#c41e1a">7</text>
+    </g>
+    <g transform="translate(42,54)">
+      <rect width="20" height="28" rx="3" fill="#f5f0e8" stroke="#111" stroke-width="1.2"/>
+      <text x="10" y="19" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="11" fill="#c41e1a">7</text>
+    </g>
+    <g transform="translate(66,58)">
+      <rect width="20" height="28" rx="3" fill="#f5f0e8" stroke="#111" stroke-width="1.2"/>
+      <text x="10" y="19" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="11" fill="#2b5fc7">7</text>
+    </g>
+    <g transform="translate(90,52)">
+      <rect width="20" height="28" rx="3" fill="#f5f0e8" stroke="#111" stroke-width="1.2"/>
+      <text x="10" y="19" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="11" fill="#ffb347">7</text>
+    </g>
+    <!-- joker star -->
+    <polygon points="66,28 68,34 74,34 69,38 71,44 66,40 61,44 63,38 58,34 64,34" fill="#ffb347" stroke="#111" stroke-width=".8"/>
+    <text x="66" y="102" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9.5" font-weight="900" fill="#fff8e8" letter-spacing=".5">RUMMIKUB</text>
+  </g>
+
+  <!-- 3 � Connect 4 -->
+  <g transform="translate(284,44)" filter="url(#cardShadow)">
+    <rect width="132" height="120" rx="7" fill="#1247a8" stroke="#111" stroke-width="2.5"/>
+    <rect width="132" height="120" rx="7" fill="url(#panelShine)"/>
+    <!-- blue frame grid -->
+    <rect x="28" y="22" width="76" height="64" rx="4" fill="#0a3580" stroke="#111" stroke-width="2"/>
+    <!-- holes row 1 -->
+    <circle cx="42" cy="36" r="7" fill="#061e50" stroke="#111" stroke-width="1"/>
+    <circle cx="58" cy="36" r="7" fill="#061e50" stroke="#111" stroke-width="1"/>
+    <circle cx="74" cy="36" r="7" fill="#061e50" stroke="#111" stroke-width="1"/>
+    <circle cx="90" cy="36" r="7" fill="#061e50" stroke="#111" stroke-width="1"/>
+    <!-- holes row 2 -->
+    <circle cx="42" cy="52" r="7" fill="#061e50" stroke="#111" stroke-width="1"/>
+    <circle cx="58" cy="52" r="7" fill="#061e50" stroke="#111" stroke-width="1"/>
+    <circle cx="74" cy="52" r="7" fill="#061e50" stroke="#111" stroke-width="1"/>
+    <circle cx="90" cy="52" r="7" fill="#061e50" stroke="#111" stroke-width="1"/>
+    <!-- holes row 3 with discs -->
+    <circle cx="42" cy="68" r="7" fill="#061e50" stroke="#111" stroke-width="1"/>
+    <circle cx="58" cy="68" r="7" fill="#c41e1a" stroke="#111" stroke-width="1" filter="url(#softGlow)"/>
+    <circle cx="74" cy="68" r="7" fill="#ffb347" stroke="#111" stroke-width="1" filter="url(#softGlow)"/>
+    <circle cx="90" cy="68" r="7" fill="#c41e1a" stroke="#111" stroke-width="1" filter="url(#softGlow)"/>
+    <text x="66" y="102" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9.5" font-weight="900" fill="#fff8e8" letter-spacing=".5">CONNECT 4</text>
+  </g>
+
+  <!-- 4 � Checkers -->
+  <g transform="translate(424,44)" filter="url(#cardShadow)">
+    <rect width="132" height="120" rx="7" fill="#5c2e0f" stroke="#111" stroke-width="2.5"/>
+    <rect width="132" height="120" rx="7" fill="url(#panelShine)"/>
+    <!-- checkerboard -->
+    <g transform="translate(30,24)">
+      <rect width="72" height="56" rx="2" fill="#d4a574" stroke="#111" stroke-width="1.2"/>
+      <rect x="0" y="0" width="18" height="14" fill="#8b6914"/><rect x="36" y="0" width="18" height="14" fill="#8b6914"/>
+      <rect x="18" y="14" width="18" height="14" fill="#8b6914"/><rect x="54" y="14" width="18" height="14" fill="#8b6914"/>
+      <rect x="0" y="28" width="18" height="14" fill="#8b6914"/><rect x="36" y="28" width="18" height="14" fill="#8b6914"/>
+      <rect x="18" y="42" width="18" height="14" fill="#8b6914"/><rect x="54" y="42" width="18" height="14" fill="#8b6914"/>
+      <!-- pieces -->
+      <circle cx="27" cy="35" r="6" fill="#c41e1a" stroke="#111" stroke-width="1.2"/>
+      <circle cx="27" cy="35" r="3.5" fill="none" stroke="#ffb347" stroke-width=".8" opacity=".5"/>
+      <circle cx="45" cy="21" r="6" fill="#222" stroke="#111" stroke-width="1.2"/>
+      <circle cx="63" cy="35" r="6" fill="#c41e1a" stroke="#111" stroke-width="1.2"/>
+      <circle cx="45" cy="49" r="6" fill="#222" stroke="#111" stroke-width="1.2"/>
+    </g>
+    <text x="66" y="102" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9.5" font-weight="900" fill="#fff8e8" letter-spacing=".5">CHECKERS</text>
+  </g>
+
+  <!-- 5 � Reversi -->
+  <g transform="translate(564,44)" filter="url(#cardShadow)">
+    <rect width="132" height="120" rx="7" fill="#1a7f4b" stroke="#111" stroke-width="2.5"/>
+    <rect width="132" height="120" rx="7" fill="url(#panelShine)"/>
+    <!-- green board -->
+    <rect x="28" y="24" width="76" height="56" rx="3" fill="#15804a" stroke="#111" stroke-width="1.5"/>
+    <line x1="28" y1="38" x2="104" y2="38" stroke="#0f5c35" stroke-width=".8" opacity=".6"/>
+    <line x1="28" y1="52" x2="104" y2="52" stroke="#0f5c35" stroke-width=".8" opacity=".6"/>
+    <line x1="28" y1="66" x2="104" y2="66" stroke="#0f5c35" stroke-width=".8" opacity=".6"/>
+    <line x1="47" y1="24" x2="47" y2="80" stroke="#0f5c35" stroke-width=".8" opacity=".6"/>
+    <line x1="66" y1="24" x2="66" y2="80" stroke="#0f5c35" stroke-width=".8" opacity=".6"/>
+    <line x1="85" y1="24" x2="85" y2="80" stroke="#0f5c35" stroke-width=".8" opacity=".6"/>
+    <!-- discs -->
+    <circle cx="47" cy="38" r="7" fill="#111" stroke="#333" stroke-width="1"/>
+    <circle cx="66" cy="38" r="7" fill="#f5f5f5" stroke="#ccc" stroke-width="1"/>
+    <circle cx="85" cy="38" r="7" fill="#111" stroke="#333" stroke-width="1"/>
+    <circle cx="47" cy="52" r="7" fill="#f5f5f5" stroke="#ccc" stroke-width="1"/>
+    <circle cx="66" cy="52" r="7" fill="#111" stroke="#333" stroke-width="1"/>
+    <circle cx="85" cy="52" r="7" fill="#f5f5f5" stroke="#ccc" stroke-width="1"/>
+    <circle cx="57" cy="66" r="7" fill="#111" stroke="#333" stroke-width="1"/>
+    <circle cx="76" cy="66" r="7" fill="#f5f5f5" stroke="#ccc" stroke-width="1"/>
+    <text x="66" y="102" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9.5" font-weight="900" fill="#fff8e8" letter-spacing=".5">REVERSI</text>
+  </g>
+
+  <!-- 6 � Yahtzee -->
+  <g transform="translate(704,44)" filter="url(#cardShadow)">
+    <rect width="132" height="120" rx="7" fill="#4a2810" stroke="#111" stroke-width="2.5"/>
+    <rect width="132" height="120" rx="7" fill="url(#panelShine)"/>
+    <!-- three dice -->
+    <g transform="translate(22,30) rotate(-12 12 12)">
+      <rect width="24" height="24" rx="4" fill="#fff8e8" stroke="#111" stroke-width="1.5"/>
+      <circle cx="8" cy="8" r="2" fill="#111"/>
+      <circle cx="16" cy="16" r="2" fill="#111"/>
+    </g>
+    <g transform="translate(54,24)">
+      <rect width="24" height="24" rx="4" fill="url(#goldAccent)" stroke="#111" stroke-width="1.5"/>
+      <circle cx="12" cy="6" r="2" fill="#111"/>
+      <circle cx="6" cy="12" r="2" fill="#111"/>
+      <circle cx="18" cy="12" r="2" fill="#111"/>
+      <circle cx="12" cy="18" r="2" fill="#111"/>
+      <circle cx="6" cy="18" r="2" fill="#111"/>
+    </g>
+    <g transform="translate(86,30) rotate(10 12 12)">
+      <rect width="24" height="24" rx="4" fill="#fff8e8" stroke="#111" stroke-width="1.5"/>
+      <circle cx="6" cy="6" r="2" fill="#111"/>
+      <circle cx="18" cy="6" r="2" fill="#111"/>
+      <circle cx="6" cy="12" r="2" fill="#111"/>
+      <circle cx="18" cy="12" r="2" fill="#111"/>
+      <circle cx="6" cy="18" r="2" fill="#111"/>
+      <circle cx="18" cy="18" r="2" fill="#111"/>
+    </g>
+    <text x="66" y="102" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9.5" font-weight="900" fill="#fff8e8" letter-spacing=".5">YAHTZEE</text>
+  </g>
+
+  <!-- 7 � Mancala -->
+  <g transform="translate(844,44)" filter="url(#cardShadow)">
+    <rect width="132" height="120" rx="7" fill="#6b3a1f" stroke="#111" stroke-width="2.5"/>
+    <rect width="132" height="120" rx="7" fill="url(#panelShine)"/>
+    <!-- wooden board -->
+    <rect x="16" y="30" width="100" height="44" rx="6" fill="#5c3018" stroke="#3a1c09" stroke-width="1.5"/>
+    <!-- store pits -->
+    <ellipse cx="24" cy="52" rx="10" ry="14" fill="#4a2810" stroke="#111" stroke-width="1.2"/>
+    <ellipse cx="108" cy="52" rx="10" ry="14" fill="#4a2810" stroke="#111" stroke-width="1.2"/>
+    <!-- playing pits -->
+    <ellipse cx="42" cy="52" rx="7" ry="9" fill="#3a1c09" stroke="#111" stroke-width="1"/>
+    <ellipse cx="56" cy="52" rx="7" ry="9" fill="#3a1c09" stroke="#111" stroke-width="1"/>
+    <ellipse cx="70" cy="52" rx="7" ry="9" fill="#3a1c09" stroke="#111" stroke-width="1"/>
+    <ellipse cx="84" cy="52" rx="7" ry="9" fill="#3a1c09" stroke="#111" stroke-width="1"/>
+    <ellipse cx="98" cy="52" rx="7" ry="9" fill="#3a1c09" stroke="#111" stroke-width="1"/>
+    <!-- stones -->
+    <circle cx="42" cy="50" r="2.5" fill="#fff8e8"/><circle cx="45" cy="53" r="2.5" fill="#ffb347"/><circle cx="39" cy="54" r="2.5" fill="#fff8e8"/>
+    <circle cx="56" cy="51" r="2.5" fill="#fff8e8"/><circle cx="59" cy="54" r="2.5" fill="#fff8e8"/>
+    <circle cx="70" cy="50" r="2.5" fill="#ffb347"/><circle cx="73" cy="53" r="2.5" fill="#fff8e8"/><circle cx="67" cy="54" r="2.5" fill="#fff8e8"/><circle cx="70" cy="56" r="2.5" fill="#ffb347"/>
+    <circle cx="24" cy="50" r="2" fill="#ffb347"/><circle cx="27" cy="53" r="2" fill="#fff8e8"/><circle cx="21" cy="54" r="2" fill="#fff8e8"/>
+    <circle cx="108" cy="51" r="2" fill="#fff8e8"/><circle cx="105" cy="54" r="2" fill="#ffb347"/>
+    <text x="66" y="102" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="9.5" font-weight="900" fill="#fff8e8" letter-spacing=".5">MANCALA</text>
+  </g>
+
+  <!-- Corner arena accents -->
+  <circle cx="14" cy="14" r="3" fill="#c41e1a" opacity=".7"/>
+  <circle cx="966" cy="14" r="3" fill="#ffb347" opacity=".7"/>
+  <circle cx="14" cy="154" r="3" fill="#ffb347" opacity=".7"/>
+  <circle cx="966" cy="154" r="3" fill="#c41e1a" opacity=".7"/>
+</svg>

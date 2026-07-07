@@ -10,31 +10,65 @@
     href="https://fonts.googleapis.com/css2?family=Rubik:wght@700;800;900&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="css/hero.css" />
+  <link rel="stylesheet" href="/css/hero.css" />
 </head>
 <body class="home">
   <header class="site-header site-header--minimal">
-    <button type="button" class="header-enter-btn">Enter Arena</button>
+    <div class="site-header-inner">
+      <a href="index.html" class="site-logo">
+        <img
+          src="/tats_wideass_logo.png"
+          alt="Tats & Wideass"
+          width="463"
+          height="97"
+        />
+      </a>
+      <button type="button" class="header-enter-btn">Enter Arena</button>
+      <div class="site-header-end" aria-hidden="true"></div>
+    </div>
   </header>
 
-  <section class="hero" aria-label="Tats and Wideass Ultimate Showdown Arena">
-    <img
-      src="/tats_wideass_hero.jpg"
-      alt="Tats vs Wideass Ultimate Showdown Arena"
-      class="hero-art"
-      width="1024"
-      height="545"
-    />
+  <section class="duel-hero" aria-label="Tats vs Wideass">
+    <div class="duel-side duel-side--red">
+      <div class="duel-side-inner">
+        <div class="duel-tag duel-tag--left">
+          <p>Inked Out.</p>
+          <p>Iconic Clout.</p>
+          <p>Unapologetically<br />Hawt.</p>
+        </div>
+        <figure class="duel-fighter duel-fighter--tats">
+          <div class="duel-mascot" id="duel-tats" aria-label="Tats"></div>
+          <p class="duel-name">Tats</p>
+        </figure>
+      </div>
+    </div>
+
+    <div class="duel-vs" aria-hidden="true">
+      <div class="vs-burst">
+        <svg class="vs-star" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="60,4 72,38 108,38 78,58 88,94 60,72 32,94 42,58 12,38 48,38" fill="#ff3b1f" stroke="#111" stroke-width="4"/>
+          <polygon points="60,18 68,42 92,42 72,56 78,80 60,66 42,80 48,56 28,42 52,42" fill="#ffb347"/>
+        </svg>
+        <span class="vs-text">VS</span>
+      </div>
+    </div>
+
+    <div class="duel-side duel-side--blue">
+      <div class="duel-side-inner">
+        <figure class="duel-fighter duel-fighter--wideass">
+          <div class="duel-mascot" id="duel-wideass" aria-label="Wideass"></div>
+          <p class="duel-name">Wideass</p>
+        </figure>
+        <div class="duel-tag duel-tag--right">
+          <p>Hard to Find.</p>
+          <p>One of a Kind.</p>
+          <p>Impossible to Ignore.</p>
+        </div>
+      </div>
+    </div>
   </section>
 
-  <div class="hero-footer-bar" aria-hidden="true">
-    <img
-      src="/tats_wideass_footer.jpg"
-      alt=""
-      class="hero-footer-art"
-      width="1024"
-      height="76"
-    />
-  </div>
+  <script src="/js/mascots.js"></script>
+  <script src="/js/home.js"></script>
 </body>
 </html>

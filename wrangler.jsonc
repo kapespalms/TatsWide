@@ -1,8 +1,24 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tatswide",
+  "main": "src/worker.js",
   "compatibility_date": "2026-07-05",
   "assets": {
-    "directory": "dist"
-  }
+    "directory": "dist",
+    "binding": "ASSETS"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ARENA_ROOM",
+        "class_name": "ArenaRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["ArenaRoom"]
+    }
+  ]
 }
