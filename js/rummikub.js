@@ -22,7 +22,8 @@ window.RummikubGame = (function () {
     playedThisTurn: false,
     turnPlayedValue: 0,
     meldDone: { host: false, joiner: false },
-    sortMode: "color"
+    sortMode: "color",
+    hands: null
   };
 
   function shuffle(arr) {
@@ -49,7 +50,26 @@ window.RummikubGame = (function () {
 
   function myRole() { return api.myRole(); }
   function oppRole() { return myRole() === "host" ? "joiner" : "host"; }
-  function isMyTurn() { return state.turn === myRole(); }
+  function isHotSeatSolo() { return api.isSoloPlay && api.isSoloPlay(); }
+  function turnRole() { return isHotSeatSolo() ? state.turn : myRole(); }
+  function isMyTurn() {
+    if (isHotSeatSolo()) return true;
+    return state.turn === myRole();
+  }
+  function activeHand() {
+    if (isHotSeatSolo() && state.hands) return state.hands[state.turn];
+    return state.hand;
+  }
+
+  function setActiveHand(hand) {
+    if (isHotSeatSolo() && state.hands) state.hands[state.turn] = hand;
+    state.hand = hand;
+  }
+
+  function switchTurnHand() {
+    if (!isHotSeatSolo() || !state.hands) return;
+    state.hand = state.hands[state.turn];
+  }
   function isGameHost() { return api.isGameHost(); }
   function send(msg) { api.send(msg); }
   function toast(msg) { api.toast(msg); }
@@ -154,7 +174,6 @@ window.RummikubGame = (function () {
     const joinerHand = deck.splice(0, 14);
     state.pool = deck;
     state.poolCount = deck.length;
-    state.hand = hostHand;
     state.table = [];
     state.turn = "host";
     state.started = true;
@@ -162,7 +181,14 @@ window.RummikubGame = (function () {
     state.playedThisTurn = false;
     state.turnPlayedValue = 0;
     state.selected = [];
-    send({ type: "rkStart", payload: { yourHand: joinerHand, poolCount: state.poolCount, turn: "host" } });
+    if (isHotSeatSolo()) {
+      state.hands = { host: hostHand, joiner: joinerHand };
+      state.hand = state.hands.host;
+    } else {
+      state.hands = null;
+      state.hand = hostHand;
+      send({ type: "rkStart", payload: { yourHand: joinerHand, poolCount: state.poolCount, turn: "host" } });
+    }
     render();
   }
 
@@ -179,7 +205,7 @@ window.RummikubGame = (function () {
     const tiles = state.selected.map(function (i) { return state.hand[i]; });
     const result = validateSet(tiles);
     if (!result.valid) { toast("Not a valid run or group."); return; }
-    const role = myRole();
+    const role = turnRole();
     if (!state.meldDone[role]) {
       state.turnPlayedValue += result.value;
       if (state.turnPlayedValue >= 30) state.meldDone[role] = true;
@@ -191,14 +217,15 @@ window.RummikubGame = (function () {
     syncTable();
     render();
     if (state.hand.length === 0) {
-      send({ type: "rkWin", payload: { by: api.myName() } });
-      celebrate(api.myName() + " wins Rummikub! 🀄", "Table cleared — flawless run.");
+      const winner = isHotSeatSolo() ? (state.turn === "host" ? "Host" : "Partner") : api.myName();
+      if (!isHotSeatSolo()) send({ type: "rkWin", payload: { by: api.myName() } });
+      celebrate(winner + " wins Rummikub! 🀄", "Every tile placed.");
     }
   }
 
   function endTurn() {
     if (!isMyTurn()) { toast("Not your turn."); return; }
-    const role = myRole();
+    const role = turnRole();
     if (!state.meldDone[role] && state.turnPlayedValue > 0 && state.turnPlayedValue < 30) {
       toast("First meld must total 30+ (currently " + state.turnPlayedValue + ").");
       return;
@@ -210,6 +237,7 @@ window.RummikubGame = (function () {
     state.turn = oppRole();
     state.playedThisTurn = false;
     state.turnPlayedValue = 0;
+    switchTurnHand();
     syncTable();
     render();
   }
@@ -219,7 +247,14 @@ window.RummikubGame = (function () {
     if (isGameHost()) {
       if (state.pool.length === 0) {
         toast("Pool empty!");
-        if (fromEndTurn) { state.turn = oppRole(); state.playedThisTurn = false; state.turnPlayedValue = 0; syncTable(); render(); }
+        if (fromEndTurn) {
+          state.turn = oppRole();
+          state.playedThisTurn = false;
+          state.turnPlayedValue = 0;
+          switchTurnHand();
+          syncTable();
+          render();
+        }
         return;
       }
       state.hand.push(state.pool.pop());
@@ -227,6 +262,7 @@ window.RummikubGame = (function () {
       state.turn = oppRole();
       state.playedThisTurn = false;
       state.turnPlayedValue = 0;
+      switchTurnHand();
       syncTable();
       render();
     } else {

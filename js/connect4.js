@@ -57,7 +57,12 @@ window.Connect4Game = (function () {
   }
 
   function myRole() { return api.myRole(); }
-  function isMyTurn() { return state.turn === myRole() && !state.winner; }
+  function isHotSeatSolo() { return api.isSoloPlay && api.isSoloPlay(); }
+  function isMyTurn() {
+    if (state.winner) return false;
+    if (isHotSeatSolo()) return true;
+    return state.turn === myRole();
+  }
   function isGameHost() { return api.isGameHost(); }
   function send(msg) { api.send(msg); }
   function toast(msg) { api.toast(msg); }
@@ -155,7 +160,7 @@ window.Connect4Game = (function () {
     triggerMoveFx(move, won);
     render();
     if (won) {
-      const who = move.player === myRole() ? "You win" : roleLabel(move.player) + " wins";
+      const who = (isHotSeatSolo() || move.player === myRole()) ? "You win" : roleLabel(move.player) + " wins";
       celebrate(who + " Connect 4! 🔴", playerName(move.player) + " connected four in a row.");
       return;
     }
@@ -175,7 +180,8 @@ window.Connect4Game = (function () {
       return;
     }
     if (isGameHost()) {
-      const move = dropDisc(col, myRole());
+      const player = isHotSeatSolo() ? state.turn : myRole();
+      const move = dropDisc(col, player);
       if (!move) return;
       finishMove(move);
     } else {
@@ -319,7 +325,9 @@ window.Connect4Game = (function () {
       const w = state.winner === myRole() ? "You won!" : roleLabel(state.winner) + " won";
       bar.appendChild(el("span", "c4-pro-pill is-win", w));
     } else {
-      bar.appendChild(el("span", "c4-pro-pill" + (isMyTurn() ? " is-active" : ""), isMyTurn() ? "Your turn · " + playerName(myRole()) : roleLabel(state.turn) + "'s turn · " + playerName(state.turn)));
+      bar.appendChild(el("span", "c4-pro-pill" + (isMyTurn() ? " is-active" : ""), isHotSeatSolo()
+        ? (state.turn === myRole() ? "Your turn · " + playerName(state.turn) : "Hot-seat · " + playerName(state.turn))
+        : (isMyTurn() ? "Your turn · " + playerName(myRole()) : roleLabel(state.turn) + "'s turn · " + playerName(state.turn))));
     }
     bar.appendChild(el("span", "c4-pro-pill c4-pro-legend-red", "Red · Host"));
     bar.appendChild(el("span", "c4-pro-pill c4-pro-legend-yellow", "Yellow · Partner"));
@@ -334,7 +342,9 @@ window.Connect4Game = (function () {
       actions.appendChild(ng);
     }
     if (!state.winner) {
-      const hint = el("span", "c4-pro-tip", isMyTurn() ? "Tap ▼ above a column to drop your disc." : "Waiting for " + roleLabel(state.turn) + "…");
+      const hint = el("span", "c4-pro-tip", isMyTurn()
+        ? (isHotSeatSolo() ? "Hot-seat solo — tap ▼ to play " + playerName(state.turn) + "." : "Tap ▼ above a column to drop your disc.")
+        : "Waiting for " + roleLabel(state.turn) + "…");
       actions.appendChild(hint);
     }
     wrap.appendChild(actions);

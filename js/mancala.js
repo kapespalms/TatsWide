@@ -24,7 +24,12 @@ window.MancalaGame = (function () {
   };
 
   function myRole() { return api.myRole(); }
-  function isMyTurn() { return state.turn === myRole() && !state.winner; }
+  function isHotSeatSolo() { return api.isSoloPlay && api.isSoloPlay(); }
+  function isMyTurn() {
+    if (state.winner) return false;
+    if (isHotSeatSolo()) return true;
+    return state.turn === myRole();
+  }
   function isGameHost() { return api.isGameHost(); }
   function send(msg) { api.send(msg); }
   function toast(msg) { api.toast(msg); }
@@ -302,7 +307,8 @@ window.MancalaGame = (function () {
     if (!state.started || state.winner || anim) return;
     if (!isMyTurn()) { toast("Not your turn."); return; }
     if (isGameHost()) {
-      if (!applyMove(myRole(), pit)) toast("Pick a pit with stones on your side.");
+      const player = isHotSeatSolo() ? state.turn : myRole();
+      if (!applyMove(player, pit)) toast("Pick a pit with stones on your side.");
     } else {
       send({ type: "maMoveRequest", payload: { pit: pit, from: myRole() } });
     }

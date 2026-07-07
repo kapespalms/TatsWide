@@ -2,7 +2,7 @@
   "name": "tats-wideass-arena",
   "private": true,
   "scripts": {
-    "build": "rm -rf dist && mkdir -p dist dist/kart dist/models && cp index.html wideass-tats-game-arena.html dist/ && cp -r css js assets dist/ && cp -r public/* dist/ && cp -r kart-game/dist/* dist/kart/ && cp -r kart-game/dist/models/* dist/models/",
+    "build": "rm -rf dist && mkdir -p dist dist/kart dist/models dist/textures && cp index.html wideass-tats-game-arena.html dist/ && cp -r css js assets dist/ && cp -r public/* dist/ && cp -r kart-game/dist/* dist/kart/ && cp -r kart-game/dist/models/* dist/models/ && cp -r kart-game/dist/textures/* dist/textures/",
     "deploy": "npm run build && npx --yes wrangler deploy"
   },
   "dependencies": {
