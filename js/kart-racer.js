@@ -1,5 +1,5 @@
 /**
- * Arena Kart — embeds Mario-Kart-3.js (Three.js/WebGL) in the arena lobby flow.
+ * Arena Kart — embeds Mario-Kart-3.js with Tats/Wideass drivers from arena character pick.
  */
 window.KartRacerGame = (function () {
   "use strict";
@@ -19,6 +19,29 @@ window.KartRacerGame = (function () {
   function needsPartner() { return api.requiresPartnerToStart && api.requiresPartnerToStart(); }
   function toast(msg) { api.toast(msg); }
   function send(msg) { api.send(msg); }
+
+  function myChar() {
+    const c = api.myBaseChar && api.myBaseChar();
+    return c === "wideass" ? "wideass" : "tats";
+  }
+
+  function peerChar() {
+    const c = api.peerBaseChar && api.peerBaseChar();
+    if (!c) return null;
+    return c === "wideass" ? "wideass" : "tats";
+  }
+
+  function charLabel(id) {
+    return id === "wideass" ? "Wideass" : "Tats";
+  }
+
+  function kartIframeUrl() {
+    const q = new URLSearchParams();
+    q.set("driver", myChar());
+    const peer = peerChar();
+    if (peer) q.set("peer", peer);
+    return "/kart/index.html?" + q.toString();
+  }
 
   function destroyIframe() {
     if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
@@ -44,10 +67,12 @@ window.KartRacerGame = (function () {
     const wrap = el("div", "kart-pro");
     if (api.appendPlayModePicker) api.appendPlayModePicker(wrap);
     appendWaitBanner(wrap);
-    wrap.appendChild(el("p", "kart-pro-hint", "Mario Kart 3.js — full 3D WebGL racing. W to accelerate, mouse to steer, Space to drift, E for items, R to reset."));
+    const peer = peerChar();
+    const vs = peer ? charLabel(myChar()) + " vs " + charLabel(peer) : charLabel(myChar()) + " solo run";
+    wrap.appendChild(el("p", "kart-pro-hint", "Arena Kart — you race as " + charLabel(myChar()) + ". W accelerate, mouse steer, Space drift, E item, R reset."));
     const bar = el("div", "c4-pro-bar");
-    bar.appendChild(el("span", "c4-pro-pill", "🏎️ Mario-Kart-3.js"));
-    bar.appendChild(el("span", "c4-pro-pill", "3D track · drift · boost"));
+    bar.appendChild(el("span", "c4-pro-pill", "🏎️ " + vs));
+    bar.appendChild(el("span", "c4-pro-pill", "Uses your arena character"));
     wrap.appendChild(bar);
     appendStartActions(wrap, startGame);
     panel.appendChild(wrap);
@@ -57,7 +82,7 @@ window.KartRacerGame = (function () {
     panel.innerHTML = "";
     const wrap = el("div", "kart-pro is-racing");
     const bar = el("div", "c4-pro-bar");
-    bar.appendChild(el("span", "c4-pro-pill is-active", "Mario Kart 3.js"));
+    bar.appendChild(el("span", "c4-pro-pill is-active", "Racing as " + charLabel(myChar())));
     if (isGameHost()) {
       const back = el("button", "c4-pro-btn secondary", "← Lobby");
       back.addEventListener("click", function () {
@@ -70,8 +95,8 @@ window.KartRacerGame = (function () {
     }
     wrap.appendChild(bar);
     iframe = el("iframe", "kart-mk3-frame");
-    iframe.src = "/kart/index.html";
-    iframe.title = "Mario Kart 3.js";
+    iframe.src = kartIframeUrl();
+    iframe.title = "Arena Kart — " + charLabel(myChar());
     iframe.setAttribute("allow", "accelerometer; gamepad; fullscreen");
     wrap.appendChild(iframe);
     panel.appendChild(wrap);
@@ -93,7 +118,7 @@ window.KartRacerGame = (function () {
     if (!isGameHost()) { toast("Waiting for arena host to start."); return; }
     if (needsPartner()) { toast("Switch to 1 Player, or wait for your partner."); return; }
     started = true;
-    send({ type: "krStart", payload: {} });
+    send({ type: "krStart", payload: { driver: myChar(), peer: peerChar() } });
     render();
   }
 

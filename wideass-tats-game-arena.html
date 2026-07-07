@@ -2214,7 +2214,9 @@
   }));
   KartRacerGame.init(Object.assign({}, gameApi, {
     panel: function(){ return gameApi.panel('panel-kart'); },
-    hasPartner: hasPartner
+    hasPartner: hasPartner,
+    myBaseChar: function(){ return net.myBaseChar; },
+    peerBaseChar: function(){ return net.peerBaseChar; }
   }));
 
   function renderBG(){ BananagramsGame.render(); }

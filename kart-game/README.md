@@ -1,11 +1,12 @@
-# Mario Kart 3.js (vendored build)
+# Mario Kart 3.js (vendored + Arena customizations)
 
-3D WebGL Mario Kart experience embedded in the Wideass Tats Game Arena.
+3D WebGL kart racing embedded in the Wideass Tats Game Arena.
 
 - **Source:** [Lunakepio/Mario-Kart-3.js](https://github.com/Lunakepio/Mario-Kart-3.js) (MIT)
-- **Live demo:** https://mario-kart-3-js.vercel.app/
-- **Arena path:** `/kart/index.html`
+- **Arena path:** `/kart/index.html?driver=tats&peer=wideass`
 
-The prebuilt `dist/` is served under `/kart/` with models also at `/models/` for absolute asset paths.
+## Arena drivers
 
-Controls: W accelerate, mouse steer, Space drift, E item, R reset.
+Your **Tats** or **Wideass** arena character is passed as URL params and rendered as a mascot billboard on the kart. In 2-player mode, your partner appears as their mascot via PlayroomKit sync.
+
+Rebuild: `npm run build:kart` from repo root (or full `npm run build`).
