@@ -1818,6 +1818,7 @@
             setTagIcon('#remote-tag-icon', net.peerAvatar, net.peerName);
             $('#app-title').textContent = net.myName + ' vs ' + net.peerName;
           }
+          if(activeGame === 'kart' && window.KartRacerGame) KartRacerGame.syncArenaChars();
         } else {
           $('#setup-status').textContent = MASCOTS[msg.payload.baseChar] + ' is in the arena — pick your fighter.';
         }
@@ -2216,7 +2217,8 @@
     panel: function(){ return gameApi.panel('panel-kart'); },
     hasPartner: hasPartner,
     myBaseChar: function(){ return net.myBaseChar; },
-    peerBaseChar: function(){ return net.peerBaseChar; }
+    peerBaseChar: function(){ return net.peerBaseChar; },
+    myRole: function(){ return net.isHost ? 'host' : 'joiner'; }
   }));
 
   function renderBG(){ BananagramsGame.render(); }

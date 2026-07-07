@@ -1,12 +1,17 @@
 /**
- * Arena Kart — embeds Mario-Kart-3.js with Tats/Wideass drivers from arena character pick.
+ * Arena Kart — 3D racer using arena characters + WebSocket relay (no PlayroomKit).
  */
 window.KartRacerGame = (function () {
   "use strict";
 
+  const SYNC_MS = 50;
+  const ARENA_SOURCE = "wideass-arena";
+
   let api = null;
   let iframe = null;
   let started = false;
+  let lastPoseAt = 0;
+  let poseListener = null;
 
   function el(tag, cls, text) {
     const n = document.createElement(tag);
@@ -16,6 +21,7 @@ window.KartRacerGame = (function () {
   }
 
   function isGameHost() { return api.isGameHost(); }
+  function myRole() { return api.myRole ? api.myRole() : (isGameHost() ? "host" : "joiner"); }
   function needsPartner() { return api.requiresPartnerToStart && api.requiresPartnerToStart(); }
   function toast(msg) { api.toast(msg); }
   function send(msg) { api.send(msg); }
@@ -32,18 +38,52 @@ window.KartRacerGame = (function () {
   }
 
   function charLabel(id) {
+    if (window.mascotLabel) return window.mascotLabel(id);
     return id === "wideass" ? "Wideass" : "Tats";
   }
 
-  function kartIframeUrl() {
-    const q = new URLSearchParams();
-    q.set("driver", myChar());
-    const peer = peerChar();
-    if (peer) q.set("peer", peer);
-    return "/kart/index.html?" + q.toString();
+  function postToIframe(msg) {
+    if (!iframe || !iframe.contentWindow) return;
+    iframe.contentWindow.postMessage(Object.assign({ source: ARENA_SOURCE }, msg), "*");
+  }
+
+  function pushArenaInit() {
+    postToIframe({
+      type: "arenaInit",
+      driver: myChar(),
+      peer: peerChar()
+    });
+  }
+
+  function bindPoseRelay() {
+    if (poseListener) return;
+    poseListener = function (event) {
+      const data = event.data;
+      if (!data || data.source !== "arena-kart" || data.type !== "pose") return;
+      if (!started) return;
+      const now = Date.now();
+      if (now - lastPoseAt < SYNC_MS) return;
+      lastPoseAt = now;
+      send({
+        type: "krPose",
+        payload: {
+          role: myRole(),
+          position: data.position,
+          rotationY: data.rotationY
+        }
+      });
+    };
+    window.addEventListener("message", poseListener);
+  }
+
+  function unbindPoseRelay() {
+    if (!poseListener) return;
+    window.removeEventListener("message", poseListener);
+    poseListener = null;
   }
 
   function destroyIframe() {
+    unbindPoseRelay();
     if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
     iframe = null;
   }
@@ -69,10 +109,10 @@ window.KartRacerGame = (function () {
     appendWaitBanner(wrap);
     const peer = peerChar();
     const vs = peer ? charLabel(myChar()) + " vs " + charLabel(peer) : charLabel(myChar()) + " solo run";
-    wrap.appendChild(el("p", "kart-pro-hint", "Arena Kart — you race as " + charLabel(myChar()) + ". W accelerate, mouse steer, Space drift, E item, R reset."));
+    wrap.appendChild(el("p", "kart-pro-hint", "You race as " + charLabel(myChar()) + " — same character as your arena pick. W accelerate, mouse steer, Space drift."));
     const bar = el("div", "c4-pro-bar");
     bar.appendChild(el("span", "c4-pro-pill", "🏎️ " + vs));
-    bar.appendChild(el("span", "c4-pro-pill", "Uses your arena character"));
+    bar.appendChild(el("span", "c4-pro-pill", "Arena character"));
     wrap.appendChild(bar);
     appendStartActions(wrap, startGame);
     panel.appendChild(wrap);
@@ -95,9 +135,11 @@ window.KartRacerGame = (function () {
     }
     wrap.appendChild(bar);
     iframe = el("iframe", "kart-mk3-frame");
-    iframe.src = kartIframeUrl();
+    iframe.src = "/kart/index.html";
     iframe.title = "Arena Kart — " + charLabel(myChar());
     iframe.setAttribute("allow", "accelerometer; gamepad; fullscreen");
+    iframe.addEventListener("load", pushArenaInit);
+    bindPoseRelay();
     wrap.appendChild(iframe);
     panel.appendChild(wrap);
   }
@@ -118,7 +160,7 @@ window.KartRacerGame = (function () {
     if (!isGameHost()) { toast("Waiting for arena host to start."); return; }
     if (needsPartner()) { toast("Switch to 1 Player, or wait for your partner."); return; }
     started = true;
-    send({ type: "krStart", payload: { driver: myChar(), peer: peerChar() } });
+    send({ type: "krStart", payload: {} });
     render();
   }
 
@@ -132,7 +174,17 @@ window.KartRacerGame = (function () {
         started = true;
       }
       render();
+      return;
     }
+    if (msg.type === "krPose") {
+      const payload = msg.payload || {};
+      if (payload.role === myRole()) return;
+      postToIframe({ type: "peerPose", payload: payload });
+    }
+  }
+
+  function syncArenaChars() {
+    pushArenaInit();
   }
 
   function destroy() {
@@ -144,7 +196,8 @@ window.KartRacerGame = (function () {
     init: function (opts) { api = opts; },
     render: render,
     handleMessage: handleMessage,
-    resync: function () {},
+    syncArenaChars: syncArenaChars,
+    resync: function () { if (started) pushArenaInit(); },
     destroy: destroy
   };
 })();

@@ -92,3 +92,10 @@ function mascotSVG(kind) {
     "</svg>"
   );
 }
+
+window.mascotSVG = mascotSVG;
+
+function mascotLabel(kind) {
+  return kind === "wideass" ? "Wideass" : "Tats";
+}
+window.mascotLabel = mascotLabel;

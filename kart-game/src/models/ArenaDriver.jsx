@@ -1,10 +1,10 @@
 import { Kart } from "./Kart";
 import { MascotBillboard } from "./MascotBillboard.jsx";
-import { readArenaParams } from "../arenaParams.js";
+import { useArenaBridge } from "../arenaBridge.js";
 
-/** Local player kart with Tats or Wideass driver from arena URL params. */
+/** Local player kart — driver comes from arena parent via postMessage. */
 export function ArenaDriver(props) {
-  const { driver } = readArenaParams();
+  const driver = useArenaBridge((state) => state.driver);
   return (
     <group>
       <Kart {...props} />

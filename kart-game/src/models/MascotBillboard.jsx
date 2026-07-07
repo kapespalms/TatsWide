@@ -1,5 +1,5 @@
 import { Billboard, Html } from "@react-three/drei";
-import { mascotSVG, driverLabel } from "../mascotSvg.js";
+import { mascotSVG, driverLabel } from "../arenaBridge.js";
 
 export function MascotBillboard({ driver, scale = 0.42, y = 1.05, label = false }) {
   const kind = driver === "tats" ? "tats" : "wideass";

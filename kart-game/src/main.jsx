@@ -4,6 +4,9 @@ import './index.css'
 import { WebGPUCanvas } from './WebGPUCanvas.jsx'
 import { MobileControls } from './mobile/MobileControls.jsx'
 import { LoadingScreen } from './LoadingScreen.jsx'
+import { initArenaBridge } from './arenaBridge.js'
+
+initArenaBridge()
 
 createRoot(document.getElementById('root')).render(
 

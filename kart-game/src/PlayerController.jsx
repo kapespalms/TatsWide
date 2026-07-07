@@ -10,7 +10,7 @@ import gsap from "gsap";
 import { useTouchScreen } from "./hooks/useTouchScreen";
 import VFXEmitter from "./wawa-vfx/VFXEmitter";
 import { ArenaDriver } from "./models/ArenaDriver";
-import { me } from "playroomkit";
+import { postPoseToArena } from "./arenaBridge.js";
 import { buildCollider, checkCollision, kartColliderSettings } from "./utils/KartCollision";
 import { MeshBVHHelper } from "three-mesh-bvh";
 
@@ -347,12 +347,7 @@ export const PlayerController = () => {
     }
 
     setPlayerPosition(player.position);
-  }
-
-  const updatePlayroomState = () =>{
-    if(me()){
-      me().setState("position", playerRef.current.position )
-    }
+    postPoseToArena(player.position, player.rotation.y);
   }
 
   useFrame((state, delta) => {
@@ -389,7 +384,6 @@ export const PlayerController = () => {
     jumpPlayer(isJumpPressed, left, right, joystick.x || gamepadButtons.x);
     driftPlayer(delta);
     getGamepad();
-    updatePlayroomState();
   });
 
   return (
