@@ -3,7 +3,7 @@ import { useProgress } from "@react-three/drei";
 import { useRef } from "react";
 import gsap from "gsap";
 
-const BUTTON_TEXT = "Loading...";
+const BUTTON_TEXT = "Wideass & Tats Kart";
 
 export const LoadingScreen = () => {
   const containerRef = useRef(null);
@@ -59,16 +59,17 @@ export const LoadingScreen = () => {
       </div>
       
       <div className="mention">
-        The following is a non-profit, fan-based project, <br/>
-        and is in no way affiliated with <strong>NINTENDO CO. LTD.</strong>
-        
-        The <strong>Mario Kart</strong> intellectual property is owned by <strong>NINTENDO</strong>
+        A non-profit fan project starring <strong>Tats</strong> &amp; <strong>Wideass</strong>.
+        <br />
+        Not affiliated with <strong>Nintendo Co. Ltd.</strong>
       </div>
+      <div className="loading-bg-overlay" aria-hidden="true" />
       <img
         ref={backgroundRef}
         className="background"
         src={"./snes.webp"}
-        style={{ filter: "blur(100px)"}}
+        alt=""
+        style={{ filter: "blur(100px)" }}
       />
     </div>
   );

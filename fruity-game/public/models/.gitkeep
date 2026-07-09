@@ -1,0 +1,2 @@
+# Drop custom .glb / .gltf / .hdr model files here.
+# See ../../MODELS.md for how to wire them up in src/modelConfig.js.

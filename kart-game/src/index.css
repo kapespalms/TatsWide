@@ -16,18 +16,19 @@
 
 .arena-kart-mascot.is-seated {
   width: 84px;
-  height: 108px;
+  height: 72px;
   overflow: hidden;
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5));
+  transform: translateY(28%);
 }
 .arena-kart-mascot.is-seated .arena-kart-mascot-svg {
-  margin-top: -4px;
+  margin-top: -2px;
 }
 .arena-kart-mascot.is-seated .arena-kart-mascot-svg svg {
   width: 84px;
   height: auto;
   display: block;
-  transform: scale(0.5);
+  transform: scale(0.48);
   transform-origin: center top;
 }
 .arena-kart-mascot {
@@ -98,6 +99,100 @@
   color: #ff3d1f;
   text-shadow: 0 2px 0 #111;
   padding-bottom: 24px;
+}
+
+/* ---------- Race HUD (laps / coins / time / flash) ---------- */
+.race-hud {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+.race-hud-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: rgba(10, 12, 20, 0.82);
+  border: 3px solid #111;
+  border-radius: 10px;
+  padding: 4px 12px;
+  box-shadow: 3px 3px 0 #111;
+}
+.race-hud-label {
+  font-family: "Orbitron", sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #ffb347;
+}
+.race-hud-value {
+  font-family: "Orbitron", sans-serif;
+  font-size: 26px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+  text-shadow: 0 2px 0 #111;
+}
+.race-hud-sub {
+  font-size: 15px;
+  font-weight: 700;
+  color: #9fb0c9;
+}
+.race-hud-coins .race-hud-value { color: #ffd23f; }
+.race-hud-coin-icon { font-size: 20px; }
+.race-hud-time-value { font-size: 18px; color: #8fe3ff; }
+
+.race-flash {
+  position: fixed;
+  top: 32%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 60;
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(34px, 8vw, 78px);
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 3px 0 #ff3d1f, 0 0 22px rgba(255, 61, 31, 0.7);
+  animation: raceFlashPop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.6);
+  pointer-events: none;
+}
+@keyframes raceFlashPop {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+.race-finish {
+  position: fixed;
+  top: 46%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 62;
+  text-align: center;
+  background: rgba(10, 12, 20, 0.9);
+  border: 4px solid #ffd23f;
+  border-radius: 16px;
+  padding: 22px 40px;
+  box-shadow: 6px 6px 0 #111;
+  pointer-events: none;
+}
+.race-finish-title {
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(32px, 7vw, 64px);
+  font-weight: 900;
+  color: #ffd23f;
+  text-shadow: 0 3px 0 #111;
+}
+.race-finish-sub {
+  margin-top: 6px;
+  font-family: "Orbitron", sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
 }
 
 @font-face {
@@ -248,11 +343,19 @@ canvas{
     }
     .loading{
         font-family: "DIN 2014";
-
         font-weight: 600;
-
-        font-size: 32px;
-        /* transform: scale(1.2, 1.0); */
+        font-size: clamp(22px, 4.5vw, 34px);
+        text-align: center;
+        max-width: min(92vw, 28rem);
+        line-height: 1.15;
+        z-index: 1;
+    }
+    .loading-bg-overlay{
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        background: linear-gradient(180deg, #1a0a2e 0%, #2d0f1f 45%, #0f1a2e 100%);
+        opacity: 0.92;
     }
     .mention{
         position:absolute;

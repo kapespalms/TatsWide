@@ -1,0 +1,13 @@
+# Third-party notices
+
+## Arena Party
+
+Arena Party is based on [Quarantine Party](https://github.com/2001-second-split/Quarantine-Party)
+by Ayse Erduran, Patty Arunyavikul, Stephanie Chiang, and Tiffany Ma.
+
+The upstream repository does not include an explicit open-source license. This vendored
+fork is used for educational and personal arena integration only.
+
+## Arena Kart
+
+See `kart-game/README.md` — based on [Mario-Kart-3.js](https://github.com/Lunakepio/Mario-Kart-3.js) (MIT).

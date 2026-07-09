@@ -2,7 +2,7 @@ import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import { useArenaBridge } from "../arenaBridge.js";
-import { MascotBillboard } from "./MascotBillboard.jsx";
+import { MascotBillboard, PEER_SEATED_MASCOT } from "./MascotBillboard.jsx";
 
 /** Partner kart — position from arena WebSocket relay, character from arena pick. */
 export function ArenaPeerRacer() {
@@ -28,7 +28,12 @@ export function ArenaPeerRacer() {
   return (
     <group ref={group} scale={0.85}>
       <primitive object={kartClone} />
-      <MascotBillboard driver={peer} />
+      <MascotBillboard
+        driver={peer}
+        scale={PEER_SEATED_MASCOT.scale}
+        y={PEER_SEATED_MASCOT.y}
+        z={PEER_SEATED_MASCOT.z}
+      />
     </group>
   );
 }

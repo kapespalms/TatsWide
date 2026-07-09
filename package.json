@@ -2,8 +2,10 @@
   "name": "tats-wideass-arena",
   "private": true,
   "scripts": {
-    "build": "npm run build:kart && rm -rf dist && mkdir -p dist dist/kart dist/models dist/textures && cp index.html wideass-tats-game-arena.html dist/ && cp -r css js assets dist/ && cp -r public/* dist/ && cp -r kart-game/dist/* dist/kart/ && cp -r kart-game/dist/models/* dist/models/ && cp -r kart-game/dist/textures/* dist/textures/",
+    "build": "npm run build:kart && npm run build:party && npm run build:fruity && rm -rf dist && mkdir -p dist dist/kart dist/party dist/fruity dist/models dist/textures && cp index.html wideass-tats-game-arena.html NOTICE dist/ && cp -r css js assets dist/ && cp -r public/* dist/ && cp -r kart-game/dist/* dist/kart/ && cp -r party-game/dist/* dist/party/ && cp -r fruity-game/dist/* dist/fruity/ && cp -r kart-game/dist/models/* dist/models/ && cp -r kart-game/dist/textures/* dist/textures/",
     "build:kart": "cd kart-game && npm install && npm run build",
+    "build:party": "cd party-game && npm install && npm run build",
+    "build:fruity": "cd fruity-game && npm install && npm run build",
     "deploy": "npm run build && npx --yes wrangler deploy"
   },
   "dependencies": {

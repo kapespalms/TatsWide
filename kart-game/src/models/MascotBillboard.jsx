@@ -1,11 +1,18 @@
 import { Billboard, Html } from "@react-three/drei";
 import { mascotSVG, driverLabel } from "../arenaBridge.js";
 
-/** In-kart mascot: half height, anchored in the driver seat. */
+/** In-kart mascot: half height, anchored in the driver seat (body-local space). */
 export const SEATED_MASCOT = {
-  scale: 0.28,
-  y: 0.46,
-  z: 0.1,
+  scale: 0.2,
+  y: 0.34,
+  z: 0.22,
+};
+
+/** Peer kart uses the raw GLB root — seat offset differs from Kart body space. */
+export const PEER_SEATED_MASCOT = {
+  scale: 0.2,
+  y: 0.08,
+  z: 0.05,
 };
 
 export function MascotBillboard({
@@ -21,7 +28,7 @@ export function MascotBillboard({
     <Billboard position={[0, y, z]} follow lockX lockZ>
       <Html
         transform
-        center={!seated}
+        center
         distanceFactor={4.5}
         scale={scale}
         zIndexRange={[100, 0]}

@@ -13,6 +13,7 @@ import { ArenaDriver } from "./models/ArenaDriver";
 import { postPoseToArena } from "./arenaBridge.js";
 import { buildCollider, checkCollision, kartColliderSettings } from "./utils/KartCollision";
 import { MeshBVHHelper } from "three-mesh-bvh";
+import { MAX_COIN_BONUS, COIN_TOP_SPEED_PER, PRIZE_BOOST_SPEED } from "./raceConfig";
 
 // Check for debug mode in URL (?debug)
 const isDebugMode = typeof window !== "undefined" && window.location.search.includes("debug");
@@ -131,6 +132,22 @@ export const PlayerController = () => {
     };
   }, [scene]);
 
+  // Debug: press K/B to log the kart's current world position for authoring
+  // coins / prize boxes in raceConfig.js (only active with ?debug in the URL).
+  useEffect(() => {
+    if (!isDebugMode) return;
+    const onKey = (e) => {
+      const key = e.key.toLowerCase();
+      if (key !== "k" && key !== "b") return;
+      const pos = useGameStore.getState().playerPosition;
+      if (!pos) return;
+      const coord = `{ x: ${pos.x.toFixed(1)}, y: ${pos.y.toFixed(1)}, z: ${pos.z.toFixed(1)} }`;
+      console.log((key === "k" ? "🪙 COIN " : "🎁 PRIZE_BOX ") + coord);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const getGamepad = () => {
     if (navigator.getGamepads) {
       const gamepads = navigator.getGamepads();
@@ -184,8 +201,18 @@ export const PlayerController = () => {
       return;
     }
 
-    const maxSpeed = kartSettings.speed.max + (turbo.current > 0 ? 40 : 0);
-    maxSpeed > kartSettings.speed.max
+    const raceState = useGameStore.getState();
+    const coinBonus =
+      Math.min(raceState.coins || 0, MAX_COIN_BONUS) * COIN_TOP_SPEED_PER;
+    const prizeBoosting = Date.now() < (raceState.boostEndsAt || 0);
+    const prizeBonus = prizeBoosting ? PRIZE_BOOST_SPEED : 0;
+
+    const maxSpeed =
+      kartSettings.speed.max +
+      coinBonus +
+      prizeBonus +
+      (turbo.current > 0 ? 40 : 0);
+    maxSpeed > kartSettings.speed.max + coinBonus || prizeBoosting
       ? setIsBoosting(true)
       : setIsBoosting(false);
 

@@ -6,6 +6,7 @@ import { MobileControls } from './mobile/MobileControls.jsx'
 import { LoadingScreen } from './LoadingScreen.jsx'
 import { initArenaBridge } from './arenaBridge.js'
 import { DriverHud } from './DriverHud.jsx'
+import { RaceHud } from './RaceHud.jsx'
 
 initArenaBridge()
 
@@ -13,6 +14,7 @@ createRoot(document.getElementById('root')).render(
 
     <div className='canvas-container'>
       <DriverHud />
+      <RaceHud />
       <MobileControls/>
       <Suspense fallback={false}>
       <WebGPUCanvas />

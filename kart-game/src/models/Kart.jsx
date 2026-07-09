@@ -24,7 +24,8 @@ export function Kart({
   driftPower,
   jumpOffset,
   backWheelOffset,
-  inputTurn
+  inputTurn,
+  children,
 }) {
   const { nodes, materials } = useGLTF("./models/kart.glb");
 
@@ -394,6 +395,7 @@ export function Kart({
                 }}
               />
             </group>
+            {children}
           </mesh>
 
           <mesh

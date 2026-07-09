@@ -6,9 +6,8 @@ import { useArenaBridge } from "../arenaBridge.js";
 export function ArenaDriver(props) {
   const driver = useArenaBridge((state) => state.driver);
   return (
-    <group>
-      <Kart {...props} />
+    <Kart {...props}>
       <MascotBillboard driver={driver} />
-    </group>
+    </Kart>
   );
 }

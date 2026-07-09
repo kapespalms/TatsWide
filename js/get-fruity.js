@@ -5,8 +5,17 @@
 window.GetFruityGame = (function () {
   "use strict";
 
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
   const WIN_SCORE = 10;
   const START_EGGPLANTS = 3;
+  const PARTNER_PATH_CHANCE = 0.22;
+  const REVEAL_MS = 3800;
 
   const FRUIT_META = {
     chaos: { icon: "🎴", label: "Chaos", color: "#e11d48" },
@@ -80,25 +89,42 @@ window.GetFruityGame = (function () {
   let flairTimer = null;
   let activeFlair = null;
 
+  /* ---- 3D board (iframe visualizer at /fruity/) ---- */
+  const FRUITY_SRC = "/fruity/";
+  const ARENA_SOURCE = "wideass-arena";
+  let boardFrame = null;
+  let boardHost = null;
+  let uiLayer = null;
+  let frameListener = null;
+  let boardRollTick = 0;
+  let lastMoveKey = "";
+  let revealTimer = null;
+
   const state = {
     started: false,
     phase: "setup",
     turn: "host",
+    teamScore: 0,
     scores: { host: 0, joiner: 0 },
     positions: { host: 0, joiner: 0 },
     pieces: { host: null, joiner: null },
     eggplants: { host: START_EGGPLANTS, joiner: START_EGGPLANTS },
     lastRoll: null,
+    lastRolls: null,
     lastMover: null,
     activeCard: null,
     cardFor: null,
+    cardMode: null,
+    cardAnswers: { host: null, joiner: null },
+    cardReveal: null,
     answered: { host: false, joiner: false },
     eggplantActive: false,
     eggplantPlayedBy: null,
     winner: null,
     flair: null,
     mode: "duo",
-    soloPlayer: null
+    soloPlayer: null,
+    skipRollFor: null
   };
 
   function myRole() { return api.myRole(); }
@@ -117,21 +143,27 @@ window.GetFruityGame = (function () {
       started: false,
       phase: "setup",
       turn: "host",
+      teamScore: 0,
       scores: { host: 0, joiner: 0 },
       positions: { host: 0, joiner: 0 },
       pieces: { host: null, joiner: null },
       eggplants: { host: START_EGGPLANTS, joiner: START_EGGPLANTS },
       lastRoll: null,
+      lastRolls: null,
       lastMover: null,
       activeCard: null,
       cardFor: null,
+      cardMode: null,
+      cardAnswers: { host: null, joiner: null },
+      cardReveal: null,
       answered: { host: false, joiner: false },
       eggplantActive: false,
       eggplantPlayedBy: null,
       winner: null,
       flair: null,
       mode: "duo",
-      soloPlayer: null
+      soloPlayer: null,
+      skipRollFor: null
     };
   }
 
@@ -140,27 +172,42 @@ window.GetFruityGame = (function () {
       started: state.started,
       phase: state.phase,
       turn: state.turn,
+      teamScore: state.teamScore,
       scores: Object.assign({}, state.scores),
       positions: Object.assign({}, state.positions),
       pieces: Object.assign({}, state.pieces),
       eggplants: Object.assign({}, state.eggplants),
       lastRoll: state.lastRoll,
+      lastRolls: state.lastRolls,
       lastMover: state.lastMover,
       activeCard: state.activeCard,
       cardFor: state.cardFor,
+      cardMode: state.cardMode,
+      cardAnswers: Object.assign({}, state.cardAnswers),
+      cardReveal: state.cardReveal,
       answered: Object.assign({}, state.answered),
       eggplantActive: state.eggplantActive,
       eggplantPlayedBy: state.eggplantPlayedBy,
       winner: state.winner,
       flair: state.flair,
       mode: state.mode,
-      soloPlayer: state.soloPlayer
+      soloPlayer: state.soloPlayer,
+      skipRollFor: state.skipRollFor
     };
   }
 
   function importPayload(p) {
     if (!p) return;
     Object.assign(state, freshState(), p);
+    if (typeof state.teamScore !== "number") {
+      state.teamScore = Math.max(state.scores.host || 0, state.scores.joiner || 0);
+    }
+    state.scores.host = state.teamScore;
+    state.scores.joiner = state.teamScore;
+    if (!state.cardAnswers) state.cardAnswers = { host: null, joiner: null };
+    if (!state.lastRolls && state.lastRoll) {
+      state.lastRolls = { die1: state.lastRoll, die2: 0, total: state.lastRoll };
+    }
   }
 
   function sync(extra) {
@@ -203,12 +250,24 @@ window.GetFruityGame = (function () {
     return (from + steps) % SPACES.length;
   }
 
-  function bumpScore(role, delta) {
-    state.scores[role] = Math.max(0, (state.scores[role] || 0) + delta);
-    if (state.scores[role] >= WIN_SCORE) {
-      state.winner = role;
+  function rollTwoDice() {
+    const die1 = 1 + Math.floor(Math.random() * 6);
+    const die2 = 1 + Math.floor(Math.random() * 6);
+    return { die1: die1, die2: die2, total: die1 + die2 };
+  }
+
+  function bumpTeamScore(delta) {
+    state.teamScore = Math.max(0, (state.teamScore || 0) + delta);
+    state.scores.host = state.teamScore;
+    state.scores.joiner = state.teamScore;
+    if (state.teamScore >= WIN_SCORE) {
+      state.winner = "team";
       state.phase = "ended";
     }
+  }
+
+  function bumpScore(role, delta) {
+    bumpTeamScore(delta);
   }
 
   function flairText(name, idx) {
@@ -225,6 +284,9 @@ window.GetFruityGame = (function () {
     const pop = el("div", "gf-flair-pop");
     pop.appendChild(el("span", "gf-flair-emoji", "🍇"));
     pop.appendChild(el("strong", null, flair.text));
+    if (flair.body) {
+      pop.appendChild(el("p", "gf-flair-body", flair.body));
+    }
     document.body.appendChild(pop);
     requestAnimationFrame(function () { pop.classList.add("is-visible"); });
     flairTimer = setTimeout(function () {
@@ -234,57 +296,289 @@ window.GetFruityGame = (function () {
     render();
   }
 
-  function awardFruit(role, flairIdx) {
-    bumpScore(role, 1);
+  function awardFruit(flairIdx) {
+    bumpTeamScore(1);
     const idx = typeof flairIdx === "number" ? flairIdx : Math.floor(Math.random() * FLAIR_TEMPLATES.length);
-    state.flair = { text: flairText(nameFor(role), idx), idx: idx, role: role };
+    state.flair = { text: "Team Fruit +1! 🍇", idx: idx, role: "team" };
     sync();
     showFlairOverlay(state.flair);
     if (state.winner) {
-      celebrate(nameFor(state.winner) + " is the fruitiest! 🍇", "First to " + WIN_SCORE + " fruits wins!");
+      celebrate("You are the fruitiest team! 🍇", "First to " + WIN_SCORE + " shared fruits wins!");
     }
   }
 
-  function drawCard(fruitKey) {
-    if (window.PartyGames && PartyGames.drawPrompt) {
-      return PartyGames.drawPrompt(fruitKey);
+  function drawSelfQuestion() {
+    if (window.FruityQuestions && FruityQuestions.drawSelf) {
+      return FruityQuestions.drawSelf();
     }
-    return { type: fruitKey, text: "Share something fruity about yourself!" };
+    return {
+      mode: "self",
+      type: "mc",
+      id: "fallback_self",
+      prompt: "What is my vibe when plans change at the last minute?",
+      options: [
+        { id: "A", text: "Thrive — chaos is my love language." },
+        { id: "B", text: "Quietly spiral but pretend I'm fine." },
+        { id: "C", text: "Immediately suggest a better plan." },
+        { id: "D", text: "Cancel everything and go to bed." }
+      ]
+    };
+  }
+
+  function drawPartnerQuestion() {
+    if (window.FruityQuestions && FruityQuestions.drawPartner) {
+      return FruityQuestions.drawPartner();
+    }
+    return drawSelfQuestion();
+  }
+
+  function drawFruitCard() {
+    if (window.FruityQuestions && FruityQuestions.drawFruitCard) {
+      return FruityQuestions.drawFruitCard();
+    }
+    return drawSelfQuestion();
+  }
+
+  function answersMatch(a, b) {
+    if (window.FruityQuestions && FruityQuestions.answersMatch) {
+      return FruityQuestions.answersMatch(a, b, state.activeCard);
+    }
+    return a === b;
+  }
+
+  function resolveWatermelonEvent(role, event) {
+    if (event.pointModifier) bumpTeamScore(event.pointModifier);
+    if (event.spaceModifier) {
+      state.positions[role] = movePosition(state.positions[role], event.spaceModifier);
+    }
+    if (event.skipNextRoll) state.skipRollFor = role;
+    state.flair = {
+      text: event.eventTitle || "🍉 Watermelon Event!",
+      idx: 0,
+      role: "team",
+      body: event.eventText
+    };
+    sync();
+    showFlairOverlay(state.flair);
+    if (state.winner) {
+      celebrate("You are the fruitiest team! 🍇", "First to " + WIN_SCORE + " shared fruits wins!");
+      return;
+    }
+    clearCardPhase();
+    sync();
+  }
+
+  function resolveUltimateOutcome() {
+    const card = state.activeCard;
+    if (!card || card.cardKind !== "ultimate" || !card.challenge) return;
+    const c = card.challenge;
+    const match = state.cardReveal && state.cardReveal.match;
+
+    if (c.challengeType === "betrayal") {
+      const h = state.cardAnswers.host;
+      const j = state.cardAnswers.joiner;
+      if (h === "SHARE" && j === "SHARE") {
+        bumpTeamScore(4);
+        state.flair = { text: "Both shared! +4 team fruit! 🍇", idx: 0, role: "team" };
+        showFlairOverlay(state.flair);
+      } else if (h === "STEAL" && j === "STEAL") {
+        state.teamScore = 0;
+        state.scores.host = 0;
+        state.scores.joiner = 0;
+        state.positions.host = 0;
+        state.positions.joiner = 0;
+        state.flair = { text: "Both stole! Score wiped — back to START! 💥", idx: 0, role: "team" };
+        showFlairOverlay(state.flair);
+      } else if (h && j) {
+        bumpTeamScore(-2);
+        state.flair = { text: "Betrayal! -2 team fruit. Chaos King crowned. 👑", idx: 0, role: "team" };
+        showFlairOverlay(state.flair);
+      }
+      return;
+    }
+
+    if (c.challengeType === "roulette" && isGameHost()) {
+      if (Math.random() < 0.17) {
+        bumpTeamScore(-3);
+        state.flair = { text: "SPLAT! -3 fruit! 🎰", idx: 0, role: "team" };
+      } else {
+        const role = state.cardFor || state.turn;
+        state.positions[role] = movePosition(state.positions[role], 5);
+        state.flair = { text: "Roulette win! Teleport +5 spaces! 🎲", idx: 0, role: "team" };
+      }
+      showFlairOverlay(state.flair);
+      return;
+    }
+
+    if (c.challengeType === "social_hijack" && match) {
+      bumpTeamScore(c.reward || 2);
+      state.flair = { text: "Public exhibition cleared! +" + (c.reward || 2) + " fruit! 📸", idx: 0, role: "team" };
+      showFlairOverlay(state.flair);
+      return;
+    }
+
+    if (match) {
+      const bonus = c.reward || (c.challengeType === "telepathy" ? 3 : 2);
+      bumpTeamScore(bonus);
+      state.flair = { text: "Ultimate cleared! +" + bonus + " fruit! ⚡", idx: 0, role: "team" };
+      showFlairOverlay(state.flair);
+      return;
+    }
+
+    if (c.penalty) {
+      bumpTeamScore(c.penalty);
+      state.flair = { text: "Ultimate failed! " + c.penalty + " fruit 💀", idx: 0, role: "team" };
+      showFlairOverlay(state.flair);
+    }
+  }
+
+  function cancelRevealTimer() {
+    if (revealTimer) {
+      clearTimeout(revealTimer);
+      revealTimer = null;
+    }
   }
 
   function clearCardPhase() {
+    cancelRevealTimer();
     state.activeCard = null;
     state.cardFor = null;
+    state.cardMode = null;
+    state.cardAnswers = { host: null, joiner: null };
+    state.cardReveal = null;
     state.answered = { host: false, joiner: false };
     state.eggplantActive = false;
     state.eggplantPlayedBy = null;
-    state.phase = "playing";
+    state.phase = state.winner ? "ended" : "playing";
     if (!isSolo()) {
       state.turn = state.turn === "host" ? "joiner" : "host";
     }
+  }
+
+  function beginQuestionCard(role, card) {
+    state.phase = "card";
+    state.cardFor = role;
+    state.activeCard = card;
+    state.cardMode = card.mode || "self";
+    state.cardAnswers = { host: null, joiner: null };
+    state.answered = { host: false, joiner: false };
+  }
+
+  function bothPlayersAnswered() {
+    if (isSolo()) {
+      return !!state.cardAnswers[state.soloPlayer || myRole()];
+    }
+    return !!(state.cardAnswers.host && state.cardAnswers.joiner);
+  }
+
+  function answerLabel(role) {
+    const choice = state.cardAnswers[role];
+    if (!choice || !state.activeCard) return "?";
+    if (window.FruityQuestions && FruityQuestions.optionLabel) {
+      return FruityQuestions.optionLabel(state.activeCard, choice);
+    }
+    return choice;
+  }
+
+  function buildReveal() {
+    const hostPick = state.cardAnswers.host;
+    const joinerPick = state.cardAnswers.joiner;
+    const match = isSolo()
+      ? true
+      : answersMatch(hostPick, joinerPick);
+    const seed =
+      (hostPick || "").charCodeAt(0) +
+      (joinerPick || "").charCodeAt(0) +
+      (state.activeCard && state.activeCard.id ? state.activeCard.id.length : 0);
+    const flair =
+      window.FruityQuestions && FruityQuestions.pickRevealFlair
+        ? FruityQuestions.pickRevealFlair(match, seed)
+        : {
+            title: match ? "PERFECT MATCH!" : "CHAOTIC INCOMPATIBILITY!",
+            sub: match ? "+1 team fruit!" : "0 fruit this round.",
+            theme: match ? "pink" : "red"
+          };
+    state.cardReveal = {
+      match: match,
+      hostPick: hostPick,
+      joinerPick: joinerPick,
+      hostLabel: isSolo() ? answerLabel(state.soloPlayer || "host") : answerLabel("host"),
+      joinerLabel: isSolo() ? "" : answerLabel("joiner"),
+      title: flair.title,
+      sub: match
+        ? flair.sub
+        : flair.sub +
+          " " +
+          nameFor("host") +
+          " picked " +
+          (hostPick || "?") +
+          " but " +
+          nameFor("joiner") +
+          " picked " +
+          (joinerPick || "?") +
+          ".",
+      theme: flair.theme
+    };
+    state.phase = "reveal";
+  }
+
+  function finishReveal() {
+    cancelRevealTimer();
+    if (!state.cardReveal) {
+      clearCardPhase();
+      sync();
+      render();
+      return;
+    }
+    if (state.cardReveal.match) {
+      if (state.activeCard && state.activeCard.cardKind === "ultimate") {
+        resolveUltimateOutcome();
+      } else {
+        awardFruit();
+      }
+    } else if (state.activeCard && state.activeCard.cardKind === "ultimate") {
+      resolveUltimateOutcome();
+    }
+    if (!state.winner) {
+      clearCardPhase();
+    } else {
+      state.activeCard = null;
+      state.cardReveal = null;
+      state.cardAnswers = { host: null, joiner: null };
+    }
+    sync();
+    render();
+  }
+
+  function scheduleRevealFinish() {
+    cancelRevealTimer();
+    if (!isGameHost()) return;
+    revealTimer = setTimeout(function () {
+      finishReveal();
+    }, REVEAL_MS);
   }
 
   function resolveLanding(role, pos) {
     const space = SPACES[pos];
     if (!space) return;
     if (space.kind === "path") {
+      if (!isSolo() && Math.random() < PARTNER_PATH_CHANCE) {
+        beginQuestionCard(role, drawPartnerQuestion());
+        sync();
+        return;
+      }
       clearCardPhase();
       sync();
       return;
     }
     if (space.kind === "golden") {
-      if (isSolo()) {
-        bumpScore(state.soloPlayer || role, 1);
-      } else {
-        bumpScore("host", 1);
-        bumpScore("joiner", 1);
-      }
+      bumpTeamScore(1);
       const idx = Math.floor(Math.random() * FLAIR_TEMPLATES.length);
-      state.flair = { text: "Golden Banana! Everyone Got a Fruit!!!", idx: idx, role: "both" };
+      state.flair = { text: "Golden Banana! +1 team fruit! 🍌", idx: idx, role: "team" };
       sync();
       showFlairOverlay(state.flair);
       if (state.winner) {
-        celebrate(nameFor(state.winner) + " is the fruitiest! 🍇", "First to " + WIN_SCORE + " fruits wins!");
+        celebrate("You are the fruitiest team! 🍇", "First to " + WIN_SCORE + " shared fruits wins!");
         return;
       }
       clearCardPhase();
@@ -292,13 +586,8 @@ window.GetFruityGame = (function () {
       return;
     }
     if (space.kind === "rotten") {
-      if (isSolo()) {
-        bumpScore(state.soloPlayer || role, -1);
-      } else {
-        bumpScore("host", -1);
-        bumpScore("joiner", -1);
-      }
-      state.flair = { text: "Rotten Apple! Everyone lost a fruit! 🍎", idx: 0, role: "both" };
+      bumpTeamScore(-1);
+      state.flair = { text: "Rotten Apple! -1 team fruit! 🍎", idx: 0, role: "team" };
       sync();
       showFlairOverlay(state.flair);
       clearCardPhase();
@@ -306,24 +595,47 @@ window.GetFruityGame = (function () {
       return;
     }
     if (space.kind === "fruit") {
-      state.phase = "card";
-      state.cardFor = role;
-      state.activeCard = drawCard(space.fruit);
-      state.answered = { host: false, joiner: false };
-      if (state.eggplantActive) {
-        /* eggplant already armed — both must answer */
+      const card = drawFruitCard();
+      if (card.cardKind === "watermelon") {
+        resolveWatermelonEvent(role, card);
+        return;
       }
+      if (
+        card.cardKind === "ultimate" &&
+        card.challenge &&
+        card.challenge.challengeType === "roulette" &&
+        isGameHost()
+      ) {
+        state.activeCard = card;
+        state.cardFor = role;
+        resolveUltimateOutcome();
+        clearCardPhase();
+        sync();
+        return;
+      }
+      beginQuestionCard(role, card);
       sync();
       return;
     }
   }
 
-  function finishRoll(role, roll) {
+  function finishRoll(role, rolls) {
+    const total = typeof rolls === "number" ? rolls : rolls.total;
     const from = state.positions[role];
-    const to = movePosition(from, roll);
+    const to = movePosition(from, total);
     state.positions[role] = to;
-    state.lastRoll = roll;
+    if (typeof rolls === "object" && rolls != null) {
+      state.lastRolls = { die1: rolls.die1, die2: rolls.die2, total: rolls.total };
+      state.lastRoll = rolls.total;
+    } else {
+      state.lastRoll = total;
+      state.lastRolls = { die1: total, die2: 0, total: total };
+    }
     state.lastMover = role;
+    boardRollTick++;
+    lastMoveKey =
+      role + ":" + total + ":" +
+      state.positions.host + ":" + state.positions.joiner;
     resolveLanding(role, to);
     sync();
     render();
@@ -331,7 +643,7 @@ window.GetFruityGame = (function () {
 
   function rollDice() {
     if (!state.started || state.winner) return;
-    if (state.phase === "card") {
+    if (state.phase === "card" || state.phase === "reveal") {
       toast("Answer the card first!");
       return;
     }
@@ -339,38 +651,65 @@ window.GetFruityGame = (function () {
       toast("Not your turn.");
       return;
     }
+    if (state.skipRollFor === myRole()) {
+      state.skipRollFor = null;
+      toast("Skipped turn — couch browsing paralysis! 🛋️");
+      if (!isSolo()) {
+        state.turn = state.turn === "host" ? "joiner" : "host";
+      }
+      sync();
+      render();
+      return;
+    }
+    postToFrame({ type: "gfDiceSpin" });
     if (isGameHost()) {
-      const roll = 1 + Math.floor(Math.random() * 6);
-      finishRoll(myRole(), roll);
+      finishRoll(myRole(), rollTwoDice());
     } else {
       send({ type: "gfRollRequest", payload: { from: myRole() } });
     }
   }
 
-  function markAnswered() {
-    if (state.phase !== "card") return;
-    state.answered[myRole()] = true;
+  function submitCardAnswer(choice) {
+    if (state.phase !== "card" || !choice) return;
+    const role = myRole();
+    if (state.cardAnswers[role]) return;
 
-    const bothNeeded = state.eggplantActive && !isSolo();
-    const roller = state.cardFor;
-    const rollerDone = state.answered[roller];
-    const other = roller === "host" ? "joiner" : "host";
-    const otherDone = !bothNeeded || state.answered[other];
+    state.cardAnswers[role] = choice;
+    state.answered[role] = true;
 
-    if (rollerDone && otherDone) {
+    if (isSolo()) {
       if (isGameHost()) {
-        awardFruit(roller);
-        if (!state.winner) clearCardPhase();
+        buildReveal();
         sync();
+        scheduleRevealFinish();
       } else {
-        send({ type: "gfAnswered", payload: { role: myRole(), complete: true } });
+        send({ type: "gfSubmitAnswer", payload: { role: role, choice: choice } });
+      }
+      render();
+      return;
+    }
+
+    if (bothPlayersAnswered()) {
+      if (isGameHost()) {
+        buildReveal();
+        sync();
+        scheduleRevealFinish();
+      } else {
+        send({
+          type: "gfSubmitAnswer",
+          payload: { role: role, choice: choice, complete: true }
+        });
       }
     } else if (isGameHost()) {
       sync();
     } else {
-      send({ type: "gfAnswered", payload: { role: myRole() } });
+      send({ type: "gfSubmitAnswer", payload: { role: role, choice: choice } });
     }
     render();
+  }
+
+  function markAnswered() {
+    submitCardAnswer("A");
   }
 
   function playEggplant() {
@@ -444,220 +783,180 @@ window.GetFruityGame = (function () {
     render();
   }
 
-  function renderCard(panel) {
-    const box = el("div", "gf-card-overlay");
-    const meta = FRUIT_META[state.activeCard.type] || { icon: "🍇", label: "Fruit Card" };
-    box.appendChild(el("h4", "gf-card-title", meta.icon + " " + meta.label));
-    const body = el("div", "gf-card-body");
-    const card = state.activeCard;
-    if (card.type === "brain") {
-      body.appendChild(el("p", null, card.question));
-      const opts = el("ul", "gf-card-options");
-      (card.options || []).forEach(function (o) {
-        opts.appendChild(el("li", null, o));
-      });
-      body.appendChild(opts);
-    } else if (card.type === "thisorthat") {
-      body.appendChild(el("p", null, card.a + "  vs  " + card.b));
-    } else if (card.type === "lore") {
-      body.appendChild(el("p", null, "Drop some lore about: "));
-      body.appendChild(el("strong", "gf-lore-cat", card.category));
-    } else {
-      body.appendChild(el("p", null, card.text));
+  function baseCharFor(role) {
+    if (role === myRole()) {
+      const c = api.myBaseChar && api.myBaseChar();
+      return c === "wideass" ? "wideass" : "tats";
     }
-    box.appendChild(body);
-
-    const who = nameFor(state.cardFor);
-    box.appendChild(el("p", "gf-card-who", who + " landed here — answer to claim the fruit!"));
-
-    if (state.eggplantActive) {
-      box.appendChild(el("p", "gf-eggplant-hint", "🍆 Eggplant active — both players must participate!"));
-    }
-
-    const actions = el("div", "gf-card-actions");
-    const doneBtn = el("button", "gf-pro-btn", state.answered[myRole()] ? "Answered ✓" : "I answered!");
-    doneBtn.disabled = state.answered[myRole()];
-    doneBtn.addEventListener("click", markAnswered);
-    actions.appendChild(doneBtn);
-    box.appendChild(actions);
-
-    const status = el("p", "gf-answer-status");
-    activeRoles().forEach(function (r) {
-      if (state.eggplantActive || r === state.cardFor) {
-        status.appendChild(el("span", "gf-ans-chip" + (state.answered[r] ? " is-done" : ""), nameFor(r) + (state.answered[r] ? " ✓" : " …")));
-      }
-    });
-    box.appendChild(status);
-    panel.appendChild(box);
+    const c = api.peerBaseChar && api.peerBaseChar();
+    if (!c) return role === "host" ? "tats" : "wideass";
+    return c === "wideass" ? "wideass" : "tats";
   }
 
-  function renderBoard(wrap) {
-    const board = el("div", "gf-board");
-    const grid = el("div", "gf-board-grid");
-    const cells = {};
-    SPACES.forEach(function (sp, i) {
-      const pos = spaceGridPos(i);
-      const key = pos.r + "," + pos.c;
-      cells[key] = { space: sp, index: i };
-    });
-
-    for (let r = 0; r < 10; r++) {
-      for (let c = 0; c < 10; c++) {
-        if (r >= 1 && r <= 8 && c >= 1 && c <= 8) continue;
-        const key = r + "," + c;
-        const info = cells[key];
-        const cell = el("div", "gf-cell");
-        cell.style.gridRow = String(r + 1);
-        cell.style.gridColumn = String(c + 1);
-        if (!info) {
-          cell.classList.add("gf-cell-empty");
-          grid.appendChild(cell);
-          continue;
-        }
-        const sp = info.space;
-        const idx = info.index;
-        if (sp.kind === "golden") {
-          cell.classList.add("gf-cell-corner", "gf-cell-golden");
-          cell.appendChild(el("span", "gf-corner-icon", sp.icon));
-          cell.appendChild(el("span", "gf-corner-label", "Golden\nBanana"));
-        } else if (sp.kind === "rotten") {
-          cell.classList.add("gf-cell-corner", "gf-cell-rotten");
-          cell.appendChild(el("span", "gf-corner-icon", sp.icon));
-          cell.appendChild(el("span", "gf-corner-label", "Rotten\nApple"));
-        } else if (sp.kind === "fruit") {
-          const meta = FRUIT_META[sp.fruit];
-          cell.classList.add("gf-cell-fruit");
-          cell.style.borderColor = meta.color;
-          cell.appendChild(el("span", "gf-fruit-icon", meta.icon));
-          cell.appendChild(el("span", "gf-fruit-label", meta.label));
-        } else {
-          cell.classList.add("gf-cell-path");
-          cell.appendChild(el("span", "gf-path-dot", "·"));
-        }
-        cell.dataset.index = String(idx);
-
-        ["host", "joiner"].forEach(function (role) {
-          if (activeRoles().indexOf(role) === -1) return;
-          if (state.positions[role] === idx) {
-            const piece = pieceById(state.pieces[role]);
-            const tok = el("span", "gf-token gf-token-" + role);
-            tok.title = nameFor(role);
-            tok.textContent = piece ? piece.icon : "🍇";
-            cell.appendChild(tok);
-          }
-        });
-        grid.appendChild(cell);
-      }
-    }
-
-    const center = el("div", "gf-board-center");
-    if (typeof mascotSVG === "function") {
-      center.innerHTML =
-        '<div class="gf-mascot gf-mascot-tats">' + mascotSVG("tats") + '</div>' +
-        '<div class="gf-vs">VS</div>' +
-        '<div class="gf-mascot gf-mascot-wideass">' + mascotSVG("wideass") + '</div>';
-    } else {
-      center.appendChild(el("p", null, "Tats vs Wideass"));
-    }
-    grid.appendChild(center);
-    board.appendChild(grid);
-    wrap.appendChild(board);
+  function arenaChars() {
+    return { host: baseCharFor("host"), joiner: baseCharFor("joiner") };
   }
 
-  function renderScoreboard(wrap) {
-    const bar = el("div", "gf-scoreboard");
-    activeRoles().forEach(function (role) {
-      const row = el("div", "gf-score-row" + (state.turn === role && state.started && !state.winner ? " is-turn" : ""));
-      const piece = pieceById(state.pieces[role]);
-      row.appendChild(el("span", "gf-score-piece", piece ? piece.icon : "❓"));
-      row.appendChild(el("span", "gf-score-name", nameFor(role) + (role === myRole() ? " (you)" : "")));
-      const fruits = el("span", "gf-score-fruits");
-      for (let i = 0; i < WIN_SCORE; i++) {
-        fruits.appendChild(el("span", "gf-fruit-pip" + (i < state.scores[role] ? " is-filled" : ""), "🍇"));
-      }
-      row.appendChild(fruits);
-      row.appendChild(el("strong", "gf-score-num", String(state.scores[role])));
-      bar.appendChild(row);
+  function postToFrame(msg) {
+    if (!boardFrame || !boardFrame.contentWindow) return;
+    boardFrame.contentWindow.postMessage(
+      Object.assign({ source: ARENA_SOURCE }, msg),
+      "*"
+    );
+  }
+
+  function pieceIconsForSnapshot() {
+    return {
+      host: (pieceById(state.pieces.host) || {}).icon || "🍇",
+      joiner: (pieceById(state.pieces.joiner) || {}).icon || "🍇"
+    };
+  }
+
+  function pushArenaInit() {
+    postToFrame({
+      type: "arenaInit",
+      chars: arenaChars(),
+      activeRoles: activeRoles(),
+      myRole: myRole(),
+      names: { host: nameFor("host"), joiner: nameFor("joiner") },
+      isSolo: isSolo()
     });
-    wrap.appendChild(bar);
+  }
+
+  function postBoard() {
+    const focusRole =
+      state.phase === "card" && state.cardFor
+        ? state.cardFor
+        : state.phase === "reveal" && state.cardFor
+          ? state.cardFor
+          : state.turn;
+    postToFrame({
+      type: "gfBoard",
+      snapshot: {
+        started: state.started,
+        phase: state.phase,
+        turn: state.turn,
+        cardFor: state.cardFor,
+        cardMode: state.cardMode,
+        focusIndex: state.positions[focusRole] ?? 0,
+        positions: Object.assign({}, state.positions),
+        pieces: Object.assign({}, state.pieces),
+        pieceIcons: pieceIconsForSnapshot(),
+        teamScore: state.teamScore,
+        scores: Object.assign({}, state.scores),
+        eggplants: Object.assign({}, state.eggplants),
+        activeCard: state.phase === "card" || state.phase === "reveal" ? state.activeCard : null,
+        cardAnswers: Object.assign({}, state.cardAnswers),
+        cardReveal: state.phase === "reveal" ? state.cardReveal : null,
+        answered: Object.assign({}, state.answered),
+        eggplantActive: state.eggplantActive,
+        lastRoll: state.lastRoll,
+        lastRolls: state.lastRolls,
+        lastMover: state.lastMover,
+        rollTick: boardRollTick,
+        winner: state.winner,
+        activeRoles: activeRoles(),
+        myRole: myRole(),
+        names: { host: nameFor("host"), joiner: nameFor("joiner") },
+        isSolo: isSolo(),
+        lobby: {
+          pieces: Object.assign({}, state.pieces),
+          pieceOptions: PIECES,
+          readyToStart: readyToStart(),
+          isHost: isGameHost(),
+          requiresPartner: requiresPartner(),
+          lobbySolo: lobbySolo()
+        }
+      }
+    });
+  }
+
+  function scheduleBoardPush() {
+    pushArenaInit();
+    postBoard();
+    setTimeout(function () { pushArenaInit(); postBoard(); }, 150);
+    setTimeout(function () { pushArenaInit(); postBoard(); }, 600);
+  }
+
+  function bindFrameRelay() {
+    if (frameListener) return;
+    frameListener = function (event) {
+      const data = event.data;
+      if (!data || data.source !== "arena-fruity") return;
+      if (data.type === "ready") {
+        scheduleBoardPush();
+        return;
+      }
+      if (data.type === "gfAction") {
+        if (data.action === "roll") rollDice();
+        else if (data.action === "answered") markAnswered();
+        else if (data.action === "submitAnswer") submitCardAnswer(data.choice);
+        else if (data.action === "pickPiece") pickPiece(data.pieceId);
+        else if (data.action === "startGame") startGame();
+        else if (data.action === "eggplant") playEggplant();
+      }
+    };
+    window.addEventListener("message", frameListener);
+  }
+
+  function unbindFrameRelay() {
+    if (!frameListener) return;
+    window.removeEventListener("message", frameListener);
+    frameListener = null;
+  }
+
+  function ensureStage(panel) {
+    if (
+      boardHost && boardHost.parentNode === panel &&
+      uiLayer && uiLayer.parentNode === panel &&
+      boardFrame
+    ) {
+      return;
+    }
+    panel.innerHTML = "";
+    boardHost = el("div", "gf-stage-wrap");
+    boardFrame = el("iframe", "gf-3d-frame");
+    boardFrame.src = FRUITY_SRC;
+    boardFrame.title = "Get Fruity — 3D board";
+    boardFrame.setAttribute("allow", "accelerometer; gyroscope; fullscreen");
+    boardFrame.setAttribute("loading", "eager");
+    boardFrame.addEventListener("load", scheduleBoardPush);
+    boardHost.appendChild(boardFrame);
+    panel.appendChild(boardHost);
+    uiLayer = el("div", "gf-ui-layer");
+    panel.appendChild(uiLayer);
+    bindFrameRelay();
+  }
+
+  function destroyStage() {
+    unbindFrameRelay();
+    if (boardHost && boardHost.parentNode) {
+      boardHost.parentNode.removeChild(boardHost);
+    }
+    boardFrame = null;
+    boardHost = null;
+    uiLayer = null;
+    boardRollTick = 0;
+    lastMoveKey = "";
   }
 
   function render() {
     const panel = api.panel();
     if (!panel) return;
-    panel.innerHTML = "";
-    panel.classList.add("gf-pro");
+    panel.classList.add("gf-pro", "gf-pro-3d");
+    if (state.started) panel.classList.add("gf-pro-live");
+    else panel.classList.remove("gf-pro-live");
+    ensureStage(panel);
+    pushArenaInit();
+    postBoard();
 
-    const intro = el("div", "gf-pro-intro");
-    intro.appendChild(el("h3", "gf-pro-title", "🍇 Get Fruity"));
-    intro.appendChild(el("p", null, "The arena conversation game — roll the board, land on fruit spaces, and answer cards. First to 10 fruits wins!"));
-    panel.appendChild(intro);
+    const ui = uiLayer;
+    ui.innerHTML = "";
 
-    if (api.appendPlayModePicker) api.appendPlayModePicker(panel);
-    appendWaitBanner(panel);
+    if (state.started) return;
 
-    if (!state.started) {
-      const pick = el("div", "gf-piece-picker");
-      pick.appendChild(el("h4", null, lobbySolo() ? "Pick your game piece" : "Each player picks a piece"));
-      const grid = el("div", "gf-piece-grid");
-      PIECES.forEach(function (p) {
-        const taken = takenPieces();
-        const mine = state.pieces[myRole()] === p.id;
-        const takenByOther = !lobbySolo() && taken.indexOf(p.id) !== -1 && !mine;
-        const btn = el("button", "gf-piece-btn" + (mine ? " is-mine" : "") + (takenByOther ? " is-taken" : ""));
-        btn.type = "button";
-        btn.disabled = takenByOther;
-        btn.appendChild(el("span", "gf-piece-icon", p.icon));
-        btn.appendChild(el("span", "gf-piece-name", p.label));
-        btn.addEventListener("click", function () { pickPiece(p.id); });
-        grid.appendChild(btn);
-      });
-      pick.appendChild(grid);
-      panel.appendChild(pick);
-      appendStartActions(panel, startGame);
-      renderBoard(panel);
-      return;
-    }
-
-    renderScoreboard(panel);
-
-    const bar = el("div", "gf-pro-bar");
-    const turnPill = el("span", "gf-pro-pill" + (state.turn === myRole() ? " is-active" : ""), "Turn: " + nameFor(state.turn));
-    bar.appendChild(turnPill);
-    if (state.lastRoll) {
-      bar.appendChild(el("span", "gf-pro-pill", "Last roll: " + state.lastRoll));
-    }
-    const eg = el("span", "gf-pro-pill gf-eggplant-pill", "🍆 × " + (state.eggplants[myRole()] || 0));
-    bar.appendChild(eg);
-    panel.appendChild(bar);
-
-    const actions = el("div", "gf-pro-actions");
-    const rollBtn = el("button", "gf-pro-btn", "🎲 Roll Dice");
-    rollBtn.disabled = state.turn !== myRole() || state.phase === "card" || !!state.winner;
-    rollBtn.addEventListener("click", rollDice);
-    actions.appendChild(rollBtn);
-
-    const egBtn = el("button", "gf-pro-btn secondary gf-eggplant-btn", "🍆 Play Eggplant");
-    egBtn.disabled = !state.started || !!state.winner || (state.eggplants[myRole()] || 0) <= 0 || isSolo();
-    egBtn.addEventListener("click", playEggplant);
-    if (!isSolo()) actions.appendChild(egBtn);
-
-    if (isGameHost() && state.started) {
-      const resetBtn = el("button", "gf-pro-btn ghost", "New Game");
-      resetBtn.addEventListener("click", resetGame);
-      actions.appendChild(resetBtn);
-    }
-    panel.appendChild(actions);
-
-    renderBoard(panel);
-
-    if (state.phase === "card" && state.activeCard) {
-      renderCard(panel);
-    }
-
-    if (state.winner) {
-      panel.appendChild(el("p", "gf-win-banner", "🏆 " + nameFor(state.winner) + " is the fruitiest!"));
-    }
+    if (api.appendPlayModePicker) api.appendPlayModePicker(ui);
+    appendWaitBanner(ui);
   }
 
   function appendWaitBanner(wrap) {
@@ -688,13 +987,15 @@ window.GetFruityGame = (function () {
       importPayload(p);
       if (p.flair && (!activeFlair || activeFlair.text !== p.flair.text)) {
         showFlairOverlay(p.flair);
+      } else {
+        render();
       }
       return;
     }
     if (t === "gfRollRequest") {
       if (!isGameHost()) return;
-      if (state.turn !== p.from || state.phase === "card") return;
-      finishRoll(p.from, 1 + Math.floor(Math.random() * 6));
+      if (state.turn !== p.from || state.phase === "card" || state.phase === "reveal") return;
+      finishRoll(p.from, rollTwoDice());
       return;
     }
     if (t === "gfPieceRequest") {
@@ -714,19 +1015,31 @@ window.GetFruityGame = (function () {
       sync();
       return;
     }
+    if (t === "gfSubmitAnswer") {
+      if (!isGameHost()) return;
+      if (state.phase !== "card") return;
+      if (!p.role || !p.choice) return;
+      state.cardAnswers[p.role] = p.choice;
+      state.answered[p.role] = true;
+      if (bothPlayersAnswered()) {
+        buildReveal();
+        sync();
+        scheduleRevealFinish();
+      } else {
+        sync();
+      }
+      return;
+    }
     if (t === "gfAnswered") {
       if (!isGameHost()) return;
       state.answered[p.role] = true;
-      const bothNeeded = state.eggplantActive && !isSolo();
-      const roller = state.cardFor;
-      const rollerDone = state.answered[roller];
-      const other = roller === "host" ? "joiner" : "host";
-      const otherDone = !bothNeeded || state.answered[other];
-      if (rollerDone && otherDone) {
-        awardFruit(roller);
-        if (!state.winner) clearCardPhase();
+      if (p.complete && bothPlayersAnswered()) {
+        buildReveal();
+        sync();
+        scheduleRevealFinish();
+      } else {
+        sync();
       }
-      sync();
     }
   }
 
@@ -741,6 +1054,7 @@ window.GetFruityGame = (function () {
     },
     render: render,
     handleMessage: handleMessage,
-    resync: resync
+    resync: resync,
+    destroy: destroyStage
   };
 })();

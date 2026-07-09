@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <base href="/">
-<title>Wideass & Tats Game Arena</title>
+<title>Tats & Wideass — Ultimate Showdown Arena</title>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rubik:wght@400;500;700&family=Bangers&display=swap" rel="stylesheet">
@@ -793,7 +793,8 @@
   /* ---------- Arena Kart (Mario-Kart-3.js iframe) ---------- */
   .kart-pro{ display:flex; flex-direction:column; gap:10px; align-items:center; width:100%; max-width:960px; margin:0 auto; }
   .kart-pro-hint{ color:#b45309 !important; font-weight:700; text-align:center; max-width:36rem; line-height:1.5; font-size:.9em; margin:0; }
-  .kart-mk3-frame{
+  .kart-mk3-frame,
+  .party-frame{
     width:100%; max-width:960px; height:min(72vh,560px);
     border:3px solid #111; border-radius:8px; background:#0a1628;
     box-shadow:4px 4px 0 #111;
@@ -828,6 +829,28 @@
   .gf-pro-title{ font-family:'Orbitron',sans-serif; color:#7c3aed; margin:0 0 8px; font-size:1.1em; }
   .gf-pro-intro p{ color:#444; line-height:1.5; margin:0; font-size:.9em; }
   .gf-pro{ display:flex; flex-direction:column; gap:10px; align-items:center; width:100%; max-width:720px; margin:0 auto; }
+  .gf-pro-3d{ max-width:980px; }
+  .gf-pro-3d.gf-pro-live{ max-width:100%; }
+  .gf-pro-3d.gf-pro-live .gf-stage-wrap{
+    width:100%; max-width:none; margin:0;
+  }
+  .gf-pro-3d.gf-pro-live .gf-3d-frame{
+    height:min(82vh,720px);
+    border-radius:12px;
+  }
+  .gf-pro-3d .gf-3d-frame{
+    height:min(72vh,640px);
+  }
+  .gf-pro-3d.gf-pro-live .gf-ui-layer{ display:none; }
+  .gf-stage-wrap{
+    position:relative; width:100%; max-width:960px; margin:0 auto 8px;
+  }
+  .gf-3d-frame{
+    display:block; width:100%; height:min(72vh,620px); border:0;
+    border-radius:12px; background:#150a26;
+    border:3px solid #111; box-shadow:4px 4px 0 #111;
+  }
+  .gf-ui-layer{ display:flex; flex-direction:column; gap:10px; align-items:center; width:100%; }
   .gf-pro-bar,.gf-pro-actions{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; width:100%; }
   .gf-pro-pill{
     font-size:.72em; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
@@ -904,6 +927,7 @@
     width:100%; padding:14px; border:3px solid #111; border-radius:12px;
     background:linear-gradient(145deg,#fff,#faf5ff); box-shadow:4px 4px 0 #111;
   }
+  .gf-card-modal .gf-card-title{ font-size:1.15em; }
   .gf-card-title{ margin:0 0 8px; font-family:'Orbitron',sans-serif; color:#7c3aed; }
   .gf-card-body p{ margin:0 0 8px; line-height:1.5; }
   .gf-card-options{ margin:0; padding-left:1.2em; text-align:left; }
@@ -1103,7 +1127,7 @@
   .rk-hand{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
   .rk-meta{ display:flex; gap:18px; font-size:.85em; color:var(--muted); margin-bottom:10px; letter-spacing:.5px; }
 
-  /* ---------- Wideass vs Tats — 5-game suite ---------- */
+  /* ---------- Tats vs Wideass — 5-game suite ---------- */
   :root{ --tone-serious:#4fb0c6; }
   .prompt-box{ background:#0d0f15; border:1px solid var(--hot1); border-radius:4px; padding:20px; text-align:center; margin-bottom:16px; }
   .prompt-cat{ font-size:.72em; text-transform:uppercase; letter-spacing:2px; color:var(--hot2); font-weight:800; font-family:'Orbitron',sans-serif; }
@@ -1162,7 +1186,7 @@
 
   <!-- SETUP: CHARACTER SELECT -->
   <div id="screen-character">
-    <div class="brand"><h1><span class="flame">🔥</span> WIDEASS &amp; TATS GAME ARENA <span class="flame">🔥</span></h1></div>
+    <div class="brand"><h1><span class="flame">🔥</span> TATS &amp; WIDEASS — ULTIMATE SHOWDOWN ARENA <span class="flame">🔥</span></h1></div>
     <p class="sub">Video comms + game surface for two players, anywhere on Earth.</p>
     <div class="panel">
       <label>Choose Your Character</label>
@@ -1188,7 +1212,7 @@
   <!-- ARENA -->
   <div id="screen-arena" class="hidden">
     <div class="arena-topbar">
-      <h2><span class="flame">⚡</span><span id="app-title">Wideass &amp; Tats Game Arena</span></h2>
+      <h2><span class="flame">⚡</span><span id="app-title">Tats &amp; Wideass — Ultimate Showdown Arena</span></h2>
       <div class="arena-topbar-meta">
         <span class="arena-code-chip hidden" id="arena-code-chip"></span>
         <span class="arena-conn-badge is-waiting" id="arena-conn-badge">Waiting for partner</span>
@@ -1275,6 +1299,7 @@
           <div id="panel-mancala" class="hidden"></div>
           <div id="panel-getfruity" class="hidden"></div>
           <div id="panel-kart" class="hidden"></div>
+          <div id="panel-party" class="hidden"></div>
         </div>
       </main>
     </div>
@@ -1294,8 +1319,10 @@
 <script src="/js/connect4.js"></script>
 <script src="/js/mancala.js"></script>
 <script src="/js/party-games.js"></script>
+<script src="/js/fruity-questions.js"></script>
 <script src="/js/get-fruity.js"></script>
 <script src="/js/kart-racer.js"></script>
+<script src="/js/arena-party.js"></script>
 <script>
 (function(){
   "use strict";
@@ -1650,7 +1677,8 @@
     connect4: Connect4Game,
     mancala: MancalaGame,
     getfruity: GetFruityGame,
-    kart: KartRacerGame
+    kart: KartRacerGame,
+    party: ArenaPartyGame
   };
 
   function broadcastArenaState(){
@@ -1671,6 +1699,7 @@
     else if(t.indexOf('ma') === 0) { MancalaGame.handleMessage(msg); handled = true; }
     else if(t.indexOf('gf') === 0) { GetFruityGame.handleMessage(msg); handled = true; }
     else if(t.indexOf('kr') === 0) { KartRacerGame.handleMessage(msg); handled = true; }
+    else if(t.indexOf('mp') === 0) { ArenaPartyGame.handleMessage(msg); handled = true; }
     if(!handled) return false;
     renderActiveGame();
     return true;
@@ -1843,6 +1872,8 @@
             $('#app-title').textContent = net.myName + ' vs ' + net.peerName;
           }
           if(activeGame === 'kart' && window.KartRacerGame) KartRacerGame.syncArenaChars();
+          if(activeGame === 'party' && window.ArenaPartyGame) ArenaPartyGame.syncArenaChars();
+          if(activeGame === 'getfruity' && window.GetFruityGame) renderGF();
         } else {
           $('#setup-status').textContent = MASCOTS[msg.payload.baseChar] + ' is in the arena — pick your fighter.';
         }
@@ -1951,7 +1982,8 @@
     { id:'getfruity', icon:'🍇', label:'Get Fruity' }
   ];
   const ARCADE_GAMES = [
-    { id:'kart', icon:'🏎️', label:'Arena Kart' }
+    { id:'kart', icon:'🏎️', label:'Arena Kart' },
+    { id:'party', icon:'🎲', label:'Arena Party' }
   ];
   function isSoloPlay(){ return playMode === 'solo'; }
   function requiresPartnerToStart(){ return playMode === 'duo' && !hasPartner(); }
@@ -2104,6 +2136,12 @@
     if(prevGame === 'kart' && gameId !== 'kart' && window.KartRacerGame){
       KartRacerGame.destroy();
     }
+    if(prevGame === 'party' && gameId !== 'party' && window.ArenaPartyGame){
+      ArenaPartyGame.destroy();
+    }
+    if(prevGame === 'getfruity' && gameId !== 'getfruity' && window.GetFruityGame && GetFruityGame.destroy){
+      GetFruityGame.destroy();
+    }
     activeGame = gameId;
     saveArenaSession();
     showGamePicker(false);
@@ -2120,6 +2158,7 @@
     else if(gameId === 'mancala') renderMA();
     else if(gameId === 'getfruity') renderGF();
     else if(gameId === 'kart') renderKR();
+    else if(gameId === 'party') renderMP();
     if(isGameHost() && hasPartner()) broadcastArenaState();
     const panel = $('#panel-' + gameId);
     if(panel) panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -2128,6 +2167,8 @@
 
   $('#games-back-btn').addEventListener('click', function(){
     if(activeGame === 'kart' && window.KartRacerGame) KartRacerGame.destroy();
+    if(activeGame === 'party' && window.ArenaPartyGame) ArenaPartyGame.destroy();
+    if(activeGame === 'getfruity' && window.GetFruityGame && GetFruityGame.destroy) GetFruityGame.destroy();
     showGamePicker(true);
     ALL_GAME_IDS.forEach(function(id){
       const p = $('#panel-' + id);
@@ -2235,10 +2276,20 @@
   GetFruityGame.init(Object.assign({}, gameApi, {
     panel: function(){ return gameApi.panel('panel-getfruity'); },
     hasPartner: hasPartner,
-    nameForRole: nameForRole
+    nameForRole: nameForRole,
+    myBaseChar: function(){ return net.myBaseChar; },
+    peerBaseChar: function(){ return net.peerBaseChar; },
+    myRole: function(){ return net.isHost ? 'host' : 'joiner'; }
   }));
   KartRacerGame.init(Object.assign({}, gameApi, {
     panel: function(){ return gameApi.panel('panel-kart'); },
+    hasPartner: hasPartner,
+    myBaseChar: function(){ return net.myBaseChar; },
+    peerBaseChar: function(){ return net.peerBaseChar; },
+    myRole: function(){ return net.isHost ? 'host' : 'joiner'; }
+  }));
+  ArenaPartyGame.init(Object.assign({}, gameApi, {
+    panel: function(){ return gameApi.panel('panel-party'); },
     hasPartner: hasPartner,
     myBaseChar: function(){ return net.myBaseChar; },
     peerBaseChar: function(){ return net.peerBaseChar; },
@@ -2251,6 +2302,7 @@
   function renderMA(){ MancalaGame.render(); }
   function renderGF(){ GetFruityGame.render(); }
   function renderKR(){ KartRacerGame.render(); }
+  function renderMP(){ ArenaPartyGame.render(); }
 
   function renderActiveGame(){
     if(!activeGame) return;
@@ -2260,6 +2312,7 @@
     else if(activeGame === 'mancala') renderMA();
     else if(activeGame === 'getfruity') renderGF();
     else if(activeGame === 'kart') renderKR();
+    else if(activeGame === 'party') renderMP();
   }
 
   if(window.PartyGames){

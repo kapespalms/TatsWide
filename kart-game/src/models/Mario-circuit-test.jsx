@@ -10,6 +10,7 @@ import { useEffect } from 'react'
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
 import { useGameStore } from '../store'
 import { useRef } from 'react'
+import { TrackTitleSign } from './TrackTitleSign.jsx'
 
 export function Track(props) {
   const { nodes, materials, scene } = useGLTF('./models/mario-circuit-test-transformed.glb')
@@ -34,7 +35,7 @@ export function Track(props) {
       <mesh layers={1} name="ground" receiveShadow geometry={nodes.Object_25.geometry} material={materials.material_19} />
       <mesh layers={1} name="ground speed" receiveShadow geometry={nodes.Object_27.geometry} material={materials.material_21} />
       <mesh layers={1} name="ground" receiveShadow geometry={nodes.Object_47.geometry} material={materials.material_3} />
-
+      <TrackTitleSign />
     </group>
   )
 }

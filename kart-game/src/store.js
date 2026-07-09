@@ -34,4 +34,30 @@ export const useGameStore = create((set) => ({
   setCollider: (collider) => set({ collider }),
   trackScene: null,
   setTrackScene: (trackScene) => set({ trackScene }),
+
+  // Race progress
+  lap: 1,
+  totalLaps: 3,
+  setLap: (lap) => set({ lap }),
+  setTotalLaps: (totalLaps) => set({ totalLaps }),
+  finished: false,
+  setFinished: (finished) => set({ finished }),
+  raceTime: 0,
+  setRaceTime: (raceTime) => set({ raceTime }),
+
+  // Coins
+  coins: 0,
+  addCoins: (n) => set((state) => ({ coins: state.coins + n })),
+
+  // Speed boost (from prize boxes / coins)
+  boostEndsAt: 0,
+  triggerBoost: (ms) =>
+    set(() => ({ boostEndsAt: Date.now() + ms })),
+
+  // Transient HUD flash (e.g. "BOOST!", "+1 coin")
+  itemFlash: null,
+  setItemFlash: (itemFlash) => set({ itemFlash }),
+
+  resetRace: () =>
+    set({ lap: 1, finished: false, coins: 0, boostEndsAt: 0, itemFlash: null, raceTime: 0 }),
 }));

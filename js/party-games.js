@@ -1,5 +1,5 @@
 /**
- * Party Games — 13 separate synced games for Wideass vs Tats arena.
+ * Party Games — 13 separate synced games for Tats vs Wideass arena.
  * Chaos, Brain, Defend, Lore, Dice, GuessWho, Twenty, TruthsLie, ThisOrThat,
  * StoryChain, Gems, SayAnything, Closer
  */
