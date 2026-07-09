@@ -4,7 +4,7 @@ import gsap from "gsap";
 import { tokenWorldPos, hopIndices } from "../board.js";
 import { useBoardStore } from "../store.js";
 
-const HOP_STEP_S = 0.28;
+const HOP_STEP_S = 0.38;
 const HOP_HEIGHT = 1.1;
 
 const ROLE_COLOR = {
@@ -13,8 +13,9 @@ const ROLE_COLOR = {
 };
 
 /** Bright 3D game piece — always visible (no SVG billboards). */
-function TokenMesh({ role, icon }) {
+function TokenMesh({ role, icon, showBadge }) {
   const color = ROLE_COLOR[role] || "#c084fc";
+
   return (
     <group>
       <mesh position={[0, 0.12, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -41,15 +42,17 @@ function TokenMesh({ role, icon }) {
         />
       </mesh>
       <pointLight color={color} intensity={8} distance={6} position={[0, 1.8, 0]} />
-      <Html
-        center
-        position={[0, 2.55, 0]}
-        distanceFactor={10}
-        zIndexRange={[50, 0]}
-        style={{ pointerEvents: "none", userSelect: "none", fontSize: "36px", lineHeight: 1 }}
-      >
-        {icon || "🍇"}
-      </Html>
+      {showBadge ? (
+        <Html
+          center
+          position={[0, 2.55, 0]}
+          distanceFactor={10}
+          zIndexRange={[10, 0]}
+          style={{ pointerEvents: "none", userSelect: "none", fontSize: "36px", lineHeight: 1 }}
+        >
+          {icon || "🍇"}
+        </Html>
+      ) : null}
     </group>
   );
 }
@@ -63,6 +66,8 @@ export function Token({ role }) {
   const pieceIcons = useBoardStore((s) => s.pieceIcons);
   const target = positions[role] ?? 0;
   const icon = pieceIcons[role] || "🍇";
+  const phase = useBoardStore((s) => s.phase);
+  const showBadge = phase !== "card" && phase !== "reveal";
 
   useEffect(() => {
     const g = groupRef.current;
@@ -80,11 +85,22 @@ export function Token({ role }) {
     const seq = hopIndices(displayIndex.current, target);
     let prevIdx = displayIndex.current;
     const tl = gsap.timeline();
+    const store = useBoardStore.getState;
+
+    const syncCamera = (index) => {
+      const st = store();
+      if (st.lastMover === role && st.isMoving && st.rollStep === "move") {
+        useBoardStore.setState({ cameraFollowIndex: index });
+      }
+    };
+
+    syncCamera(displayIndex.current);
 
     seq.forEach((next) => {
       const from = tokenWorldPos(prevIdx, role);
       const to = tokenWorldPos(next, role);
       const proxy = { t: 0 };
+      tl.call(() => syncCamera(next));
       tl.to(proxy, {
         t: 1,
         duration: HOP_STEP_S,
@@ -109,7 +125,7 @@ export function Token({ role }) {
 
   return (
     <group ref={groupRef}>
-      <TokenMesh role={role} icon={icon} />
+      <TokenMesh role={role} icon={icon} showBadge={showBadge} />
     </group>
   );
 }

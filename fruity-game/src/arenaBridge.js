@@ -34,7 +34,14 @@ export function initArenaBridge() {
     }
 
     if (data.type === "gfBoard" && data.snapshot) {
+      const prev = useBoardStore.getState();
       store.applyBoard(data.snapshot);
+      if (
+        typeof data.snapshot.rollTick === "number" &&
+        data.snapshot.rollTick > prev.rollTick
+      ) {
+        store.bumpSpin();
+      }
       store.setReady(true);
       return;
     }

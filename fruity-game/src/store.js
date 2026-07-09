@@ -34,6 +34,16 @@ export const useBoardStore = create((set) => ({
   spinSeq: 0,
   winner: null,
   lobby: null,
+  isMoving: false,
+  rollAnim: null,
+  rollStep: null,
+  cameraFollowIndex: null,
+  cardPresentStep: null,
+  chars: { host: "tats", joiner: "wideass" },
+  wagerRole: null,
+  cardWager: null,
+  textMatchVotes: null,
+  pendingWagerPrompt: false,
 
   setReady: (ready) => set({ ready }),
   setSession: (data) =>
@@ -51,7 +61,8 @@ export const useBoardStore = create((set) => ({
       const tick = typeof snap.rollTick === "number" ? snap.rollTick : s.rollTick;
       const rollChanged = tick > s.rollTick;
 
-      const inCardFlow = snap.phase === "card" || snap.phase === "reveal";
+      const inCardFlow =
+        snap.phase === "card" || snap.phase === "reveal" || snap.phase === "textVote" || snap.phase === "wager";
 
       const next = {
         ...s,
@@ -79,8 +90,21 @@ export const useBoardStore = create((set) => ({
         activeRoles: snap.activeRoles || s.activeRoles,
         myRole: snap.myRole || s.myRole,
         names: snap.names || s.names,
+        chars: snap.chars || s.chars,
         isSolo: snap.isSolo != null ? !!snap.isSolo : s.isSolo,
         lobby: snap.lobby || s.lobby,
+        isMoving: !!snap.isMoving,
+        rollAnim: snap.rollAnim || null,
+        rollStep: snap.rollStep || null,
+        cameraFollowIndex: snap.isMoving
+          ? snap.cameraFollowIndex ?? s.cameraFollowIndex
+          : null,
+        cardPresentStep:
+          snap.phase === "card" ? s.cardPresentStep : null,
+        wagerRole: snap.wagerRole ?? null,
+        cardWager: snap.cardWager ?? null,
+        textMatchVotes: snap.textMatchVotes || null,
+        pendingWagerPrompt: !!snap.pendingWagerPrompt,
       };
 
       if (rollChanged) {

@@ -1,16 +1,26 @@
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import { useArenaBridge } from "../arenaBridge.js";
 import { MascotBillboard, PEER_SEATED_MASCOT } from "./MascotBillboard.jsx";
+import { applyKartTint } from "../utils/kartTint.js";
+import { WitchKart } from "./Witch.jsx";
 
-/** Partner kart — position from arena WebSocket relay, character from arena pick. */
+/** Partner kart — pose relay + their garage picks. */
 export function ArenaPeerRacer() {
   const group = useRef();
   const peer = useArenaBridge((state) => state.peer);
   const peerPose = useArenaBridge((state) => state.peerPose);
+  const peerKartId = useArenaBridge((state) => state.peerKartId);
+  const peerKartColor = useArenaBridge((state) => state.peerKartColor);
+  const raceStarted = useArenaBridge((state) => state.raceStarted);
   const { scene } = useGLTF("./models/kart.glb");
-  const kartClone = useMemo(() => scene.clone(), [scene]);
+  const kartClone = useMemo(() => scene.clone(true), [scene]);
+
+  useEffect(() => {
+    if (peerKartId !== "standard") return;
+    applyKartTint(kartClone, peerKartColor, { strength: 0.52 });
+  }, [kartClone, peerKartColor, peerKartId]);
 
   useFrame(() => {
     if (!group.current || !peerPose) return;
@@ -23,7 +33,15 @@ export function ArenaPeerRacer() {
     }
   });
 
-  if (!peer || !peerPose) return null;
+  if (!raceStarted || !peer || !peerPose) return null;
+
+  if (peerKartId === "witch") {
+    return (
+      <group ref={group} scale={0.85}>
+        <WitchKart colorHex={peerKartColor} />
+      </group>
+    );
+  }
 
   return (
     <group ref={group} scale={0.85}>

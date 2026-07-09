@@ -47,11 +47,23 @@ window.KartRacerGame = (function () {
     iframe.contentWindow.postMessage(Object.assign({ source: ARENA_SOURCE }, msg), "*");
   }
 
+  let kartSetupState = {
+    trackId: "mario",
+    raceStarted: false,
+    host: { kartId: "standard", kartColor: "#ff3b30" },
+    joiner: null
+  };
+
   function pushArenaInit() {
     postToIframe({
       type: "arenaInit",
       driver: myChar(),
-      peer: peerChar()
+      peer: peerChar(),
+      role: myRole(),
+      isGameHost: isGameHost(),
+      requiresPartner: needsPartner(),
+      raceStarted: kartSetupState.raceStarted,
+      setup: kartSetupState
     });
   }
 
@@ -68,6 +80,23 @@ window.KartRacerGame = (function () {
       if (!data || data.source !== "arena-kart") return;
       if (data.type === "ready") {
         scheduleArenaInit();
+        return;
+      }
+      if (data.type !== "pose" && data.type !== "kartSetupChange" && data.type !== "kartStartRace") return;
+      if (data.type === "kartSetupChange") {
+        if (isGameHost()) {
+          kartSetupState = data.payload || kartSetupState;
+          send({ type: "krKartSetup", payload: kartSetupState });
+        } else {
+          send({ type: "krKartSetupRequest", payload: data.payload, role: data.role || myRole() });
+        }
+        return;
+      }
+      if (data.type === "kartStartRace") {
+        if (!isGameHost()) return;
+        kartSetupState.raceStarted = true;
+        send({ type: "krKartSetup", payload: kartSetupState });
+        send({ type: "krRaceGo", payload: {} });
         return;
       }
       if (data.type !== "pose") return;
@@ -141,7 +170,7 @@ window.KartRacerGame = (function () {
     renderCharPreview(wrap);
     const peer = peerChar();
     const vs = peer ? charLabel(myChar()) + " vs " + charLabel(peer) : charLabel(myChar()) + " solo run";
-    wrap.appendChild(el("p", "kart-pro-hint", "You race as " + charLabel(myChar()) + " — same character as your arena pick. W accelerate, mouse steer, Space drift."));
+    wrap.appendChild(el("p", "kart-pro-hint", "Launch to open the garage — pick course, kart, and color, then Start Race inside the game."));
     const bar = el("div", "c4-pro-bar");
     bar.appendChild(el("span", "c4-pro-pill", "🏎️ " + vs));
     bar.appendChild(el("span", "c4-pro-pill", "Arena character"));
@@ -202,6 +231,12 @@ window.KartRacerGame = (function () {
       if (msg.type === "krNewGame") {
         started = false;
         destroyIframe();
+        kartSetupState = {
+          trackId: "mario",
+          raceStarted: false,
+          host: { kartId: "standard", kartColor: "#ff3b30" },
+          joiner: null
+        };
       } else {
         started = true;
       }
@@ -212,6 +247,26 @@ window.KartRacerGame = (function () {
       const payload = msg.payload || {};
       if (payload.role === myRole()) return;
       postToIframe({ type: "peerPose", payload: payload });
+    }
+    if (msg.type === "krKartSetup") {
+      kartSetupState = msg.payload || kartSetupState;
+      postToIframe({ type: "kartSetup", payload: kartSetupState });
+      return;
+    }
+    if (msg.type === "krKartSetupRequest") {
+      if (!isGameHost()) return;
+      const p = msg.payload || {};
+      if (p.trackId) kartSetupState.trackId = p.trackId;
+      if (p.host) kartSetupState.host = p.host;
+      if (p.joiner) kartSetupState.joiner = p.joiner;
+      if (p.raceStarted != null) kartSetupState.raceStarted = !!p.raceStarted;
+      send({ type: "krKartSetup", payload: kartSetupState });
+      return;
+    }
+    if (msg.type === "krRaceGo") {
+      kartSetupState.raceStarted = true;
+      postToIframe({ type: "kartSetup", payload: kartSetupState });
+      return;
     }
   }
 

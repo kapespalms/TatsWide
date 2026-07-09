@@ -297,6 +297,43 @@ window.FruityQuestions = (function () {
   let ultIdx = 0;
   let ultQIdx = 0;
 
+  let selfDeck = [];
+  let partnerDeck = [];
+  let textDeck = [];
+  let wmDeck = [];
+  let ultDeck = [];
+  let ultQDeck = [];
+
+  function seededShuffle(arr, seed) {
+    let s = (seed >>> 0) || 1;
+    function rnd() {
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+      return s / 4294967296;
+    }
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      const tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  function shuffleDecks(seed) {
+    selfDeck = seededShuffle(SELF_QUESTIONS.slice(), seed);
+    partnerDeck = seededShuffle(PARTNER_QUESTIONS.slice(), seed + 101);
+    textDeck = seededShuffle(TEXT_SELF_QUESTIONS.slice(), seed + 202);
+    wmDeck = seededShuffle(WATERMELON_EVENTS.slice(), seed + 303);
+    ultDeck = seededShuffle(ULTIMATE_CHALLENGES.slice(), seed + 404);
+    ultQDeck = seededShuffle(ULTIMATE_QUESTIONS.slice(), seed + 505);
+    selfIdx = 0;
+    partnerIdx = 0;
+    textIdx = 0;
+    wmIdx = 0;
+    ultIdx = 0;
+    ultQIdx = 0;
+  }
+
   const TEXT_SELF_QUESTIONS = [
     {
       id: "text_lore",
@@ -446,15 +483,15 @@ window.FruityQuestions = (function () {
   ];
 
   function drawWatermelon() {
-    const e = WATERMELON_EVENTS[wmIdx % WATERMELON_EVENTS.length];
+    const e = wmDeck[wmIdx % wmDeck.length];
     wmIdx++;
     return Object.assign({ cardKind: "watermelon" }, e);
   }
 
   function drawUltimate() {
-    const c = ULTIMATE_CHALLENGES[ultIdx % ULTIMATE_CHALLENGES.length];
+    const c = ultDeck[ultIdx % ultDeck.length];
     ultIdx++;
-    const q = ULTIMATE_QUESTIONS[ultQIdx % ULTIMATE_QUESTIONS.length];
+    const q = ultQDeck[ultQIdx % ultQDeck.length];
     ultQIdx++;
     return Object.assign(
       {
@@ -468,7 +505,7 @@ window.FruityQuestions = (function () {
   }
 
   function drawTextSelf() {
-    const q = TEXT_SELF_QUESTIONS[textIdx % TEXT_SELF_QUESTIONS.length];
+    const q = textDeck[textIdx % textDeck.length];
     textIdx++;
     return Object.assign({ mode: "self", type: "text", cardKind: "question" }, q);
   }
@@ -499,13 +536,14 @@ window.FruityQuestions = (function () {
   }
 
   function drawSelf() {
-    const q = SELF_QUESTIONS[selfIdx % SELF_QUESTIONS.length];
+    if (!selfDeck.length) shuffleDecks(Date.now());
+    const q = selfDeck[selfIdx % selfDeck.length];
     selfIdx++;
     return Object.assign({ mode: "self", type: "mc", cardKind: "question" }, q);
   }
 
   function drawPartner() {
-    const q = PARTNER_QUESTIONS[partnerIdx % PARTNER_QUESTIONS.length];
+    const q = partnerDeck[partnerIdx % partnerDeck.length];
     partnerIdx++;
     return Object.assign({ mode: "partner", type: "mc", cardKind: "question" }, q);
   }
@@ -530,6 +568,7 @@ window.FruityQuestions = (function () {
     drawFruitCard: drawFruitCard,
     drawWatermelon: drawWatermelon,
     drawUltimate: drawUltimate,
+    shuffleDecks: shuffleDecks,
     pickRevealFlair: pickRevealFlair,
     optionLabel: optionLabel,
     normalizeAnswer: normalizeAnswer,

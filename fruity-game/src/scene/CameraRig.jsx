@@ -2,6 +2,7 @@ import { useRef, useEffect } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { tileWorldPos } from "../board.js";
+import { CARD_DECK_POS } from "../cardPresentation.js";
 import { useBoardStore } from "../store.js";
 
 function easeLerp(current, target, speed, dt) {
@@ -9,7 +10,6 @@ function easeLerp(current, target, speed, dt) {
   return current + (target - current) * t;
 }
 
-/** Fixed camera shots — pans only when the game mode changes, never orbits. */
 const OVERVIEW = {
   pos: new THREE.Vector3(0, 17, 19),
   target: new THREE.Vector3(0, 0.5, 0),
@@ -31,69 +31,97 @@ function tileShot(index) {
   };
 }
 
+function followShot(index) {
+  const t = tileWorldPos(index);
+  return {
+    pos: new THREE.Vector3(t[0] + 2.4, 10.5, t[2] + 5.8),
+    target: new THREE.Vector3(t[0], 0.8, t[2]),
+    fov: 48,
+  };
+}
+
+function deckShot() {
+  const [dx, , dz] = CARD_DECK_POS;
+  return {
+    pos: new THREE.Vector3(dx - 2.8, 9.2, dz + 7.2),
+    target: new THREE.Vector3(dx, 0.85, dz),
+    fov: 40,
+  };
+}
+
 export function CameraRig() {
   const { camera } = useThree();
   const lookAt = useRef(new THREE.Vector3().copy(OVERVIEW.target));
   const goalPos = useRef(new THREE.Vector3().copy(OVERVIEW.pos));
   const goalTarget = useRef(new THREE.Vector3().copy(OVERVIEW.target));
   const goalFov = useRef(OVERVIEW.fov);
-  const diceUntil = useRef(0);
 
   const started = useBoardStore((s) => s.started);
   const phase = useBoardStore((s) => s.phase);
   const cardFor = useBoardStore((s) => s.cardFor);
   const positions = useBoardStore((s) => s.positions);
-  const rollSeq = useBoardStore((s) => s.rollSeq);
-  const spinSeq = useBoardStore((s) => s.spinSeq);
+  const isMoving = useBoardStore((s) => s.isMoving);
+  const rollStep = useBoardStore((s) => s.rollStep);
+  const lastMover = useBoardStore((s) => s.lastMover);
+  const cameraFollowIndex = useBoardStore((s) => s.cameraFollowIndex);
+  const cardPresentStep = useBoardStore((s) => s.cardPresentStep);
 
-  useEffect(() => {
-    if (spinSeq > 0) diceUntil.current = performance.now() + 800;
-  }, [spinSeq]);
-
-  useEffect(() => {
-    if (rollSeq > 0) diceUntil.current = performance.now() + 1400;
-  }, [rollSeq]);
-
-  // Pick a camera shot when game mode changes — NOT every frame.
   useEffect(() => {
     if (!started) {
       goalPos.current.copy(OVERVIEW.pos);
       goalTarget.current.copy(OVERVIEW.target);
       goalFov.current = OVERVIEW.fov;
-      return;
     }
-    if (phase === "card" && cardFor) {
-      const shot = tileShot(positions[cardFor] ?? 0);
-      goalPos.current.copy(shot.pos);
-      goalTarget.current.copy(shot.target);
-      goalFov.current = shot.fov;
-      return;
-    }
-    if (phase === "reveal" && cardFor) {
-      const shot = tileShot(positions[cardFor] ?? 0);
-      goalPos.current.copy(shot.pos);
-      goalTarget.current.copy(shot.target);
-      goalFov.current = shot.fov;
-      return;
-    }
-    goalPos.current.copy(OVERVIEW.pos);
-    goalTarget.current.copy(OVERVIEW.target);
-    goalFov.current = OVERVIEW.fov;
-  }, [started, phase, cardFor, positions]);
+  }, [started]);
 
   useFrame((_, dt) => {
-    // Brief dice zoom after a roll, then return to the locked overview.
-    if (started && performance.now() < diceUntil.current && phase !== "card" && phase !== "reveal") {
+    if (!started) return;
+
+    if (phase === "reveal") {
+      const shot = deckShot();
+      goalPos.current.copy(shot.pos);
+      goalTarget.current.copy(shot.target);
+      goalFov.current = shot.fov;
+    } else if (phase === "card") {
+      if (cardPresentStep === "approach" && cardFor) {
+        const shot = followShot(positions[cardFor] ?? 0);
+        goalPos.current.copy(shot.pos);
+        goalTarget.current.copy(shot.target);
+        goalFov.current = shot.fov;
+      } else {
+        const shot = deckShot();
+        goalPos.current.copy(shot.pos);
+        goalTarget.current.copy(shot.target);
+        goalFov.current = shot.fov;
+      }
+    } else if (isMoving && rollStep === "move" && lastMover) {
+      const idx =
+        typeof cameraFollowIndex === "number"
+          ? cameraFollowIndex
+          : positions[lastMover] ?? 0;
+      const shot = followShot(idx);
+      goalPos.current.copy(shot.pos);
+      goalTarget.current.copy(shot.target);
+      goalFov.current = shot.fov;
+    } else if (isMoving && rollStep === "dice") {
       goalPos.current.copy(DICE_SHOT.pos);
       goalTarget.current.copy(DICE_SHOT.target);
       goalFov.current = DICE_SHOT.fov;
-    } else if (started && phase !== "card" && phase !== "reveal") {
+    } else {
       goalPos.current.copy(OVERVIEW.pos);
       goalTarget.current.copy(OVERVIEW.target);
       goalFov.current = OVERVIEW.fov;
     }
 
-    const speed = 2.2;
+    const panning =
+      (isMoving && rollStep === "move") || phase === "card" || phase === "reveal";
+    const speed =
+      isMoving && rollStep === "move"
+        ? 2.0
+        : phase === "card" || phase === "reveal"
+          ? 1.45
+          : 2.0;
+    const fovSpeed = panning ? 1.4 : 2.2;
     camera.position.x = easeLerp(camera.position.x, goalPos.current.x, speed, dt);
     camera.position.y = easeLerp(camera.position.y, goalPos.current.y, speed, dt);
     camera.position.z = easeLerp(camera.position.z, goalPos.current.z, speed, dt);
@@ -103,7 +131,7 @@ export function CameraRig() {
     lookAt.current.z = easeLerp(lookAt.current.z, goalTarget.current.z, speed, dt);
 
     camera.lookAt(lookAt.current);
-    camera.fov = easeLerp(camera.fov, goalFov.current, 2, dt);
+    camera.fov = easeLerp(camera.fov, goalFov.current, fovSpeed, dt);
     camera.updateProjectionMatrix();
   });
 

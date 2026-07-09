@@ -6,6 +6,7 @@ import { FruitProp } from "./FruitProp.jsx";
 import { Token } from "./Token.jsx";
 import { DicePair } from "./Dice.jsx";
 import { CardDeck } from "./CardDeck.jsx";
+import { CARD_DECK_POS } from "../cardPresentation.js";
 import { CameraRig } from "./CameraRig.jsx";
 import { useBoardStore } from "../store.js";
 
@@ -89,7 +90,7 @@ export function BoardScene() {
         : null}
 
       {started ? <DicePair position={[0, 3.4, 0]} /> : null}
-      {started ? <CardDeck position={[2.6, 0.55, 1.4]} /> : null}
+      {started ? <CardDeck position={CARD_DECK_POS} /> : null}
 
       <ContactShadows
         position={[0, 0.02, 0]}

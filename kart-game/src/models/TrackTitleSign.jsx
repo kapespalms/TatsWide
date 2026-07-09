@@ -1,9 +1,13 @@
 import { Text } from "@react-three/drei";
 
-/** Overhead start-line sign — local coords under the track group (scale 0.08). */
-export function TrackTitleSign() {
+/** Overhead start-line sign — local coords under the track group. */
+export function TrackTitleSign({
+  title = "Wideass & Tats Kart",
+  position = [-1937, 580, -187],
+  rotation = [0, Math.PI / 2, 0],
+}) {
   return (
-    <group position={[-1937, 580, -187]} rotation={[0, Math.PI / 2, 0]}>
+    <group position={position} rotation={rotation}>
       <mesh position={[0, 0, -2]}>
         <boxGeometry args={[520, 110, 8]} />
         <meshStandardMaterial color="#1a0a2e" />
@@ -23,7 +27,7 @@ export function TrackTitleSign() {
         maxWidth={480}
         textAlign="center"
       >
-        Wideass & Tats Kart
+        {title}
       </Text>
     </group>
   );

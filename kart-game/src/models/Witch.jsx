@@ -14,9 +14,10 @@ import { damp } from "three/src/math/MathUtils.js";
 import VFXEmitter from "../wawa-vfx/VFXEmitter.tsx";
 import { useGameStore } from "../store.js";
 import Flames from "../particles/drift/flames/Flames.jsx";
+import { applyKartTint } from "../utils/kartTint.js";
 
 const animationsNames = ["IDLE-KART", "TURN-LEFT", "TURN-RIGHT", "wind"];
-export function Model({ speed, inputTurn, driftDirection, driftPower, backWheelOffset, jumpOffset }) {
+export function WitchKart({ speed, inputTurn, driftDirection, driftPower, backWheelOffset, jumpOffset, colorHex }) {
   const group = React.useRef();
   const { scene, animations } = useGLTF("./models/witch-transformed.glb");
   const clone = React.useMemo(() => SkeletonUtils.clone(scene), [scene]);
@@ -73,8 +74,13 @@ const playAction = (name, loopOnce = false) => {
         obj.receiveShadow = true;
       }
     })
-    // actions.play('IDLE-KART')
-  }, [actions]);
+  }, [actions, animations]);
+
+  useEffect(() => {
+    if (colorHex && group.current) {
+      applyKartTint(group.current, colorHex, { strength: 0.45 });
+    }
+  }, [colorHex, clone]);
 
   useFrame((state, delta) => {
     const time = state.clock.getElapsedTime();

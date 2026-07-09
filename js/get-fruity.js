@@ -15,7 +15,9 @@ window.GetFruityGame = (function () {
   const WIN_SCORE = 10;
   const START_EGGPLANTS = 3;
   const PARTNER_PATH_CHANCE = 0.22;
-  const REVEAL_MS = 3800;
+  const REVEAL_ANSWERS_MS = 3000;
+  const REVEAL_VERDICT_MS = 3200;
+  const REVEAL_SCORE_MS = 2600;
 
   const FRUIT_META = {
     chaos: { icon: "🎴", label: "Chaos", color: "#e11d48" },
@@ -99,6 +101,12 @@ window.GetFruityGame = (function () {
   let boardRollTick = 0;
   let lastMoveKey = "";
   let revealTimer = null;
+  let landingTimer = null;
+  let appliedQuestionSeed = null;
+
+  const DICE_ANIM_MS = 1900;
+  const HOP_ANIM_MS = 420;
+  const LANDING_SETTLE_MS = 550;
 
   const state = {
     started: false,
@@ -124,7 +132,12 @@ window.GetFruityGame = (function () {
     flair: null,
     mode: "duo",
     soloPlayer: null,
-    skipRollFor: null
+    skipRollFor: null,
+    isMoving: false,
+    rollAnim: null,
+    rollStep: null,
+    cameraFollowIndex: null,
+    questionSeed: null
   };
 
   function myRole() { return api.myRole(); }
@@ -163,7 +176,90 @@ window.GetFruityGame = (function () {
       flair: null,
       mode: "duo",
       soloPlayer: null,
-      skipRollFor: null
+      skipRollFor: null,
+      isMoving: false,
+      rollAnim: null,
+      rollStep: null,
+      cameraFollowIndex: null,
+      questionSeed: null,
+      questionsAsked: 0,
+      wagerSlot: 2,
+      wagerUsed: false,
+      wagerRole: null,
+      pendingWager: null,
+      cardWager: null,
+      textMatchVotes: { host: null, joiner: null }
+    };
+  }
+
+  function tatsRole() {
+    const chars = arenaChars();
+    if (chars.host === "tats") return "host";
+    if (chars.joiner === "tats") return "joiner";
+    return null;
+  }
+
+  function isQuestionCard(card) {
+    if (!card) return false;
+    if (card.cardKind === "question") return true;
+    return card.type === "mc" || card.type === "text";
+  }
+
+  function isTextCardActive() {
+    return !!(state.activeCard && state.activeCard.type === "text");
+  }
+
+  function wagerBonus() {
+    return (state.cardWager && state.cardWager.amount) || 0;
+  }
+
+  function scoreDeltaForMatch(match) {
+    const bonus = wagerBonus();
+    return match ? 1 + bonus : -(1 + bonus);
+  }
+
+  function generateRpsReveal(seed) {
+    const picks = ["rock", "paper", "scissors"];
+    const hostPick = picks[Math.abs(seed) % 3];
+    const joinerPick = picks[Math.abs(seed + 7) % 3];
+    function winner(a, b) {
+      if (a === b) return "tie";
+      if (
+        (a === "rock" && b === "scissors") ||
+        (a === "scissors" && b === "paper") ||
+        (a === "paper" && b === "rock")
+      ) {
+        return "host";
+      }
+      return "joiner";
+    }
+    return { hostPick: hostPick, joinerPick: joinerPick, winner: winner(hostPick, joinerPick) };
+  }
+
+  function bothTextVotesIn() {
+    if (isSolo()) return true;
+    return !!(state.textMatchVotes.host && state.textMatchVotes.joiner);
+  }
+
+  function applyQuestionShuffle() {
+    if (!state.questionSeed || state.questionSeed === appliedQuestionSeed) return;
+    appliedQuestionSeed = state.questionSeed;
+    if (window.FruityQuestions && FruityQuestions.shuffleDecks) {
+      FruityQuestions.shuffleDecks(state.questionSeed);
+    }
+  }
+
+  function maskedCardAnswersForViewer() {
+    const mine = myRole();
+    if (isSolo()) {
+      return Object.assign({}, state.cardAnswers);
+    }
+    if (state.phase === "textVote" || state.phase === "reveal" || state.phase === "ended") {
+      return Object.assign({}, state.cardAnswers);
+    }
+    return {
+      host: mine === "host" ? state.cardAnswers.host : null,
+      joiner: mine === "joiner" ? state.cardAnswers.joiner : null
     };
   }
 
@@ -192,19 +288,33 @@ window.GetFruityGame = (function () {
       flair: state.flair,
       mode: state.mode,
       soloPlayer: state.soloPlayer,
-      skipRollFor: state.skipRollFor
+      skipRollFor: state.skipRollFor,
+      isMoving: state.isMoving,
+      rollAnim: state.rollAnim,
+      rollStep: state.rollStep,
+      cameraFollowIndex: state.cameraFollowIndex,
+      questionSeed: state.questionSeed,
+      questionsAsked: state.questionsAsked,
+      wagerSlot: state.wagerSlot,
+      wagerUsed: state.wagerUsed,
+      wagerRole: state.wagerRole,
+      pendingWager: state.pendingWager,
+      cardWager: state.cardWager,
+      textMatchVotes: Object.assign({}, state.textMatchVotes)
     };
   }
 
   function importPayload(p) {
     if (!p) return;
     Object.assign(state, freshState(), p);
+    applyQuestionShuffle();
     if (typeof state.teamScore !== "number") {
       state.teamScore = Math.max(state.scores.host || 0, state.scores.joiner || 0);
     }
     state.scores.host = state.teamScore;
     state.scores.joiner = state.teamScore;
     if (!state.cardAnswers) state.cardAnswers = { host: null, joiner: null };
+    if (!state.textMatchVotes) state.textMatchVotes = { host: null, joiner: null };
     if (!state.lastRolls && state.lastRoll) {
       state.lastRolls = { die1: state.lastRoll, die2: 0, total: state.lastRoll };
     }
@@ -248,6 +358,64 @@ window.GetFruityGame = (function () {
 
   function movePosition(from, steps) {
     return (from + steps) % SPACES.length;
+  }
+
+  function hopCount(from, to) {
+    let cur = from;
+    let n = 0;
+    while (cur !== to) {
+      cur = (cur + 1) % SPACES.length;
+      n++;
+    }
+    return n;
+  }
+
+  function landingAnimMs(from, to) {
+    return DICE_ANIM_MS + hopCount(from, to) * HOP_ANIM_MS + LANDING_SETTLE_MS;
+  }
+
+  function rollAnimMovePiece() {
+    landingTimer = null;
+    if (!state.rollAnim) return;
+    state.rollStep = "move";
+    state.cameraFollowIndex = state.rollAnim.from;
+    state.positions[state.rollAnim.role] = state.rollAnim.to;
+    sync();
+    render();
+    const hops = hopCount(state.rollAnim.from, state.rollAnim.to);
+    const moveMs = hops * HOP_ANIM_MS + LANDING_SETTLE_MS;
+    landingTimer = setTimeout(function () {
+      landingTimer = null;
+      rollAnimFinish();
+    }, moveMs);
+  }
+
+  function rollAnimFinish() {
+    landingTimer = null;
+    if (!state.rollAnim) {
+      state.isMoving = false;
+      state.rollStep = null;
+      state.cameraFollowIndex = null;
+      sync();
+      render();
+      return;
+    }
+    const role = state.rollAnim.role;
+    const to = state.rollAnim.to;
+    state.rollAnim = null;
+    state.rollStep = null;
+    state.isMoving = false;
+    state.cameraFollowIndex = null;
+    resolveLanding(role, to);
+    sync();
+    render();
+  }
+
+  function cancelLandingTimer() {
+    if (landingTimer) {
+      clearTimeout(landingTimer);
+      landingTimer = null;
+    }
   }
 
   function rollTwoDice() {
@@ -440,13 +608,22 @@ window.GetFruityGame = (function () {
   }
 
   function clearCardPhase() {
+    cancelLandingTimer();
     cancelRevealTimer();
+    state.rollAnim = null;
+    state.rollStep = null;
+    state.isMoving = false;
+    state.cameraFollowIndex = null;
     state.activeCard = null;
     state.cardFor = null;
     state.cardMode = null;
     state.cardAnswers = { host: null, joiner: null };
     state.cardReveal = null;
     state.answered = { host: false, joiner: false };
+    state.textMatchVotes = { host: null, joiner: null };
+    state.pendingWager = null;
+    state.wagerRole = null;
+    state.cardWager = null;
     state.eggplantActive = false;
     state.eggplantPlayedBy = null;
     state.phase = state.winner ? "ended" : "playing";
@@ -461,7 +638,94 @@ window.GetFruityGame = (function () {
     state.activeCard = card;
     state.cardMode = card.mode || "self";
     state.cardAnswers = { host: null, joiner: null };
+    state.textMatchVotes = { host: null, joiner: null };
     state.answered = { host: false, joiner: false };
+  }
+
+  function maybeStartQuestionCard(role, card) {
+    state.questionsAsked = (state.questionsAsked || 0) + 1;
+    const tats = tatsRole();
+    const needsWager =
+      !isSolo() &&
+      !state.wagerUsed &&
+      tats &&
+      isQuestionCard(card) &&
+      state.questionsAsked >= (state.wagerSlot || 2);
+    if (needsWager) {
+      state.phase = "wager";
+      state.wagerRole = tats;
+      state.cardFor = role;
+      state.pendingWager = { role: role, card: card };
+      state.cardWager = null;
+      sync();
+      return;
+    }
+    beginQuestionCard(role, card);
+  }
+
+  function applyWagerAndStart(amount) {
+    if (state.phase !== "wager" || !state.pendingWager) return;
+    const maxWager = Math.min(5, state.teamScore || 0);
+    const n = Math.max(0, Math.min(maxWager, Math.floor(Number(amount) || 0)));
+    state.cardWager = { amount: n, role: state.wagerRole };
+    state.wagerUsed = true;
+    const pending = state.pendingWager;
+    state.pendingWager = null;
+    state.wagerRole = null;
+    beginQuestionCard(pending.role, pending.card);
+    sync();
+    render();
+  }
+
+  function submitWager(amount) {
+    if (state.phase !== "wager") return;
+    if (myRole() !== state.wagerRole) {
+      toast("Waiting for Tats to set the fruit wager…");
+      return;
+    }
+    if (isGameHost()) {
+      applyWagerAndStart(amount);
+    } else {
+      send({ type: "gfWagerRequest", payload: { amount: amount, from: myRole() } });
+    }
+  }
+
+  function proceedAfterBothAnswered() {
+    if (isTextCardActive() && !isSolo()) {
+      state.phase = "textVote";
+      state.textMatchVotes = { host: null, joiner: null };
+      sync();
+      render();
+      return;
+    }
+    buildReveal();
+    sync();
+    scheduleRevealFinish();
+  }
+
+  function submitTextMatchVote(vote) {
+    if (state.phase !== "textVote") return;
+    const v = vote === "MATCH" ? "MATCH" : "NO_MATCH";
+    const role = myRole();
+    if (state.textMatchVotes[role]) return;
+    state.textMatchVotes[role] = v;
+    if (bothTextVotesIn()) {
+      if (isGameHost()) {
+        buildReveal();
+        sync();
+        scheduleRevealFinish();
+      } else {
+        send({
+          type: "gfTextMatchVote",
+          payload: { role: role, vote: v, complete: true }
+        });
+      }
+    } else if (isGameHost()) {
+      sync();
+    } else {
+      send({ type: "gfTextMatchVote", payload: { role: role, vote: v } });
+    }
+    render();
   }
 
   function bothPlayersAnswered() {
@@ -485,25 +749,38 @@ window.GetFruityGame = (function () {
     const joinerPick = state.cardAnswers.joiner;
     const match = isSolo()
       ? true
-      : answersMatch(hostPick, joinerPick);
+      : isTextCardActive()
+        ? state.textMatchVotes.host === "MATCH" && state.textMatchVotes.joiner === "MATCH"
+        : answersMatch(hostPick, joinerPick);
     const seed =
       (hostPick || "").charCodeAt(0) +
       (joinerPick || "").charCodeAt(0) +
       (state.activeCard && state.activeCard.id ? state.activeCard.id.length : 0);
+    const delta = scoreDeltaForMatch(match);
+    const bonus = wagerBonus();
     const flair =
       window.FruityQuestions && FruityQuestions.pickRevealFlair
         ? FruityQuestions.pickRevealFlair(match, seed)
         : {
             title: match ? "PERFECT MATCH!" : "CHAOTIC INCOMPATIBILITY!",
-            sub: match ? "+1 team fruit!" : "0 fruit this round.",
+            sub: match
+              ? "+1 gayness" + (bonus ? " (+" + bonus + " wager!)" : "") + "!"
+              : "-" + (1 + bonus) + " gayness" + (bonus ? " (wager lost!)" : "") + "!",
             theme: match ? "pink" : "red"
           };
+    const showRps = !isSolo() && (seed % 3 !== 1);
     state.cardReveal = {
       match: match,
+      revealStep: "answers",
       hostPick: hostPick,
       joinerPick: joinerPick,
       hostLabel: isSolo() ? answerLabel(state.soloPlayer || "host") : answerLabel("host"),
       joinerLabel: isSolo() ? "" : answerLabel("joiner"),
+      scoreBefore: state.teamScore || 0,
+      scoreDelta: delta,
+      scoreAfter: null,
+      wager: bonus,
+      rps: showRps ? generateRpsReveal(seed) : null,
       title: flair.title,
       sub: match
         ? flair.sub
@@ -522,6 +799,26 @@ window.GetFruityGame = (function () {
     state.phase = "reveal";
   }
 
+  function applyRevealScoring() {
+    if (!state.cardReveal || state.cardReveal.scoreApplied) return;
+    if (state.cardReveal.match) {
+      if (state.activeCard && state.activeCard.cardKind === "ultimate") {
+        resolveUltimateOutcome();
+      } else {
+        bumpTeamScore(scoreDeltaForMatch(true));
+      }
+    } else if (state.activeCard && state.activeCard.cardKind === "ultimate") {
+      resolveUltimateOutcome();
+    } else {
+      bumpTeamScore(scoreDeltaForMatch(false));
+    }
+    state.cardReveal.scoreApplied = true;
+    state.cardReveal.scoreAfter = state.teamScore;
+    if (state.winner) {
+      celebrate("You are the fruitiest team! 🍇", "First to " + WIN_SCORE + " shared fruits wins!");
+    }
+  }
+
   function finishReveal() {
     cancelRevealTimer();
     if (!state.cardReveal) {
@@ -529,15 +826,6 @@ window.GetFruityGame = (function () {
       sync();
       render();
       return;
-    }
-    if (state.cardReveal.match) {
-      if (state.activeCard && state.activeCard.cardKind === "ultimate") {
-        resolveUltimateOutcome();
-      } else {
-        awardFruit();
-      }
-    } else if (state.activeCard && state.activeCard.cardKind === "ultimate") {
-      resolveUltimateOutcome();
     }
     if (!state.winner) {
       clearCardPhase();
@@ -550,12 +838,27 @@ window.GetFruityGame = (function () {
     render();
   }
 
+  function advanceRevealToVerdict() {
+    if (!state.cardReveal) return;
+    state.cardReveal.revealStep = "verdict";
+    sync();
+    render();
+    revealTimer = setTimeout(advanceRevealToScore, REVEAL_VERDICT_MS);
+  }
+
+  function advanceRevealToScore() {
+    if (!state.cardReveal) return;
+    applyRevealScoring();
+    state.cardReveal.revealStep = "score";
+    sync();
+    render();
+    revealTimer = setTimeout(finishReveal, REVEAL_SCORE_MS);
+  }
+
   function scheduleRevealFinish() {
     cancelRevealTimer();
     if (!isGameHost()) return;
-    revealTimer = setTimeout(function () {
-      finishReveal();
-    }, REVEAL_MS);
+    revealTimer = setTimeout(advanceRevealToVerdict, REVEAL_ANSWERS_MS);
   }
 
   function resolveLanding(role, pos) {
@@ -563,7 +866,7 @@ window.GetFruityGame = (function () {
     if (!space) return;
     if (space.kind === "path") {
       if (!isSolo() && Math.random() < PARTNER_PATH_CHANCE) {
-        beginQuestionCard(role, drawPartnerQuestion());
+        maybeStartQuestionCard(role, drawPartnerQuestion());
         sync();
         return;
       }
@@ -613,37 +916,55 @@ window.GetFruityGame = (function () {
         sync();
         return;
       }
-      beginQuestionCard(role, card);
+      maybeStartQuestionCard(role, card);
       sync();
       return;
     }
   }
 
   function finishRoll(role, rolls) {
+    cancelLandingTimer();
     const total = typeof rolls === "number" ? rolls : rolls.total;
     const from = state.positions[role];
     const to = movePosition(from, total);
-    state.positions[role] = to;
-    if (typeof rolls === "object" && rolls != null) {
-      state.lastRolls = { die1: rolls.die1, die2: rolls.die2, total: rolls.total };
-      state.lastRoll = rolls.total;
-    } else {
-      state.lastRoll = total;
-      state.lastRolls = { die1: total, die2: 0, total: total };
-    }
+    const die1 = typeof rolls === "object" && rolls != null ? rolls.die1 : total;
+    const die2 = typeof rolls === "object" && rolls != null ? rolls.die2 : 0;
+
+    /* Keep piece at start until dice result is shown, then hop, then land/card. */
+    state.rollAnim = { role: role, from: from, to: to, die1: die1, die2: die2, total: total };
+    state.rollStep = "dice";
+    state.lastRolls = { die1: die1, die2: die2, total: total };
+    state.lastRoll = total;
     state.lastMover = role;
     boardRollTick++;
+    state.isMoving = true;
     lastMoveKey =
-      role + ":" + total + ":" +
-      state.positions.host + ":" + state.positions.joiner;
-    resolveLanding(role, to);
+      role + ":" + total + ":" + from + ">" + to;
+
+    if (state.phase === "card" || state.phase === "reveal") {
+      state.activeCard = null;
+      state.cardReveal = null;
+      state.cardAnswers = { host: null, joiner: null };
+      state.phase = "playing";
+    }
+
+    postToFrame({ type: "gfDiceSpin" });
     sync();
     render();
+
+    landingTimer = setTimeout(function () {
+      landingTimer = null;
+      rollAnimMovePiece();
+    }, DICE_ANIM_MS);
   }
 
   function rollDice() {
     if (!state.started || state.winner) return;
-    if (state.phase === "card" || state.phase === "reveal") {
+    if (state.isMoving) {
+      toast("Wait for the dice and move to finish!");
+      return;
+    }
+    if (state.phase === "card" || state.phase === "textVote" || state.phase === "wager" || state.phase === "reveal") {
       toast("Answer the card first!");
       return;
     }
@@ -661,7 +982,6 @@ window.GetFruityGame = (function () {
       render();
       return;
     }
-    postToFrame({ type: "gfDiceSpin" });
     if (isGameHost()) {
       finishRoll(myRole(), rollTwoDice());
     } else {
@@ -679,9 +999,7 @@ window.GetFruityGame = (function () {
 
     if (isSolo()) {
       if (isGameHost()) {
-        buildReveal();
-        sync();
-        scheduleRevealFinish();
+        proceedAfterBothAnswered();
       } else {
         send({ type: "gfSubmitAnswer", payload: { role: role, choice: choice } });
       }
@@ -691,9 +1009,7 @@ window.GetFruityGame = (function () {
 
     if (bothPlayersAnswered()) {
       if (isGameHost()) {
-        buildReveal();
-        sync();
-        scheduleRevealFinish();
+        proceedAfterBothAnswered();
       } else {
         send({
           type: "gfSubmitAnswer",
@@ -761,6 +1077,11 @@ window.GetFruityGame = (function () {
     }
     const solo = lobbySolo();
     const soloRole = myRole();
+    const questionSeed = Math.floor(Math.random() * 2147483647);
+    if (window.FruityQuestions && FruityQuestions.shuffleDecks) {
+      FruityQuestions.shuffleDecks(questionSeed);
+    }
+    appliedQuestionSeed = questionSeed;
     Object.assign(state, freshState(), {
       started: true,
       phase: "playing",
@@ -768,7 +1089,11 @@ window.GetFruityGame = (function () {
       soloPlayer: solo ? soloRole : null,
       turn: solo ? soloRole : "host",
       pieces: Object.assign({}, state.pieces),
-      positions: { host: 0, joiner: 0 }
+      positions: { host: 0, joiner: 0 },
+      questionSeed: questionSeed,
+      wagerSlot: 2 + Math.floor(Math.random() * 2),
+      questionsAsked: 0,
+      wagerUsed: false
     });
     sync();
     render();
@@ -823,13 +1148,22 @@ window.GetFruityGame = (function () {
     });
   }
 
-  function postBoard() {
+  function snapshotFocusIndex() {
+    if (state.rollAnim && state.isMoving && state.rollStep === "dice") {
+      return state.rollAnim.from;
+    }
     const focusRole =
       state.phase === "card" && state.cardFor
         ? state.cardFor
         : state.phase === "reveal" && state.cardFor
           ? state.cardFor
-          : state.turn;
+          : state.lastMover && state.isMoving
+            ? state.lastMover
+            : state.turn;
+    return state.positions[focusRole] ?? 0;
+  }
+
+  function postBoard() {
     postToFrame({
       type: "gfBoard",
       snapshot: {
@@ -837,16 +1171,30 @@ window.GetFruityGame = (function () {
         phase: state.phase,
         turn: state.turn,
         cardFor: state.cardFor,
-        cardMode: state.cardMode,
-        focusIndex: state.positions[focusRole] ?? 0,
+        cardMode:
+          state.phase === "wager" && state.pendingWager
+            ? state.pendingWager.card.mode || "self"
+            : state.cardMode,
+        focusIndex: snapshotFocusIndex(),
         positions: Object.assign({}, state.positions),
         pieces: Object.assign({}, state.pieces),
         pieceIcons: pieceIconsForSnapshot(),
         teamScore: state.teamScore,
         scores: Object.assign({}, state.scores),
         eggplants: Object.assign({}, state.eggplants),
-        activeCard: state.phase === "card" || state.phase === "reveal" ? state.activeCard : null,
-        cardAnswers: Object.assign({}, state.cardAnswers),
+        activeCard:
+          state.phase === "card" ||
+          state.phase === "textVote" ||
+          state.phase === "wager" ||
+          state.phase === "reveal"
+            ? state.activeCard ||
+              (state.pendingWager && state.pendingWager.card) ||
+              null
+            : null,
+        cardAnswers:
+          state.phase === "textVote"
+            ? Object.assign({}, state.cardAnswers)
+            : maskedCardAnswersForViewer(),
         cardReveal: state.phase === "reveal" ? state.cardReveal : null,
         answered: Object.assign({}, state.answered),
         eggplantActive: state.eggplantActive,
@@ -858,7 +1206,19 @@ window.GetFruityGame = (function () {
         activeRoles: activeRoles(),
         myRole: myRole(),
         names: { host: nameFor("host"), joiner: nameFor("joiner") },
+        chars: arenaChars(),
         isSolo: isSolo(),
+        isMoving: !!state.isMoving,
+        rollAnim: state.rollAnim,
+        rollStep: state.rollStep,
+        cameraFollowIndex: state.cameraFollowIndex,
+        wagerRole: state.phase === "wager" ? state.wagerRole : null,
+        cardWager: state.cardWager,
+        textMatchVotes:
+          state.phase === "textVote"
+            ? Object.assign({}, state.textMatchVotes)
+            : null,
+        pendingWagerPrompt: state.phase === "wager",
         lobby: {
           pieces: Object.assign({}, state.pieces),
           pieceOptions: PIECES,
@@ -891,6 +1251,8 @@ window.GetFruityGame = (function () {
         if (data.action === "roll") rollDice();
         else if (data.action === "answered") markAnswered();
         else if (data.action === "submitAnswer") submitCardAnswer(data.choice);
+        else if (data.action === "submitWager") submitWager(data.amount);
+        else if (data.action === "submitTextMatchVote") submitTextMatchVote(data.vote);
         else if (data.action === "pickPiece") pickPiece(data.pieceId);
         else if (data.action === "startGame") startGame();
         else if (data.action === "eggplant") playEggplant();
@@ -984,6 +1346,15 @@ window.GetFruityGame = (function () {
     const p = msg.payload || {};
 
     if (t === "gfSync") {
+      /* Host ignores inbound sync while driving a roll animation sequence. */
+      if (isGameHost() && landingTimer) {
+        if (p.flair && (!activeFlair || activeFlair.text !== p.flair.text)) {
+          showFlairOverlay(p.flair);
+        } else {
+          render();
+        }
+        return;
+      }
       importPayload(p);
       if (p.flair && (!activeFlair || activeFlair.text !== p.flair.text)) {
         showFlairOverlay(p.flair);
@@ -994,7 +1365,7 @@ window.GetFruityGame = (function () {
     }
     if (t === "gfRollRequest") {
       if (!isGameHost()) return;
-      if (state.turn !== p.from || state.phase === "card" || state.phase === "reveal") return;
+      if (state.isMoving || state.turn !== p.from || state.phase === "card" || state.phase === "reveal" || state.phase === "wager" || state.phase === "textVote") return;
       finishRoll(p.from, rollTwoDice());
       return;
     }
@@ -1022,6 +1393,24 @@ window.GetFruityGame = (function () {
       state.cardAnswers[p.role] = p.choice;
       state.answered[p.role] = true;
       if (bothPlayersAnswered()) {
+        proceedAfterBothAnswered();
+      } else {
+        sync();
+      }
+      return;
+    }
+    if (t === "gfWagerRequest") {
+      if (!isGameHost()) return;
+      if (state.phase !== "wager" || p.from !== state.wagerRole) return;
+      applyWagerAndStart(p.amount);
+      return;
+    }
+    if (t === "gfTextMatchVote") {
+      if (!isGameHost()) return;
+      if (state.phase !== "textVote") return;
+      if (!p.role || !p.vote) return;
+      state.textMatchVotes[p.role] = p.vote === "MATCH" ? "MATCH" : "NO_MATCH";
+      if (p.complete && bothTextVotesIn()) {
         buildReveal();
         sync();
         scheduleRevealFinish();
