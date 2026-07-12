@@ -794,7 +794,8 @@
   .kart-pro{ display:flex; flex-direction:column; gap:10px; align-items:center; width:100%; max-width:960px; margin:0 auto; }
   .kart-pro-hint{ color:#b45309 !important; font-weight:700; text-align:center; max-width:36rem; line-height:1.5; font-size:.9em; margin:0; }
   .kart-mk3-frame,
-  .party-frame{
+  .party-frame,
+  .coop-3d-frame{
     width:100%; max-width:960px; height:min(72vh,560px);
     border:3px solid #111; border-radius:8px; background:#0a1628;
     box-shadow:4px 4px 0 #111;
@@ -1300,6 +1301,7 @@
           <div id="panel-getfruity" class="hidden"></div>
           <div id="panel-kart" class="hidden"></div>
           <div id="panel-party" class="hidden"></div>
+          <div id="panel-coop" class="hidden"></div>
         </div>
       </main>
     </div>
@@ -1323,6 +1325,7 @@
 <script src="/js/get-fruity.js"></script>
 <script src="/js/kart-racer.js"></script>
 <script src="/js/arena-party.js"></script>
+<script src="/js/coop-3d.js"></script>
 <script>
 (function(){
   "use strict";
@@ -1678,7 +1681,8 @@
     mancala: MancalaGame,
     getfruity: GetFruityGame,
     kart: KartRacerGame,
-    party: ArenaPartyGame
+    party: ArenaPartyGame,
+    coop: Coop3DGame
   };
 
   function broadcastArenaState(){
@@ -1700,6 +1704,7 @@
     else if(t.indexOf('gf') === 0) { GetFruityGame.handleMessage(msg); handled = true; }
     else if(t.indexOf('kr') === 0) { KartRacerGame.handleMessage(msg); handled = true; }
     else if(t.indexOf('mp') === 0) { ArenaPartyGame.handleMessage(msg); handled = true; }
+    else if(t.indexOf('cp') === 0) { Coop3DGame.handleMessage(msg); handled = true; }
     if(!handled) return false;
     renderActiveGame();
     return true;
@@ -1983,7 +1988,8 @@
   ];
   const ARCADE_GAMES = [
     { id:'kart', icon:'🏎️', label:'Arena Kart' },
-    { id:'party', icon:'🎲', label:'Arena Party' }
+    { id:'party', icon:'🎲', label:'Arena Party' },
+    { id:'coop', icon:'🌐', label:'Co-op 3D Sandbox' }
   ];
   function isSoloPlay(){ return playMode === 'solo'; }
   function requiresPartnerToStart(){ return playMode === 'duo' && !hasPartner(); }
@@ -2139,6 +2145,9 @@
     if(prevGame === 'party' && gameId !== 'party' && window.ArenaPartyGame){
       ArenaPartyGame.destroy();
     }
+    if(prevGame === 'coop' && gameId !== 'coop' && window.Coop3DGame){
+      Coop3DGame.destroy();
+    }
     if(prevGame === 'getfruity' && gameId !== 'getfruity' && window.GetFruityGame && GetFruityGame.destroy){
       GetFruityGame.destroy();
     }
@@ -2159,6 +2168,7 @@
     else if(gameId === 'getfruity') renderGF();
     else if(gameId === 'kart') renderKR();
     else if(gameId === 'party') renderMP();
+    else if(gameId === 'coop') renderCP();
     if(isGameHost() && hasPartner()) broadcastArenaState();
     const panel = $('#panel-' + gameId);
     if(panel) panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -2168,6 +2178,7 @@
   $('#games-back-btn').addEventListener('click', function(){
     if(activeGame === 'kart' && window.KartRacerGame) KartRacerGame.destroy();
     if(activeGame === 'party' && window.ArenaPartyGame) ArenaPartyGame.destroy();
+    if(activeGame === 'coop' && window.Coop3DGame) Coop3DGame.destroy();
     if(activeGame === 'getfruity' && window.GetFruityGame && GetFruityGame.destroy) GetFruityGame.destroy();
     showGamePicker(true);
     ALL_GAME_IDS.forEach(function(id){
@@ -2295,6 +2306,14 @@
     peerBaseChar: function(){ return net.peerBaseChar; },
     myRole: function(){ return net.isHost ? 'host' : 'joiner'; }
   }));
+  Coop3DGame.init(Object.assign({}, gameApi, {
+    panel: function(){ return gameApi.panel('panel-coop'); },
+    hasPartner: hasPartner,
+    roomCode: function(){ return net.roomCode; },
+    myBaseChar: function(){ return net.myBaseChar; },
+    peerBaseChar: function(){ return net.peerBaseChar; },
+    myRole: function(){ return net.isHost ? 'host' : 'joiner'; }
+  }));
 
   function renderBG(){ BananagramsGame.render(); }
   function renderRK(){ RummikubGame.render(); }
@@ -2303,6 +2322,7 @@
   function renderGF(){ GetFruityGame.render(); }
   function renderKR(){ KartRacerGame.render(); }
   function renderMP(){ ArenaPartyGame.render(); }
+  function renderCP(){ Coop3DGame.render(); }
 
   function renderActiveGame(){
     if(!activeGame) return;
@@ -2313,6 +2333,7 @@
     else if(activeGame === 'getfruity') renderGF();
     else if(activeGame === 'kart') renderKR();
     else if(activeGame === 'party') renderMP();
+    else if(activeGame === 'coop') renderCP();
   }
 
   if(window.PartyGames){

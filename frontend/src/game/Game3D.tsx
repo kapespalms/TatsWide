@@ -187,10 +187,12 @@ export default function Game3D({
   roomID,
   character,
   level,
+  embedded = false,
 }: {
   roomID: string;
   character: CharacterId;
   level: number;
+  embedded?: boolean;
 }) {
   const workerOrigin =
     (import.meta.env.VITE_GAME_WORKER_ORIGIN as string | undefined)?.replace(/\/$/, '') ??
@@ -230,7 +232,7 @@ export default function Game3D({
   }, [spectrum.volume, remoteVolume, playerPosition, trapPositions.length]);
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-black">
+    <div className={`relative w-full overflow-hidden bg-black ${embedded ? 'h-full min-h-[520px]' : 'h-screen w-screen'}`}>
       <Canvas shadows dpr={[1, 2]}>
         <Suspense fallback={null}>
           <SceneContent
