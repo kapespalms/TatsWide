@@ -6,7 +6,7 @@ type CharacterId = 'Wideass' | 'Tats';
 export default function App() {
   const [room, setRoom] = useState('AAA-Sonic-Zone');
   const [character, setCharacter] = useState<CharacterId>('Wideass');
-  const [level, setLevel] = useState(1);
+  const [level, setLevel] = useState(3);
   const [gameActive, setGameActive] = useState(false);
   const [controllers, setControllers] = useState<string[]>([]);
 
@@ -32,7 +32,11 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-950 font-mono text-white">
-      <h1 className="mb-4 text-3xl font-black tracking-widest text-cyan-400">3D REALISTIC CO-OP SANDBOX</h1>
+        <p className="mb-2 max-w-md text-center text-sm text-zinc-400">
+          Co-op 3D physics sandbox — loop track, ricocheting cans, UFO boss, mic jumps,
+          webcam sync. Open two tabs with the same room key.
+        </p>
+        <h1 className="mb-4 text-3xl font-black tracking-widest text-cyan-400">3D REALISTIC CO-OP SANDBOX</h1>
 
       <div className="mb-4 flex items-center gap-2 rounded bg-slate-900 px-3 py-1.5 text-xs">
         <span className={`h-2 w-2 rounded-full ${controllers.length ? 'animate-ping bg-green-400' : 'bg-red-500'}`} />

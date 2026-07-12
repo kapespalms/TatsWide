@@ -1,16 +1,21 @@
-import { Suspense, useCallback, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
+import { PerspectiveCamera } from '@react-three/drei';
 import { Physics } from '@react-three/cannon';
 import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import type { PublicApi } from '@react-three/cannon';
+import { FollowCamera } from './FollowCamera';
+import { GameHUD } from './GameHUD';
+import { LoveTetherLine } from './LoveTetherLine';
 import { NetworkController } from './NetworkController';
 import { PhysicalPepperCan } from './PhysicalPepperCan';
 import { PhysicalPlayer } from './PhysicalPlayer';
+import { PhysicalTRex } from './PhysicalTRex';
 import { PhysicalUFOBoss } from './PhysicalUFOBoss';
 import { PhysicsTrackFloor } from './PhysicsTrackFloor';
 import { RemotePartnerSphere } from './RemotePartnerSphere';
+import { SilentTrapBlock } from './SilentTrapBlock';
 import { useMediaCapture } from './useMediaCapture';
 import { useMicSpectrum } from './useMicSpectrum';
 
@@ -18,27 +23,55 @@ type CharacterId = 'Wideass' | 'Tats';
 
 function generateSonicTrackCurve() {
   const points: THREE.Vector3[] = [];
-  for (let x = -60; x < 15; x += 3) points.push(new THREE.Vector3(x, 0, 0));
+  for (let x = -60; x < 15; x += 3) {
+    points.push(new THREE.Vector3(x, 0, 0));
+  }
   const centerX = 25;
   const centerY = 11;
   const radius = 10;
   for (let a = Math.PI / 2; a <= 3 * Math.PI * 1.02; a += 0.12) {
     const crossOverZ = a > 2.5 * Math.PI ? 2.5 : 0;
-    points.push(new THREE.Vector3(centerX + Math.cos(a) * radius, centerY + Math.sin(a) * radius, crossOverZ));
+    points.push(
+      new THREE.Vector3(
+        centerX + Math.cos(a) * radius,
+        centerY + Math.sin(a) * radius,
+        crossOverZ,
+      ),
+    );
   }
-  for (let x = 35; x < 120; x += 3) points.push(new THREE.Vector3(x, 0, 2.5));
+  for (let x = 35; x < 120; x += 3) {
+    points.push(new THREE.Vector3(x, 0, 2.5));
+  }
   return new THREE.CatmullRomCurve3(points);
 }
 
-function AudioReactiveGrid({ volume, remoteVolume }: { volume: number; remoteVolume: number }) {
+function AudioReactiveGrid({
+  volume,
+  remoteVolume,
+}: {
+  volume: number;
+  remoteVolume: number;
+}) {
   const gridRef = useRef<THREE.GridHelper>(null);
-  useFrame(() => {
-    if (!gridRef.current) return;
+
+  useFrame((state) => {
+    if (!gridRef.current) {
+      return;
+    }
     const combined = volume + remoteVolume;
     const scale = 1 + combined / 90;
     gridRef.current.scale.set(scale, 1, scale);
+    gridRef.current.position.y =
+      Math.sin(state.clock.elapsedTime * 2) * (combined / 200);
   });
-  return <gridHelper ref={gridRef} args={[200, 50, '#ff44aa', '#22222b']} position={[0, 0.01, 0]} />;
+
+  return (
+    <gridHelper
+      ref={gridRef}
+      args={[200, 50, '#ff44aa', '#22222b']}
+      position={[0, 0.01, 0]}
+    />
+  );
 }
 
 function SceneContent({
@@ -46,51 +79,80 @@ function SceneContent({
   character,
   level,
   volume,
-  remoteVolume,
   workerOrigin,
   onStatus,
-  onActivateMedia,
-  mediaActive,
+  onPlayerPosition,
+  onPartnerVolume,
+  playerPosition,
+  trapPositions,
 }: {
   roomID: string;
   character: CharacterId;
   level: number;
   volume: number;
-  remoteVolume: number;
   workerOrigin: string;
   onStatus: (s: string) => void;
-  onActivateMedia: () => void;
-  mediaActive: boolean;
+  onPlayerPosition: (p: THREE.Vector3) => void;
+  onPartnerVolume: (v: number) => void;
+  playerPosition: THREE.Vector3;
+  trapPositions: [number, number, number][];
 }) {
   const [playerApi, setPlayerApi] = useState<PublicApi | null>(null);
   const [partnerPos, setPartnerPos] = useState(() => new THREE.Vector3(-20, 2, 0));
   const [partnerVolume, setPartnerVolume] = useState(0);
   const trackCurve = useMemo(() => generateSonicTrackCurve(), []);
 
-  const sodaPositions = useMemo<[number, number, number][]>(
-    () => Array.from({ length: 8 }, (_, i) => [-15 + i * 8, 15 + Math.random() * 5, (Math.random() - 0.5) * 4]),
-    [level],
-  );
+  const sodaPositions = useMemo<[number, number, number][]>(() => {
+    const count = level % 3 === 0 ? 8 : 4;
+    return Array.from({ length: count }, (_, index) => [
+      -15 + index * 8,
+      12 + Math.random() * 6,
+      (Math.random() - 0.5) * 4,
+    ]);
+  }, [level]);
 
-  const handlePartnerUpdate = useCallback((position: THREE.Vector3, vol: number) => {
-    setPartnerPos(position.clone());
-    setPartnerVolume(vol);
-  }, []);
+  const handlePartnerUpdate = useCallback(
+    (position: THREE.Vector3, remoteVol: number) => {
+      setPartnerPos(position.clone());
+      setPartnerVolume(remoteVol);
+      onPartnerVolume(remoteVol);
+    },
+    [onPartnerVolume],
+  );
 
   return (
     <>
       <PerspectiveCamera makeDefault position={[0, 15, 30]} fov={45} />
-      <OrbitControls maxPolarAngle={Math.PI / 2 - 0.05} />
+      <FollowCamera target={playerPosition} />
       <ambientLight intensity={0.25} />
-      <directionalLight position={[20, 40, 20]} intensity={2} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
+      <directionalLight
+        position={[20, 40, 20]}
+        intensity={2}
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+      />
       <pointLight position={[0, 10, 0]} intensity={1.5} color="#ff44aa" distance={60} />
+      <fog attach="fog" args={['#050508', 40, 180]} />
 
-      <Physics gravity={[0, -9.81, 0]}>
+      <Physics gravity={[0, -9.81, 0]} broadphase="SAP">
         <PhysicsTrackFloor />
-        <PhysicalPlayer chosenCharacter={character} onApiReady={setPlayerApi} volume={volume} remoteVolume={partnerVolume || remoteVolume} />
+        <PhysicalPlayer
+          chosenCharacter={character}
+          onApiReady={setPlayerApi}
+          onPosition={onPlayerPosition}
+          volume={volume}
+          remoteVolume={partnerVolume}
+        />
         <RemotePartnerSphere target={partnerPos} />
         <PhysicalUFOBoss level={level} />
-        {level % 3 === 0 && sodaPositions.map((pos, idx) => <PhysicalPepperCan key={idx} startPos={pos} />)}
+        <PhysicalTRex level={level} />
+        {sodaPositions.map((pos, index) => (
+          <PhysicalPepperCan key={`can-${index}`} startPos={pos} />
+        ))}
+        {trapPositions.map((pos, index) => (
+          <SilentTrapBlock key={`trap-${index}`} position={pos} />
+        ))}
       </Physics>
 
       <mesh receiveShadow>
@@ -98,7 +160,8 @@ function SceneContent({
         <meshStandardMaterial color="#16161f" roughness={0.3} metalness={0.7} />
       </mesh>
 
-      <AudioReactiveGrid volume={volume} remoteVolume={partnerVolume || remoteVolume} />
+      <AudioReactiveGrid volume={volume} remoteVolume={partnerVolume} />
+      <LoveTetherLine from={playerPosition} to={partnerPos} />
 
       {playerApi && (
         <NetworkController
@@ -112,67 +175,90 @@ function SceneContent({
         />
       )}
 
-      {!mediaActive && (
-        <mesh position={[0, 8, 0]} onClick={onActivateMedia}>
-          <boxGeometry args={[0.01, 0.01, 0.01]} />
-          <meshBasicMaterial transparent opacity={0} />
-        </mesh>
-      )}
-
       <EffectComposer>
-        <Bloom intensity={0.8} luminanceThreshold={0.2} />
-        <Vignette eskil={false} offset={0.2} darkness={0.7} />
+        <Bloom intensity={0.9} luminanceThreshold={0.15} />
+        <Vignette eskil={false} offset={0.2} darkness={0.65} />
       </EffectComposer>
     </>
   );
 }
 
-export default function Game3D({ roomID, character, level }: { roomID: string; character: CharacterId; level: number }) {
-  const workerOrigin = (import.meta.env.VITE_GAME_WORKER_ORIGIN as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:8787';
+export default function Game3D({
+  roomID,
+  character,
+  level,
+}: {
+  roomID: string;
+  character: CharacterId;
+  level: number;
+}) {
+  const workerOrigin =
+    (import.meta.env.VITE_GAME_WORKER_ORIGIN as string | undefined)?.replace(/\/$/, '') ??
+    'http://localhost:8787';
   const media = useMediaCapture();
   const spectrum = useMicSpectrum(media.stream);
-  const [status, setStatus] = useState('CLICK ENABLE WEBCAM + MIC');
+  const [status, setStatus] = useState('CONNECTING...');
+  const [remoteVolume, setRemoteVolume] = useState(0);
+  const [playerPosition, setPlayerPosition] = useState(
+    () => new THREE.Vector3(-25, 2, 0),
+  );
+  const [trapPositions, setTrapPositions] = useState<[number, number, number][]>([]);
+  const quietSinceRef = useRef<number | null>(null);
 
-  const combinedVolume = spectrum.volume;
+  useEffect(() => {
+    const combined = spectrum.volume + remoteVolume;
+    const isQuiet = combined < 5;
+
+    if (!isQuiet) {
+      quietSinceRef.current = null;
+      setTrapPositions([]);
+      return;
+    }
+
+    if (quietSinceRef.current === null) {
+      quietSinceRef.current = Date.now();
+      return;
+    }
+
+    if (Date.now() - quietSinceRef.current > 2000 && trapPositions.length === 0) {
+      setTrapPositions([
+        [playerPosition.x + 12, 2, playerPosition.z],
+        [playerPosition.x + 20, 2, playerPosition.z + 2],
+        [playerPosition.x + 28, 2, playerPosition.z - 2],
+      ]);
+    }
+  }, [spectrum.volume, remoteVolume, playerPosition, trapPositions.length]);
 
   return (
-    <div className="relative h-screen w-screen bg-black">
-      <Canvas shadows onPointerDown={() => void media.activate()}>
+    <div className="relative h-screen w-screen overflow-hidden bg-black">
+      <Canvas shadows dpr={[1, 2]}>
         <Suspense fallback={null}>
           <SceneContent
             roomID={roomID}
             character={character}
             level={level}
-            volume={combinedVolume}
-            remoteVolume={0}
+            volume={spectrum.volume}
             workerOrigin={workerOrigin}
             onStatus={setStatus}
-            onActivateMedia={() => void media.activate()}
-            mediaActive={media.active}
+            onPlayerPosition={setPlayerPosition}
+            onPartnerVolume={setRemoteVolume}
+            playerPosition={playerPosition}
+            trapPositions={trapPositions}
           />
         </Suspense>
       </Canvas>
 
-      <div className="pointer-events-none absolute left-4 top-4 z-20 space-y-2 font-mono text-xs">
-        <div className="rounded border border-cyan-500/40 bg-black/75 px-3 py-2 text-cyan-300">{status}</div>
-        <div className="rounded border border-pink-500/40 bg-black/75 px-3 py-2 text-pink-300">
-          FFT VOLUME: {Math.round(combinedVolume)}
-        </div>
-        {media.error && <div className="rounded border border-red-500/40 bg-black/75 px-3 py-2 text-red-300">{media.error}</div>}
-      </div>
-
-      <div className="absolute bottom-4 right-4 z-20 overflow-hidden rounded-lg border-2 border-cyan-400/50 bg-black shadow-lg shadow-cyan-500/20">
-        <video
-          ref={media.videoRef}
-          className="h-36 w-48 object-cover"
-          autoPlay
-          playsInline
-          muted
-        />
-        <div className="bg-black/80 px-2 py-1 text-center font-mono text-[10px] text-cyan-300">
-          {media.active ? 'WEBCAM LIVE' : 'CLICK GAME TO ENABLE CAM + MIC'}
-        </div>
-      </div>
+      <GameHUD
+        status={status}
+        volume={spectrum.volume}
+        remoteVolume={remoteVolume}
+        bins={spectrum.bins}
+        level={level}
+        mediaActive={media.active}
+        mediaError={media.error}
+        onEnableMedia={() => void media.activate()}
+        videoRef={media.videoRef}
+      />
     </div>
   );
 }
