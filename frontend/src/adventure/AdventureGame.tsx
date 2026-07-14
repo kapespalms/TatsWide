@@ -70,9 +70,11 @@ export function AdventureGame({
         finishedHandled.current = true;
         setScore((s) => s + progress.score);
         if (level >= TOTAL_LEVELS) {
+          phaseRef.current = 'victory';
           setPhase('victory');
           setBanner('ALL 20 ZONES CLEAR!');
         } else {
+          phaseRef.current = 'levelComplete';
           setPhase('levelComplete');
           setBanner(`${authoring.name.toUpperCase()} CLEAR!`);
         }
@@ -84,9 +86,9 @@ export function AdventureGame({
   const handleTrigger = useCallback(
     (trigger: LevelTrigger) => {
       if (doneTriggers.has(trigger.id) || phaseRef.current !== 'run') return;
-      // Prefer latest flushed Phaser values (reportProgress runs just before this)
-      zoneScoreRef.current = Math.max(zoneScoreRef.current, zoneScore);
-      countsRef.current = counts;
+      // Sync immediately so Phaser can't double-fire before React commits
+      phaseRef.current = trigger.kind;
+      // Keep flushed refs from reportProgress — do NOT stomp with stale React state
       setResumeX(trigger.resumeX);
       setActiveTrigger(trigger);
       setPhase(trigger.kind);
@@ -94,7 +96,7 @@ export function AdventureGame({
         trigger.kind === 'jeep' ? 'JEEP ENGAGED — T-REX INCOMING!' : 'STARSHIP LAUNCH — ALIENS AHEAD!',
       );
     },
-    [doneTriggers, zoneScore, counts],
+    [doneTriggers],
   );
 
   const retryFromFail = () => {
@@ -102,6 +104,7 @@ export function AdventureGame({
     setActiveTrigger(null);
     runKey.current += 1;
     setTakenTick((t) => t + 1);
+    phaseRef.current = 'run';
     setPhase('run');
     setBanner('CONTINUE — BACK ON THE TRACK!');
   };
@@ -113,6 +116,7 @@ export function AdventureGame({
         setFailReason(result.reason);
         setResumeX(Math.max(120, activeTrigger.atX - 120));
         setActiveTrigger(null);
+        phaseRef.current = 'failed';
         setPhase('failed');
         return;
       }
@@ -128,6 +132,7 @@ export function AdventureGame({
       setBanner(`BACK TO ${authoring.name.toUpperCase()}!`);
       runKey.current += 1;
       setTakenTick((t) => t + 1);
+      phaseRef.current = 'run';
       setPhase('run');
     },
     [activeTrigger, authoring.name, zoneScore],
@@ -149,6 +154,7 @@ export function AdventureGame({
     killedGhostsRef.current = new Set();
     runKey.current += 1;
     setTakenTick((t) => t + 1);
+    phaseRef.current = 'run';
     setPhase('run');
   };
 
@@ -228,6 +234,8 @@ export function AdventureGame({
         seedCounts={countsRef.current}
         seedTakenIds={[...takenIdsRef.current]}
         seedKilledGhostIds={[...killedGhostsRef.current]}
+        seedElapsed={timeSec}
+        seedFiredTriggers={[...doneTriggers]}
         embed={embed}
         onProgress={handleProgress}
         onTrigger={handleTrigger}

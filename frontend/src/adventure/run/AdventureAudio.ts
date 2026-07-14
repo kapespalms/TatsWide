@@ -5,9 +5,11 @@ export class AdventureAudio {
   private musicNodes: AudioNode[] = [];
   private musicTimer: number | null = null;
   private musicOn = false;
+  private pendingTimers: number[] = [];
+  private disposed = false;
 
   private ensure() {
-    if (this.muted) return null;
+    if (this.muted || this.disposed) return null;
     if (!this.ctx) {
       const AC =
         window.AudioContext ||
@@ -54,7 +56,7 @@ export class AdventureAudio {
     const progression = [196, 220, 246.94, 261.63, 293.66, 261.63, 246.94, 220];
     let step = 0;
     const beat = () => {
-      if (!this.musicOn || !this.ctx) return;
+      if (!this.musicOn || !this.ctx || this.disposed) return;
       const t0 = this.ctx.currentTime;
       const note = progression[step % progression.length];
       step += 1;
@@ -137,12 +139,32 @@ export class AdventureAudio {
   }
 
   clear() {
-    this.tone(523, 0.12, 'square', 0.07);
-    window.setTimeout(() => this.tone(659, 0.12, 'square', 0.07), 100);
-    window.setTimeout(() => this.tone(784, 0.22, 'square', 0.08), 200);
+    // Schedule on AudioContext time — no window timers that outlive dispose()
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const play = (delay: number, freq: number, dur: number, gain: number) => {
+      const t0 = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(freq, t0);
+      g.gain.setValueAtTime(gain, t0);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.02);
+    };
+    play(0, 523, 0.12, 0.07);
+    play(0.1, 659, 0.12, 0.07);
+    play(0.2, 784, 0.22, 0.08);
   }
 
   dispose() {
+    this.disposed = true;
+    this.muted = true;
+    for (const id of this.pendingTimers) window.clearTimeout(id);
+    this.pendingTimers = [];
     this.stopMusic();
     if (this.ctx) {
       void this.ctx.close();

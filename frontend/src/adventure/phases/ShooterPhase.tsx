@@ -5,6 +5,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type MutableRefObject,
@@ -247,6 +248,23 @@ const ShooterWorld = memo(function ShooterWorld({
   const scratch = useRef(new THREE.Vector3());
   const ndcScratch = useRef(new THREE.Vector3());
 
+  useLayoutEffect(() => {
+    return () => {
+      for (const g of enemyMeshes.current) {
+        disposeGroup(g);
+        root.current?.remove(g);
+      }
+      enemyMeshes.current = [];
+      for (const m of laserMeshes.current) {
+        m.visible = false;
+        root.current?.remove(m);
+      }
+      laserMeshes.current = [];
+      enemies.current = [];
+      lasers.current = [];
+    };
+  }, []);
+
   useFrame((state, delta) => {
     if (completed.current) return;
     const dt = Math.min(delta, 0.05);
@@ -303,7 +321,7 @@ const ShooterWorld = memo(function ShooterWorld({
     for (const e of enemies.current) {
       e.z += speed * dt;
       if (e.z >= 6.5) {
-        if (e.kind !== 'crate') onMissPass(e.kind === 'trex' ? 10 : 6);
+        if (e.kind !== 'crate') onMissPass(e.kind === 'trex' ? 7 : 4);
         continue;
       }
       survivors.push(e);

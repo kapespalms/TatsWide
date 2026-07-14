@@ -28,6 +28,8 @@ export interface AdventureRunInit {
   seedCounts?: CollectibleCounts;
   seedTakenIds?: string[];
   seedKilledGhostIds?: string[];
+  seedElapsed?: number;
+  seedFiredTriggers?: string[];
   onProgress: (payload: RunProgress) => void;
   onTrigger: (trigger: LevelTrigger) => void;
 }
@@ -128,8 +130,8 @@ export class AdventureRunScene extends Phaser.Scene {
     this.initData = data;
     this.counts = { ...(data.seedCounts ?? { pepper: 0, duck: 0, witchHat: 0 }) };
     this.score = data.seedScore ?? 0;
-    this.elapsed = 0;
-    this.firedTriggers = new Set();
+    this.elapsed = data.seedElapsed ?? 0;
+    this.firedTriggers = new Set(data.seedFiredTriggers ?? []);
     this.finished = false;
     this.paused = false;
     this.ghosts = [];
@@ -428,12 +430,17 @@ export class AdventureRunScene extends Phaser.Scene {
     }
   }
 
-  private buildGrindVisual(level: LevelAuthoring) {
-    // Rails rendered via track path; sprinkle sparkle markers
-    for (const r of level.grindRails) {
-      for (let x = 0; x < r.length; x += 48) {
-        this.add.image(r.x + x + 16, r.y - 8, 'px_rail').setDepth(4).setScale(2);
-      }
+  private buildGrindVisual(_level: LevelAuthoring) {
+    const grind = this.kit.tracks.GRIND;
+    if (!grind) return;
+    // Sparkle markers follow the authored GRIND path (not a flat authoring strip)
+    for (let s = 0; s < grind.path.length; s += 40) {
+      const p = grind.path.sample(s);
+      this.add
+        .image(p.x - p.nx * 10, p.y - p.ny * 10, 'px_rail')
+        .setDepth(4)
+        .setScale(1.8)
+        .setAngle(Phaser.Math.RadToDeg(p.angle));
     }
   }
 
@@ -925,7 +932,12 @@ export class AdventureRunScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
-    if (this.paused) return;
+    if (this.paused) {
+      // Drop edge-pressed jump so pause can't queue a phantom leap on resume
+      this.jumpPressedW = false;
+      this.jumpPressedT = false;
+      return;
+    }
     this.elapsed += delta / 1000;
     const dt = Math.min(delta / 1000, 0.05);
     const now = this.time.now;
