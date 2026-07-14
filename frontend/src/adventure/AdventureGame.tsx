@@ -59,6 +59,8 @@ export function AdventureGame({
   const handleProgress = useCallback(
     (progress: RunProgress) => {
       posRef.current = progress.x;
+      zoneScoreRef.current = progress.score;
+      countsRef.current = progress.counts;
       setZoneScore(progress.score);
       setCounts(progress.counts);
       setTimeSec(progress.timeSec);
@@ -82,7 +84,8 @@ export function AdventureGame({
   const handleTrigger = useCallback(
     (trigger: LevelTrigger) => {
       if (doneTriggers.has(trigger.id) || phaseRef.current !== 'run') return;
-      zoneScoreRef.current = zoneScore;
+      // Prefer latest flushed Phaser values (reportProgress runs just before this)
+      zoneScoreRef.current = Math.max(zoneScoreRef.current, zoneScore);
       countsRef.current = counts;
       setResumeX(trigger.resumeX);
       setActiveTrigger(trigger);

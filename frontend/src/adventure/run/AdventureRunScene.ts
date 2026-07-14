@@ -847,7 +847,18 @@ export class AdventureRunScene extends Phaser.Scene {
     for (const t of this.initData.level.triggers) {
       if (this.firedTriggers.has(t.id)) continue;
       if (x >= t.atX) {
+        // Don't yank mid-branch — finish the rail first
+        const onBranch =
+          this.riderW.trackId === 'GRIND' ||
+          this.riderW.trackId === 'HIGH' ||
+          this.riderW.trackId === 'LOW' ||
+          this.riderT.trackId === 'GRIND' ||
+          this.riderT.trackId === 'HIGH' ||
+          this.riderT.trackId === 'LOW';
+        if (onBranch) continue;
         this.firedTriggers.add(t.id);
+        // Flush HUD/score/pickups before Phaser tears down
+        this.reportProgress(x);
         this.initData.onTrigger(t);
       }
     }

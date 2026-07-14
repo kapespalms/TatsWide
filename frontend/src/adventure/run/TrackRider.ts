@@ -179,6 +179,7 @@ function stepGround(
     return;
   }
 
+  let joinedViaJump = false;
   const joins = track0.joins ?? [];
   for (const join of joins) {
     if (state.s < join.sMin || state.s > join.sMax) continue;
@@ -189,6 +190,7 @@ function stepGround(
     if (!fire) continue;
     const target = tracks[join.toTrackId];
     if (!target) continue;
+    if (join.trigger === 'jump') joinedViaJump = true;
     state.trackId = join.toTrackId;
     state.s = join.toS;
     state.attachedTrackHint = join.toTrackId;
@@ -251,8 +253,8 @@ function stepGround(
     return;
   }
 
-  // Jump only when not holding down (spindash owns down+jump)
-  if (input.jumpPressed && !input.down) {
+  // Jump only when not holding down — and not the same press that forked to HIGH/GRIND
+  if (input.jumpPressed && !input.down && !joinedViaJump) {
     state.mode = 'air';
     state.vx = sample.tx * state.gsp + sample.nx * config.jumpSpeed;
     state.vy = sample.ty * state.gsp + sample.ny * config.jumpSpeed;
@@ -265,19 +267,62 @@ function stepGround(
 
   const adv = track.path.advance(state.s, state.gsp * dt);
   state.s = adv.s;
-  const next = track.path.sample(state.s);
+
+  // Re-check auto joins after advance so high-speed exits don't miss the window
+  const afterJoins = tracks[state.trackId as string]?.joins ?? [];
+  for (const join of afterJoins) {
+    if (join.trigger !== 'auto') continue;
+    if (state.s < join.sMin - 20 || state.s > join.sMax) continue;
+    const target = tracks[join.toTrackId];
+    if (!target) continue;
+    state.trackId = join.toTrackId;
+    state.s = join.toS;
+    state.attachedTrackHint = join.toTrackId;
+    state.events.push({ type: 'join', toTrackId: join.toTrackId });
+    break;
+  }
+
+  const ridden = tracks[state.trackId as string] ?? track;
+  const next = ridden.path.sample(state.s);
   state.x = next.x;
   state.y = next.y;
   state.angle = next.angle;
 
   if (adv.hitEnd || adv.hitStart) {
+    // Prefer merging to MAIN instead of freefall off HIGH/LOW/GRIND
+    const merge = (ridden.joins ?? []).find((j) => j.trigger === 'auto' && tracks[j.toTrackId]);
+    if (merge && ridden.id !== 'MAIN') {
+      const target = tracks[merge.toTrackId];
+      state.trackId = merge.toTrackId;
+      state.s = merge.toS;
+      state.attachedTrackHint = merge.toTrackId;
+      const landed = target.path.sample(merge.toS);
+      state.x = landed.x;
+      state.y = landed.y;
+      state.angle = landed.angle;
+      state.events.push({ type: 'join', toTrackId: merge.toTrackId });
+      return;
+    }
+    if (ridden.id !== 'MAIN' && tracks.MAIN) {
+      const proj = tracks.MAIN.path.project(state.x, state.y);
+      const landed = tracks.MAIN.path.sample(proj.s);
+      state.mode = 'ground';
+      state.trackId = 'MAIN';
+      state.s = proj.s;
+      state.x = landed.x;
+      state.y = landed.y;
+      state.angle = landed.angle;
+      state.attachedTrackHint = 'MAIN';
+      state.events.push({ type: 'join', toTrackId: 'MAIN' });
+      return;
+    }
     state.mode = 'air';
     state.vx = next.tx * state.gsp;
     state.vy = next.ty * state.gsp;
     state.trackId = null;
-    state.attachedTrackHint = null;
+    state.attachedTrackHint = 'MAIN';
     state.jumpGraceUntil = nowMs + config.detachGraceMs;
-    state.events.push({ type: 'endOfPath', trackId: track.id, atStart: adv.hitStart });
+    state.events.push({ type: 'endOfPath', trackId: ridden.id, atStart: adv.hitStart });
   }
 }
 

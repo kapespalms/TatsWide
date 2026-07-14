@@ -186,8 +186,10 @@ export function buildZoneTracks(level: number): LevelTrackKit {
   const hillLen = Math.floor(plan.hillLen);
   const tunnelX = Math.floor(3800 * stretch);
   const highX = Math.floor(4600 * stretch);
-  const grindX = Math.floor(highX + 600);
   const jeepX = Math.floor(5400 * stretch);
+  // Grind finishes before jeep trigger so you aren't yanked mid-rail
+  const grindLen = plan.grindLen;
+  const grindX = Math.floor(jeepX - grindLen - 220);
   const loop2X = Math.floor(6100 * stretch);
   const spaceX = Math.floor(7100 * stretch);
 
@@ -299,8 +301,8 @@ export function buildZoneTracks(level: number): LevelTrackKit {
   const grindPath = new TrackPath(
     linePath([
       { x: grindX, y: gy - plan.grindHeight },
-      { x: grindX + plan.grindLen * 0.7, y: gy - plan.grindHeight },
-      { x: grindX + plan.grindLen, y: gy - 40 },
+      { x: grindX + grindLen * 0.7, y: gy - plan.grindHeight },
+      { x: grindX + grindLen, y: gy - 40 },
     ]),
   );
 
@@ -358,7 +360,7 @@ export function buildZoneTracks(level: number): LevelTrackKit {
       path: highPath,
       joins: [
         {
-          sMin: Math.max(0, highPath.length - 40),
+          sMin: Math.max(0, highPath.length - 120),
           sMax: highPath.length,
           toTrackId: 'MAIN',
           toS: mainPath.project(highX + 480, gy - 40).s,
@@ -371,7 +373,7 @@ export function buildZoneTracks(level: number): LevelTrackKit {
       path: lowPath,
       joins: [
         {
-          sMin: Math.max(0, lowPath.length - 48),
+          sMin: Math.max(0, lowPath.length - 120),
           sMax: lowPath.length,
           toTrackId: 'MAIN',
           toS: mainPath.project(tunnelX + plan.tunnelLen * 0.85, gy).s,
@@ -384,10 +386,10 @@ export function buildZoneTracks(level: number): LevelTrackKit {
       path: grindPath,
       joins: [
         {
-          sMin: Math.max(0, grindPath.length - 40),
+          sMin: Math.max(0, grindPath.length - 120),
           sMax: grindPath.length,
           toTrackId: 'MAIN',
-          toS: mainPath.project(grindX + plan.grindLen, gy - 40).s,
+          toS: mainPath.project(grindX + grindLen, gy - 40).s,
           trigger: 'auto',
         },
       ],
@@ -436,7 +438,7 @@ export function buildZoneTracks(level: number): LevelTrackKit {
     loop2X,
     tunnelX,
     grindX,
-    grindLen: plan.grindLen,
+    grindLen,
     grindHeight: plan.grindHeight,
     pepperXs,
     ghostXs,

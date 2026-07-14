@@ -46,6 +46,7 @@ export function ShooterPhase(props: ShooterPhaseProps) {
   const [scores, setScores] = useState<ShooterScores>({ Wideass: 0, Tats: 0 });
   const [streaks, setStreaks] = useState<ShooterScores>({ Wideass: 0, Tats: 0 });
   const [kills, setKills] = useState(0);
+  const killsCountRef = useRef(0);
   const [timeLeft, setTimeLeft] = useState(segment.durationSec);
   const [flash, setFlash] = useState('');
   const [jeepHp, setJeepHp] = useState(JEEP_HP_MAX);
@@ -97,7 +98,8 @@ export function ShooterPhase(props: ShooterPhaseProps) {
       });
       return { ...s, [who]: streak };
     });
-    setKills((k) => k + 1);
+    killsCountRef.current += 1;
+    setKills(killsCountRef.current);
     setFlash(who);
     sfx.current?.kill();
   }, []);
@@ -159,6 +161,7 @@ export function ShooterPhase(props: ShooterPhaseProps) {
               onKill={handleKill}
               onMissPass={handleMissPass}
               kills={kills}
+              killsCountRef={killsCountRef}
               killQuota={segment.killQuota}
               timeLeft={timeLeft}
               setTimeLeft={setTimeLeft}
@@ -196,6 +199,7 @@ function ShooterWorld({
   onKill,
   onMissPass,
   kills,
+  killsCountRef,
   killQuota,
   timeLeft,
   setTimeLeft,
@@ -209,6 +213,7 @@ function ShooterWorld({
   onKill: (who: CharacterId, points: number) => void;
   onMissPass: (damage: number) => void;
   kills: number;
+  killsCountRef: MutableRefObject<number>;
   killQuota: number;
   timeLeft: number;
   setTimeLeft: (t: number) => void;
@@ -223,7 +228,6 @@ function ShooterWorld({
   const spawnTimer = useRef(0);
   const timerAcc = useRef(0);
   const timeRef = useRef(timeLeft);
-  const killsRef = useRef(kills);
   const completed = useRef(false);
   const muzzle = useRef({ Wideass: 0, Tats: 0 });
   const lasers = useRef<
@@ -234,7 +238,6 @@ function ShooterWorld({
   const scratch = useRef(new THREE.Vector3());
   const ndcScratch = useRef(new THREE.Vector3());
   timeRef.current = timeLeft;
-  killsRef.current = kills;
 
   useFrame((state, delta) => {
     if (completed.current) return;
@@ -262,7 +265,7 @@ function ShooterWorld({
     }
 
     spawnTimer.current += dt;
-    const spawnEvery = Math.max(0.28, (kind === 'jeep' ? 0.75 : 0.95) - intensity * 0.1);
+    const spawnEvery = Math.max(0.22, (kind === 'jeep' ? 0.55 : 0.7) - intensity * 0.08);
     if (spawnTimer.current >= spawnEvery) {
       spawnTimer.current = 0;
       const roll = Math.random();
@@ -434,7 +437,7 @@ function ShooterWorld({
       (mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, l.life * 8);
     });
 
-    if (killsRef.current >= killQuota) {
+    if (killsCountRef.current >= killQuota) {
       completed.current = true;
       onComplete(true, 'QUOTA CLEAR!');
     } else if (kind === 'jeep' && jeepHpRef.current <= 0) {
@@ -442,7 +445,9 @@ function ShooterWorld({
       onComplete(false, 'JEEP DESTROYED — RETRY!');
     } else if (timeRef.current <= 0) {
       completed.current = true;
-      onComplete(false, 'TIME UP — RETRY!');
+      // Last-frame grace: if quota already met via just-resolved kill, win
+      if (killsCountRef.current >= killQuota) onComplete(true, 'QUOTA CLEAR!');
+      else onComplete(false, 'TIME UP — RETRY!');
     }
   });
 
