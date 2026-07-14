@@ -1,5 +1,5 @@
 /**
- * Co-op 3D Sandbox — React Three Fiber arena game via iframe.
+ * Wideass & Tats Adventure — 20-level Sonic run + space/jeep shooter detours via iframe.
  */
 window.Coop3DGame = (function () {
   "use strict";
@@ -59,7 +59,7 @@ window.Coop3DGame = (function () {
       el(
         "p",
         "kart-pro-hint",
-        "3D Co-op Physics Sandbox — ricocheting cans, UFO boss, mic jumps, and webcam FFT. Best in 2-player mode with your arena partner.",
+        "Wideass & Tats — 20 Sonic zones, loop runs, random space alien attacks & jungle jeep T-Rex hunts. 1–2 players.",
       ),
     );
     appendPlayModePicker(wrap);
@@ -67,7 +67,7 @@ window.Coop3DGame = (function () {
     bar.appendChild(el("span", "c4-pro-pill", "Playing as " + charLabel(myChar())));
     wrap.appendChild(bar);
 
-    const start = el("button", "c4-pro-btn", "Launch 3D Arena");
+    const start = el("button", "c4-pro-btn", "Launch Adventure");
     start.addEventListener("click", startGame);
     if (!isGameHost()) {
       start.disabled = true;
@@ -89,7 +89,7 @@ window.Coop3DGame = (function () {
     panel.innerHTML = "";
     const wrap = el("div", "kart-pro is-racing");
     const bar = el("div", "c4-pro-bar");
-    bar.appendChild(el("span", "c4-pro-pill is-active", charLabel(myChar()) + " — 3D Co-op"));
+    bar.appendChild(el("span", "c4-pro-pill is-active", charLabel(myChar()) + " — Wideass & Tats"));
     if (isGameHost()) {
       const back = el("button", "c4-pro-btn secondary", "← Lobby");
       back.addEventListener("click", function () {
@@ -110,7 +110,7 @@ window.Coop3DGame = (function () {
       autostart: "1",
     });
     iframe.src = "/coop/index.html?" + params.toString();
-    iframe.title = "Co-op 3D Sandbox";
+    iframe.title = "Wideass & Tats Adventure";
     iframe.setAttribute(
       "allow",
       "accelerometer; autoplay; camera; microphone; fullscreen",

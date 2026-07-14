@@ -1,32 +1,23 @@
-import { useEffect, useState } from 'react';
-import Game3D from './game/Game3D';
+import { useMemo, useState, useEffect } from 'react';
+import { AdventureGame, type CharacterId } from './adventure/AdventureGame';
 
-type CharacterId = 'Wideass' | 'Tats';
-
-interface EmbedConfig {
-  room: string;
-  character: CharacterId;
-}
-
-function readEmbedConfig(): EmbedConfig | null {
+function readLaunchParams() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get('embed') !== '1') {
-    return null;
-  }
-
-  const characterParam = params.get('character')?.toLowerCase();
-  return {
-    room: params.get('room')?.trim() || 'arena-room',
-    character: characterParam === 'wideass' ? 'Wideass' : 'Tats',
-  };
+  const embed = params.get('embed') === '1';
+  const autostart = params.get('autostart') === '1';
+  const rawChar = params.get('character')?.toLowerCase();
+  const character: CharacterId = rawChar === 'tats' ? 'Tats' : 'Wideass';
+  const level = Math.min(20, Math.max(1, Number(params.get('level')) || 1));
+  const players = params.get('players') === '2' ? 2 : 1;
+  return { embed, autostart, character, level, players: players as 1 | 2 };
 }
 
-export default function App() {
-  const embed = readEmbedConfig();
-  const [room, setRoom] = useState(embed?.room ?? 'AAA-Sonic-Zone');
-  const [character, setCharacter] = useState<CharacterId>(embed?.character ?? 'Wideass');
-  const [level, setLevel] = useState(3);
-  const [gameActive, setGameActive] = useState(Boolean(embed));
+function App() {
+  const launch = useMemo(() => readLaunchParams(), []);
+  const [character, setCharacter] = useState<CharacterId>(launch.character);
+  const [level, setLevel] = useState(launch.level);
+  const [playerCount, setPlayerCount] = useState<1 | 2>(launch.players);
+  const [started, setStarted] = useState(launch.embed && launch.autostart);
   const [controllers, setControllers] = useState<string[]>([]);
 
   useEffect(() => {
@@ -36,7 +27,7 @@ export default function App() {
     };
     window.addEventListener('gamepadconnected', updateGamepads);
     window.addEventListener('gamepaddisconnected', updateGamepads);
-    const interval = window.setInterval(updateGamepads, 1000);
+    const interval = window.setInterval(updateGamepads, 1_000);
     updateGamepads();
     return () => {
       window.removeEventListener('gamepadconnected', updateGamepads);
@@ -45,87 +36,131 @@ export default function App() {
     };
   }, []);
 
-  if (gameActive) {
-    return <Game3D roomID={room} character={character} level={level} embedded={Boolean(embed)} />;
+  if (started) {
+    return (
+      <main className={launch.embed ? 'h-screen w-screen bg-black p-0' : 'min-h-screen bg-[#1a3a6a] p-0'}>
+        <AdventureGame
+          level={level}
+          playerCount={playerCount}
+          primaryCharacter={character}
+          embed={launch.embed}
+        />
+      </main>
+    );
   }
 
   return (
-    <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-950 font-mono text-white">
-      <p className="mb-2 max-w-md text-center text-sm text-zinc-400">
-        Co-op 3D physics sandbox — loop track, ricocheting cans, UFO boss, mic jumps,
-        webcam sync. Open two tabs with the same room key.
-      </p>
-      <h1 className="mb-4 text-3xl font-black tracking-widest text-cyan-400">
-        3D REALISTIC CO-OP SANDBOX
-      </h1>
+    <main className="wa-title-screen flex flex-col items-center justify-center gap-8 px-6 py-12 text-white">
+      <div className="wa-bob relative z-10 max-w-3xl text-center">
+        <p className="mb-2 text-xs font-bold tracking-[0.45em] text-white/80">20 ZONES · CO-OP ADVENTURE</p>
+        <h1 className="wa-display text-5xl leading-none text-[#ffe14a] drop-shadow-[4px_4px_0_#101018] sm:text-6xl md:text-7xl">
+          WIDEASS
+          <span className="block text-3xl text-white sm:text-4xl">&amp;</span>
+          TATS
+        </h1>
+        <p className="mx-auto mt-4 max-w-md text-sm font-bold leading-relaxed text-white/95">
+          Sonic-speed lanes, loops, jeep dinosaur runs, and starship alien fights.
+        </p>
+      </div>
 
-      <div className="mb-4 flex items-center gap-2 rounded bg-slate-900 px-3 py-1.5 text-xs">
+      <div className="relative z-10 grid w-full max-w-xl grid-cols-3 gap-3 text-center text-[10px] font-bold">
+        <ModeCard title="RUN" copy="Loops · spindash · routes" accent="border-emerald-300/70 text-emerald-100" />
+        <ModeCard title="JEEP" copy="Dual guns · T-Rex" accent="border-amber-300/70 text-amber-100" />
+        <ModeCard title="SPACE" copy="Rail dogfights" accent="border-cyan-300/70 text-cyan-100" />
+      </div>
+
+      <div className="relative z-10 flex items-center gap-2 rounded-full bg-black/40 px-4 py-2 text-[11px] font-bold tracking-wide">
         <span
-          className={`h-2 w-2 rounded-full ${controllers.length ? 'animate-ping bg-green-400' : 'bg-red-500'}`}
+          className={`h-2 w-2 rounded-full ${controllers.length ? 'animate-ping bg-emerald-400' : 'bg-zinc-500'}`}
         />
-        <span className="text-slate-400">
-          {controllers.length
-            ? `CONTROLLER: ${controllers[0].slice(0, 28)}`
-            : 'NO GAMEPAD (PRESS ANY BUTTON)'}
-        </span>
+        {controllers.length ? `${controllers.length} GAMEPAD READY` : 'KEYBOARD READY'}
       </div>
 
-      <div className="mb-4 w-80 space-y-1 rounded-md border border-slate-800 bg-slate-900 p-3 text-left text-xs shadow-lg">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 animate-ping rounded-full bg-pink-500" />
-          <span className="text-slate-400">
-            TETHER: <span className="font-bold text-pink-400">CANNON RIGID BODIES</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-400" />
-          <span className="text-slate-400">
-            MEDIA: <span className="font-bold text-cyan-400">WEBCAM + MIC FFT</span>
-          </span>
-        </div>
-      </div>
+      <form
+        className="wa-panel relative z-10 flex w-full max-w-sm flex-col gap-5 p-6"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setStarted(true);
+        }}
+      >
+        <label className="block text-[10px] font-bold tracking-[0.2em] text-[#ffe14a]">
+          START ZONE
+          <input
+            type="number"
+            min={1}
+            max={20}
+            className="wa-display mt-2 w-full border-2 border-white/20 bg-black/70 p-3 text-center text-3xl text-[#ffe14a] outline-none focus:border-[#ffe14a]"
+            value={level}
+            onChange={(e) => setLevel(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
+          />
+        </label>
 
-      <div className="w-80 space-y-4 rounded-lg border border-slate-800 bg-slate-900 p-6 text-center shadow-2xl">
-        <input
-          className="w-full rounded border border-slate-700 bg-black p-2 text-center text-sm font-bold text-cyan-400"
-          value={room}
-          onChange={(e) => setRoom(e.target.value)}
-          placeholder="Enter Room Key"
-        />
-        <div className="flex gap-2">
-          <button
-            type="button"
-            className={`flex-1 rounded p-2 text-xs font-bold ${character === 'Wideass' ? 'bg-red-600 shadow-lg' : 'bg-slate-800'}`}
-            onClick={() => setCharacter('Wideass')}
-          >
-            WIDEASS
-          </button>
-          <button
-            type="button"
-            className={`flex-1 rounded p-2 text-xs font-bold ${character === 'Tats' ? 'bg-cyan-500 text-black shadow-lg' : 'bg-slate-800'}`}
-            onClick={() => setCharacter('Tats')}
-          >
-            TATS
-          </button>
+        <div>
+          <p className="mb-2 text-[10px] font-bold tracking-[0.2em] text-white/70">PLAYERS</p>
+          <div className="flex gap-2">
+            {([1, 2] as const).map((n) => (
+              <button
+                key={n}
+                type="button"
+                className={`flex-1 py-3 text-xs font-black tracking-wider ${
+                  playerCount === n
+                    ? 'bg-[#ffe14a] text-black'
+                    : 'bg-black/50 text-white/60 hover:text-white'
+                }`}
+                onClick={() => setPlayerCount(n)}
+              >
+                {n}P
+              </button>
+            ))}
+          </div>
         </div>
-        <input
-          type="number"
-          className="w-full rounded border border-slate-700 bg-black p-2 text-center text-sm"
-          value={level}
-          onChange={(e) =>
-            setLevel(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))
-          }
-          min={1}
-          max={20}
-        />
+
+        <div>
+          <p className="mb-2 text-[10px] font-bold tracking-[0.2em] text-white/70">P1 CHARACTER</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={`flex-1 py-3 text-xs font-black tracking-wider ${
+                character === 'Wideass' ? 'bg-[#ff3a4a] text-white' : 'bg-black/50 text-white/60'
+              }`}
+              onClick={() => setCharacter('Wideass')}
+            >
+              WIDEASS
+            </button>
+            <button
+              type="button"
+              className={`flex-1 py-3 text-xs font-black tracking-wider ${
+                character === 'Tats' ? 'bg-[#00d8ff] text-black' : 'bg-black/50 text-white/60'
+              }`}
+              onClick={() => setCharacter('Tats')}
+            >
+              TATS
+            </button>
+          </div>
+        </div>
+
+        <p className="text-center text-[10px] font-bold text-white/55">
+          A/D run · SPACE jump · ↓+SPACE spindash · ↓ at tunnel = low route
+        </p>
+
         <button
-          type="button"
-          className="w-full rounded bg-amber-500 p-3 text-sm font-black tracking-wider text-black transition-transform hover:scale-105"
-          onClick={() => setGameActive(true)}
+          type="submit"
+          className="wa-cta wa-display w-full bg-[#ffe14a] py-4 text-lg text-black shadow-[0_6px_0_#b89a10]"
         >
-          LAUNCH ENGINE
+          START ZONE {level}
         </button>
-      </div>
+      </form>
+    </main>
+  );
+}
+
+function ModeCard({ title, copy, accent }: { title: string; copy: string; accent: string }) {
+  return (
+    <div className={`border-2 bg-black/35 px-2 py-3 ${accent}`}>
+      <p className="wa-display text-sm">{title}</p>
+      <p className="mt-1 text-white/75">{copy}</p>
     </div>
   );
 }
+
+export default App;
