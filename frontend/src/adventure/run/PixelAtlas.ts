@@ -398,6 +398,10 @@ function inkOutline(ctx: Ctx, x: number, y: number, w: number, h: number) {
   rect(ctx, x, y - 1, w, h + 2, PAL.black);
 }
 
+/**
+ * Frame indices:
+ * 0 idle · 1–4 run cycle · 5 crouch/charge · 6–7 roll ball spin
+ */
 function drawCharacterFrame(who: 'Wideass' | 'Tats', f: number) {
   const c = canvas(64, 64);
   const ctx = ctxOf(c);
@@ -405,39 +409,81 @@ function drawCharacterFrame(who: 'Wideass' | 'Tats', f: number) {
   const dark = who === 'Wideass' ? PAL.wideassDark : PAL.tatsDark;
   const accent = who === 'Wideass' ? PAL.wideassAccent : PAL.tatsAccent;
   const wide = who === 'Wideass';
-  const run = f === 1 || f === 2;
-  const jump = f === 3;
-  const leg = f === 1 ? -4 : f === 2 ? 4 : 0;
+  const run = f >= 1 && f <= 4;
+  const crouch = f === 5;
+  const ball = f >= 6;
+  const runPhase = f - 1;
+  const legCycle = [-5, -2, 5, 2];
+  const leg = run ? legCycle[runPhase] ?? 0 : 0;
 
   // soft contact shadow
   rect(ctx, 18, 58, 28, 4, 'rgba(0,0,0,0.32)');
 
-  if (jump) {
-    // spinning ball — Sonic-style roll
+  if (ball) {
+    const spin = f === 7 ? 1 : 0;
     inkOutline(ctx, 16, 16, 32, 32);
     rect(ctx, 16, 16, 32, 32, primary);
-    rect(ctx, 18, 18, 28, 8, accent);
+    rect(ctx, 18, 18 + spin, 28, 8, accent);
     rect(ctx, 20, 28, 24, 14, dark);
-    // radial spikes
-    const spikes: [number, number, number, number][] = [
-      [10, 22, 8, 6],
-      [46, 24, 8, 6],
-      [14, 42, 8, 6],
-      [42, 42, 8, 6],
-      [28, 10, 8, 6],
-      [28, 48, 8, 6],
-    ];
+    const spikes: [number, number, number, number][] = spin
+      ? [
+          [12, 14, 8, 6],
+          [44, 18, 8, 6],
+          [12, 40, 8, 6],
+          [44, 38, 8, 6],
+          [26, 8, 8, 6],
+          [26, 50, 8, 6],
+        ]
+      : [
+          [10, 22, 8, 6],
+          [46, 24, 8, 6],
+          [14, 42, 8, 6],
+          [42, 42, 8, 6],
+          [28, 10, 8, 6],
+          [28, 48, 8, 6],
+        ];
     for (const [sx, sy, sw, sh] of spikes) {
       inkOutline(ctx, sx, sy, sw, sh);
       rect(ctx, sx, sy, sw, sh, dark);
     }
-    rect(ctx, 26, 24, 6, 6, PAL.white);
-    rect(ctx, 36, 26, 4, 3, PAL.black);
+    rect(ctx, 26, 24 + spin, 6, 6, PAL.white);
+    rect(ctx, 36, 26 + spin, 4, 3, PAL.black);
     rect(ctx, 22, 34, 20, 3, accent);
     return c;
   }
 
-  const by = run ? 26 + (f === 1 ? -1 : 1) : 28;
+  if (crouch) {
+    const by = 36;
+    const bw = wide ? 30 : 22;
+    const bh = 14;
+    const bx = 32 - bw / 2;
+    inkOutline(ctx, bx + 2, by + bh, 8, 8);
+    inkOutline(ctx, bx + bw - 10, by + bh, 8, 8);
+    rect(ctx, bx + 2, by + bh, 8, 8, dark);
+    rect(ctx, bx + bw - 10, by + bh, 8, 8, dark);
+    inkOutline(ctx, bx, by, bw, bh);
+    rect(ctx, bx, by, bw, bh, primary);
+    rect(ctx, bx, by, bw, 4, accent);
+    rect(ctx, bx + 3, by + 5, bw - 6, 5, '#ffe8d0');
+    const hx = 20;
+    const hy = by - 14;
+    inkOutline(ctx, hx, hy, 24, 16);
+    rect(ctx, hx, hy, 24, 16, primary);
+    rect(ctx, hx + 2, hy + 2, 20, 5, accent);
+    rect(ctx, hx + 5, hy + 7, 6, 5, PAL.white);
+    rect(ctx, hx + 14, hy + 7, 6, 5, PAL.white);
+    rect(ctx, hx + 7, hy + 9, 3, 3, PAL.black);
+    rect(ctx, hx + 16, hy + 9, 3, 3, PAL.black);
+    if (wide) {
+      rect(ctx, hx - 4, hy, 6, 8, dark);
+      rect(ctx, hx + 20, hy - 2, 6, 6, dark);
+    } else {
+      rect(ctx, hx + 20, hy - 2, 10, 5, accent);
+    }
+    return c;
+  }
+
+  const by = run ? 26 + (runPhase % 2 === 0 ? -1 : 1) : 28;
   const bw = wide ? 28 : 20;
   const bh = wide ? 20 : 18;
   const bx = 32 - bw / 2;
@@ -513,7 +559,7 @@ function drawCharacterFrame(who: 'Wideass' | 'Tats', f: number) {
 function drawCharacterSheet(who: 'Wideass' | 'Tats') {
   const frameW = 64;
   const frameH = 64;
-  const frames = 4;
+  const frames = 8;
   const c = canvas(frameW * frames, frameH);
   const ctx = ctxOf(c);
   for (let f = 0; f < frames; f += 1) {
@@ -582,7 +628,7 @@ export function createModern16BitAtlas(
   register(scene, 'px_hat', drawHat());
   register(scene, 'px_wideass', drawCharacterSheet('Wideass'));
   register(scene, 'px_tats', drawCharacterSheet('Tats'));
-  for (let i = 0; i < 4; i += 1) {
+  for (let i = 0; i < 8; i += 1) {
     register(scene, `px_wideass_${i}`, drawCharacterFrame('Wideass', i));
     register(scene, `px_tats_${i}`, drawCharacterFrame('Tats', i));
   }
@@ -596,7 +642,10 @@ export function createModern16BitAtlas(
 }
 
 function ensureAnimsFromKeys(scene: Phaser.Scene, prefix: string, base: string) {
-  if (scene.anims.exists(`${prefix}-run`)) return;
+  // Rebuild if we expanded frames
+  for (const key of [`${prefix}-idle`, `${prefix}-run`, `${prefix}-jump`, `${prefix}-crouch`, `${prefix}-roll`]) {
+    if (scene.anims.exists(key)) scene.anims.remove(key);
+  }
   scene.anims.create({
     key: `${prefix}-idle`,
     frames: [{ key: `${base}_0` }],
@@ -604,14 +653,31 @@ function ensureAnimsFromKeys(scene: Phaser.Scene, prefix: string, base: string) 
   });
   scene.anims.create({
     key: `${prefix}-run`,
-    frames: [{ key: `${base}_1` }, { key: `${base}_2` }],
+    frames: [
+      { key: `${base}_1` },
+      { key: `${base}_2` },
+      { key: `${base}_3` },
+      { key: `${base}_4` },
+    ],
+    frameRate: 16,
+    repeat: -1,
+  });
+  scene.anims.create({
+    key: `${prefix}-crouch`,
+    frames: [{ key: `${base}_5` }],
+    frameRate: 1,
+  });
+  scene.anims.create({
+    key: `${prefix}-jump`,
+    frames: [{ key: `${base}_6` }, { key: `${base}_7` }],
     frameRate: 14,
     repeat: -1,
   });
   scene.anims.create({
-    key: `${prefix}-jump`,
-    frames: [{ key: `${base}_3` }],
-    frameRate: 1,
+    key: `${prefix}-roll`,
+    frames: [{ key: `${base}_6` }, { key: `${base}_7` }],
+    frameRate: 18,
+    repeat: -1,
   });
 }
 

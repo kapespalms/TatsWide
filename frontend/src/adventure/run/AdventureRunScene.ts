@@ -721,7 +721,7 @@ export class AdventureRunScene extends Phaser.Scene {
     this.audio.hurt();
   }
 
-  /** Primary always uses arrows/WASD. P2 uses J/L/I/K. */
+  /** P1 (primaryCharacter) = arrows/WASD/pad0. P2 = J/L/I/K/pad1. */
   private inputFor(who: CharacterId): RiderInput {
     const solo = this.initData.playerCount === 1;
     const primary = this.initData.primaryCharacter;
@@ -729,32 +729,23 @@ export class AdventureRunScene extends Phaser.Scene {
       return { left: false, right: false, down: false, jumpPressed: false, jumpHeld: false };
     }
 
-    const p1 = {
+    const p1: RiderInput = {
       left: this.keys.left || this.keys.a || this.gp.left,
       right: this.keys.right || this.keys.d || this.gp.right,
       down: this.keys.down || this.keys.s || this.gp.down,
       jumpPressed: this.jumpPressedW || this.gp.jump,
       jumpHeld: this.keys.up || this.keys.w || this.keys.space || this.gp.jump,
     };
+    const p2: RiderInput = {
+      left: this.keys.j || this.gp2.left,
+      right: this.keys.l || this.gp2.right,
+      down: this.keys.k || this.gp2.down,
+      jumpPressed: this.jumpPressedT || this.gp2.jump,
+      jumpHeld: this.keys.i || this.keys.enter || this.gp2.jump,
+    };
 
-    if (solo || who === primary || who === 'Wideass') {
-      // 1P: primary gets p1. 2P: Wideass always gets p1 (shared arrows/AD).
-      if (solo) return p1;
-      if (who === 'Wideass') return p1;
-    }
-
-    if (who === 'Tats') {
-      if (solo && primary === 'Tats') return p1;
-      return {
-        left: this.keys.j || this.gp2.left,
-        right: this.keys.l || this.gp2.right,
-        down: this.keys.k || this.gp2.down,
-        jumpPressed: this.jumpPressedT || this.gp2.jump,
-        jumpHeld: this.keys.i || this.keys.enter || this.gp2.jump,
-      };
-    }
-
-    return p1;
+    if (solo) return p1;
+    return who === primary ? p1 : p2;
   }
 
   private applyBoostPads(rider: RiderState) {
@@ -780,14 +771,17 @@ export class AdventureRunScene extends Phaser.Scene {
     sprite.setAngle(Phaser.Math.RadToDeg(rider.angle));
     sprite.setFlipX(rider.facing < 0);
 
-    const rolling = Math.abs(rider.gsp) > 420 || rider.spindashCharge > 0;
+    const rolling = Math.abs(rider.gsp) > 420;
+    const charging = rider.spindashCharge > 0;
     const prefix = who === 'Wideass' ? 'wideass' : 'tats';
     const anim =
-      rider.mode === 'air' || rolling
-        ? `${prefix}-jump`
-        : Math.abs(rider.gsp) > 40
-          ? `${prefix}-run`
-          : `${prefix}-idle`;
+      charging
+        ? `${prefix}-crouch`
+        : rider.mode === 'air' || rolling
+          ? `${prefix}-roll`
+          : Math.abs(rider.gsp) > 40
+            ? `${prefix}-run`
+            : `${prefix}-idle`;
     if (this.anims.exists(anim)) {
       try {
         sprite.play(anim, true);
@@ -796,11 +790,11 @@ export class AdventureRunScene extends Phaser.Scene {
       }
     }
 
-    if (rider.spindashCharge > 0) {
-      const base = who === 'Wideass' ? 1.35 : 1.28;
-      sprite.setScale(base, base * (0.72 + Math.min(0.2, rider.spindashCharge / 5000)));
+    const base = who === 'Wideass' ? 1.35 : 1.28;
+    if (charging) {
+      sprite.setScale(base * 1.05, base * (0.68 + Math.min(0.22, rider.spindashCharge / 4500)));
     } else {
-      sprite.setScale(who === 'Wideass' ? 1.35 : 1.28);
+      sprite.setScale(base);
     }
   }
 
@@ -814,8 +808,12 @@ export class AdventureRunScene extends Phaser.Scene {
     followerSprite.setAngle(Phaser.Math.RadToDeg(lead.angle));
     followerSprite.setFlipX(lead.facing < 0);
     const prefix = followerSprite.getData('char') === 'Wideass' ? 'wideass' : 'tats';
-    const state = Math.abs(lead.gsp) > 40 ? 'run' : lead.mode === 'air' ? 'jump' : 'idle';
-    const anim = `${prefix}-${state}`;
+    const rolling = Math.abs(lead.gsp) > 420 || lead.mode === 'air';
+    const anim = rolling
+      ? `${prefix}-roll`
+      : Math.abs(lead.gsp) > 40
+        ? `${prefix}-run`
+        : `${prefix}-idle`;
     if (this.anims.exists(anim)) {
       try {
         followerSprite.play(anim, true);
@@ -950,7 +948,8 @@ export class AdventureRunScene extends Phaser.Scene {
       this.wideass.setAlpha(now < this.invulnUntil.Wideass ? 0.45 : 1);
     }
     if (!solo || primary === 'Tats') {
-      stepRider(this.riderT, this.kit.tracks, solo ? inW : inT, dt, now, this.cfgT);
+      // inputFor() already maps P1 keys onto Tats when primary === 'Tats' — never feed empty inW
+      stepRider(this.riderT, this.kit.tracks, inT, dt, now, this.cfgT);
       this.handleRiderEvents(this.riderT);
       this.applyBoostPads(this.riderT);
       this.pickupAt(this.riderT);

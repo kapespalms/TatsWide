@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { CharacterId } from '../types';
 
 export interface Reticle {
   x: number;
@@ -37,7 +38,11 @@ function pointerNorm(e: PointerEvent) {
 }
 
 /** Edge-triggered + light autofire (≈8/s while held) — not sticky every frame. */
-export function useShooterInput(active: boolean, playerCount: 1 | 2) {
+export function useShooterInput(
+  active: boolean,
+  playerCount: 1 | 2,
+  primaryCharacter: CharacterId = 'Wideass',
+) {
   const reticles = useRef<DualReticles>({
     Wideass: { ...DEFAULT.Wideass },
     Tats: { ...DEFAULT.Tats },
@@ -50,6 +55,8 @@ export function useShooterInput(active: boolean, playerCount: 1 | 2) {
 
   useEffect(() => {
     if (!active) return;
+    const soloWho: CharacterId = primaryCharacter;
+    const partner: CharacterId = soloWho === 'Wideass' ? 'Tats' : 'Wideass';
 
     const keys = new Set<string>();
     const onKeyDown = (e: KeyboardEvent) => {
@@ -62,7 +69,9 @@ export function useShooterInput(active: boolean, playerCount: 1 | 2) {
 
     const onPointerMove = (e: PointerEvent) => {
       const { x: nx, y: ny } = pointerNorm(e);
-      if (nx < 0.5 || playerCount === 1) {
+      if (playerCount === 1) {
+        reticles.current[soloWho] = { x: nx, y: ny };
+      } else if (nx < 0.5) {
         reticles.current.Wideass = { x: nx, y: ny };
       } else {
         reticles.current.Tats = { x: nx, y: ny };
@@ -71,8 +80,12 @@ export function useShooterInput(active: boolean, playerCount: 1 | 2) {
 
     const onPointerDown = (e: PointerEvent) => {
       const { x: nx } = pointerNorm(e);
-      if (nx < 0.5 || playerCount === 1) pointerHeld.current.Wideass = true;
-      if (nx >= 0.5 && playerCount === 2) pointerHeld.current.Tats = true;
+      if (playerCount === 1) {
+        pointerHeld.current[soloWho] = true;
+      } else {
+        if (nx < 0.5) pointerHeld.current.Wideass = true;
+        if (nx >= 0.5) pointerHeld.current.Tats = true;
+      }
     };
     const onPointerUp = () => {
       pointerHeld.current.Wideass = false;
@@ -92,19 +105,26 @@ export function useShooterInput(active: boolean, playerCount: 1 | 2) {
       const speed = 0.03;
       const w = reticles.current.Wideass;
       const t = reticles.current.Tats;
-      if (keys.has('a')) w.x -= speed;
-      if (keys.has('d')) w.x += speed;
-      if (keys.has('w')) w.y -= speed;
-      if (keys.has('s')) w.y += speed;
-      if (playerCount === 2) {
+      const p1 = reticles.current[soloWho];
+      const p2 = reticles.current[partner];
+
+      if (playerCount === 1) {
+        if (keys.has('a') || keys.has('arrowleft')) p1.x -= speed;
+        if (keys.has('d') || keys.has('arrowright')) p1.x += speed;
+        if (keys.has('w') || keys.has('arrowup')) p1.y -= speed;
+        if (keys.has('s') || keys.has('arrowdown')) p1.y += speed;
+        // Cosmetic linked partner reticle — does NOT fire
+        p2.x += (p1.x + (soloWho === 'Wideass' ? 0.12 : -0.12) - p2.x) * 0.06;
+        p2.y += (p1.y - 0.04 - p2.y) * 0.06;
+      } else {
+        if (keys.has('a')) w.x -= speed;
+        if (keys.has('d')) w.x += speed;
+        if (keys.has('w')) w.y -= speed;
+        if (keys.has('s')) w.y += speed;
         if (keys.has('j')) t.x -= speed;
         if (keys.has('l')) t.x += speed;
         if (keys.has('i')) t.y -= speed;
         if (keys.has('k')) t.y += speed;
-      } else {
-        // Cosmetic linked reticle — does NOT fire (avoids double DPS)
-        t.x += (w.x + 0.12 - t.x) * 0.06;
-        t.y += (w.y - 0.04 - t.y) * 0.06;
       }
       w.x = clamp01(w.x);
       w.y = clamp01(w.y);
@@ -112,25 +132,44 @@ export function useShooterInput(active: boolean, playerCount: 1 | 2) {
       t.y = clamp01(t.y);
 
       const pad0 = navigator.getGamepads?.()[0];
-      let padFireW = false;
-      if (pad0) {
-        w.x = clamp01(w.x + pad0.axes[0] * speed * 1.5);
-        w.y = clamp01(w.y + pad0.axes[1] * speed * 1.5);
-        padFireW = !!(pad0.buttons[0]?.pressed || pad0.buttons[7]?.pressed);
-      }
       const pad1 = navigator.getGamepads?.()[1];
+      let padFireW = false;
       let padFireT = false;
-      if (pad1 && playerCount === 2) {
-        t.x = clamp01(t.x + pad1.axes[0] * speed * 1.5);
-        t.y = clamp01(t.y + pad1.axes[1] * speed * 1.5);
-        padFireT = !!(pad1.buttons[0]?.pressed || pad1.buttons[7]?.pressed);
+      if (playerCount === 1) {
+        if (pad0) {
+          p1.x = clamp01(p1.x + pad0.axes[0] * speed * 1.5);
+          p1.y = clamp01(p1.y + pad0.axes[1] * speed * 1.5);
+          const fire = !!(pad0.buttons[0]?.pressed || pad0.buttons[7]?.pressed);
+          if (soloWho === 'Wideass') padFireW = fire;
+          else padFireT = fire;
+        }
+      } else {
+        const padW = soloWho === 'Wideass' ? pad0 : pad1;
+        const padT = soloWho === 'Tats' ? pad0 : pad1;
+        if (padW) {
+          w.x = clamp01(w.x + padW.axes[0] * speed * 1.5);
+          w.y = clamp01(w.y + padW.axes[1] * speed * 1.5);
+          padFireW = !!(padW.buttons[0]?.pressed || padW.buttons[7]?.pressed);
+        }
+        if (padT) {
+          t.x = clamp01(t.x + padT.axes[0] * speed * 1.5);
+          t.y = clamp01(t.y + padT.axes[1] * speed * 1.5);
+          padFireT = !!(padT.buttons[0]?.pressed || padT.buttons[7]?.pressed);
+        }
       }
 
-      const keyFireW = keys.has(' ') || keys.has('f');
-      const keyFireT = keys.has('enter') || keys.has('g');
-      held.current.Wideass = keyFireW || pointerHeld.current.Wideass || padFireW;
-      held.current.Tats =
-        playerCount === 2 ? keyFireT || pointerHeld.current.Tats || padFireT : false;
+      const keyFire = keys.has(' ') || keys.has('f');
+      const keyFire2 = keys.has('enter') || keys.has('g');
+
+      if (playerCount === 1) {
+        held.current.Wideass =
+          soloWho === 'Wideass' && (keyFire || pointerHeld.current.Wideass || padFireW);
+        held.current.Tats =
+          soloWho === 'Tats' && (keyFire || pointerHeld.current.Tats || padFireT);
+      } else {
+        held.current.Wideass = keyFire || pointerHeld.current.Wideass || padFireW;
+        held.current.Tats = keyFire2 || pointerHeld.current.Tats || padFireT;
+      }
 
       for (const who of ['Wideass', 'Tats'] as const) {
         const isHeld = held.current[who];
@@ -163,7 +202,7 @@ export function useShooterInput(active: boolean, playerCount: 1 | 2) {
       window.removeEventListener('pointercancel', onPointerUp);
       cancelAnimationFrame(raf);
     };
-  }, [active, playerCount]);
+  }, [active, playerCount, primaryCharacter]);
 
   return {
     getReticles: () => reticles.current,

@@ -43,6 +43,7 @@ interface ShooterPhaseProps {
   level: number;
   intensity: number;
   playerCount: 1 | 2;
+  primaryCharacter: CharacterId;
   embed?: boolean;
   onComplete: (result: { scores: ShooterScores; won: boolean; reason: string }) => void;
 }
@@ -50,7 +51,7 @@ interface ShooterPhaseProps {
 const JEEP_HP_MAX = 100;
 
 export function ShooterPhase(props: ShooterPhaseProps) {
-  const { kind, segment, level, intensity, playerCount, embed, onComplete } = props;
+  const { kind, segment, level, intensity, playerCount, primaryCharacter, embed, onComplete } = props;
   const [scores, setScores] = useState<ShooterScores>({ Wideass: 0, Tats: 0 });
   const [streaks, setStreaks] = useState<ShooterScores>({ Wideass: 0, Tats: 0 });
   const [kills, setKills] = useState(0);
@@ -64,7 +65,7 @@ export function ShooterPhase(props: ShooterPhaseProps) {
     Wideass: { x: 0.35, y: 0.5 },
     Tats: { x: 0.65, y: 0.5 },
   });
-  const input = useShooterInput(true, playerCount);
+  const input = useShooterInput(true, playerCount, primaryCharacter);
   const finished = useRef(false);
   const scoresRef = useRef(scores);
   const jeepHpRef = useRef(jeepHp);

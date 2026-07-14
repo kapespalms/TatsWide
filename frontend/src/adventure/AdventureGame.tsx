@@ -207,6 +207,7 @@ export function AdventureGame({
           level={level}
           intensity={0.7 + level * 0.05}
           playerCount={playerCount}
+          primaryCharacter={primaryCharacter}
           embed={embed}
           onComplete={handleShooterDone}
         />
