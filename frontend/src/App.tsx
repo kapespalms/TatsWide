@@ -140,7 +140,7 @@ function App() {
         </div>
 
         <p className="text-center text-[10px] font-bold text-white/55">
-          Cabinets grades · 20 zones · loops · jeep · space — hard refresh after update
+          Cabinet grade · 20 zones · loops · jeep · space
         </p>
 
         <button
