@@ -9,6 +9,8 @@ interface RunPhaseProps {
   playerCount: 1 | 2;
   primaryCharacter: CharacterId;
   startX: number;
+  seedScore?: number;
+  seedCounts?: CollectibleCounts;
   embed?: boolean;
   onProgress: (progress: RunProgress) => void;
   onTrigger: (trigger: LevelTrigger) => void;
@@ -24,6 +26,8 @@ export function RunPhase({
   playerCount,
   primaryCharacter,
   startX,
+  seedScore = 0,
+  seedCounts,
   embed = false,
   onProgress,
   onTrigger,
@@ -45,6 +49,8 @@ export function RunPhase({
       playerCount,
       primaryCharacter,
       startX,
+      seedScore,
+      seedCounts: seedCounts ?? { pepper: 0, duck: 0, witchHat: 0 },
       onProgress: (p) => progressRef.current(p),
       onTrigger: (t) => triggerRef.current(t),
     });

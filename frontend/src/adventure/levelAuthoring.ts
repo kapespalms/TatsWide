@@ -29,14 +29,14 @@ function authorLevel(level: number): LevelAuthoring {
     .map((x) => ({ ...onMain(x), kind: 'pepper' as const }));
 
   const ducks = [
-    { ...onHigh(kit.jeepAtX - 400), kind: 'duck' as const },
-    { ...onHigh(kit.jeepAtX - 250), kind: 'duck' as const },
+    { ...onHigh(kit.highX + 80), kind: 'duck' as const },
+    { ...onHigh(kit.highX + 220), kind: 'duck' as const },
     { ...onLow(kit.jeepAtX - 1100), kind: 'duck' as const },
   ];
 
   const hats = [
     { ...onMain(1000), kind: 'witchHat' as const },
-    { ...onHigh(kit.jeepAtX - 180), kind: 'witchHat' as const },
+    { ...onHigh(kit.highX + 300), kind: 'witchHat' as const },
     { ...onMain(kit.spaceAtX - 400), kind: 'witchHat' as const },
   ];
 
@@ -56,7 +56,7 @@ function authorLevel(level: number): LevelAuthoring {
     springs: [
       { x: onMain(650).x, y: onMain(650, 8).y, power: -900 },
       { x: onMain(2400).x, y: onMain(2400, 8).y, power: -880 - level * 4 },
-      { x: onMain(kit.jeepAtX - 900).x, y: onMain(kit.jeepAtX - 900, 8).y, power: -1200 },
+      { x: onMain(kit.highX - 40).x, y: onMain(kit.highX - 40, 8).y, power: -1280 },
       { x: onMain(kit.jeepAtX - 500).x, y: onMain(kit.jeepAtX - 500, 8).y, power: -920 },
       { x: onMain(kit.spaceAtX - 300).x, y: onMain(kit.spaceAtX - 300, 8).y, power: -900 },
     ],

@@ -19,12 +19,16 @@ function clamp01(v: number) {
   return Math.min(0.92, Math.max(0.08, v));
 }
 
+/** Edge-triggered + light autofire (≈8/s while held) — not sticky every frame. */
 export function useShooterInput(active: boolean, playerCount: 1 | 2) {
   const reticles = useRef<DualReticles>({
     Wideass: { ...DEFAULT.Wideass },
     Tats: { ...DEFAULT.Tats },
   });
-  const firing = useRef({ Wideass: false, Tats: false });
+  const held = useRef({ Wideass: false, Tats: false });
+  const prevHeld = useRef({ Wideass: false, Tats: false });
+  const fireAcc = useRef({ Wideass: 0, Tats: 0 });
+  const pending = useRef({ Wideass: false, Tats: false });
   const pointerHeld = useRef({ Wideass: false, Tats: false });
 
   useEffect(() => {
@@ -65,7 +69,10 @@ export function useShooterInput(active: boolean, playerCount: 1 | 2) {
     window.addEventListener('pointercancel', onPointerUp);
 
     let raf = 0;
-    const tick = () => {
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
       const speed = 0.03;
       const w = reticles.current.Wideass;
       const t = reticles.current.Tats;
@@ -79,7 +86,6 @@ export function useShooterInput(active: boolean, playerCount: 1 | 2) {
         if (keys.has('i')) t.y -= speed;
         if (keys.has('k')) t.y += speed;
       } else {
-        // 1P: Tats AI gently tracks near P1 reticle with lag
         t.x += (w.x + 0.12 - t.x) * 0.06;
         t.y += (w.y - 0.04 - t.y) * 0.06;
       }
@@ -105,11 +111,29 @@ export function useShooterInput(active: boolean, playerCount: 1 | 2) {
 
       const keyFireW = keys.has(' ') || keys.has('f');
       const keyFireT = keys.has('enter') || keys.has('g');
-      firing.current.Wideass = keyFireW || pointerHeld.current.Wideass || padFireW;
-      firing.current.Tats =
+      held.current.Wideass = keyFireW || pointerHeld.current.Wideass || padFireW;
+      held.current.Tats =
         playerCount === 2
           ? keyFireT || pointerHeld.current.Tats || padFireT
-          : keyFireW || pointerHeld.current.Wideass; // 1P twin guns
+          : held.current.Wideass;
+
+      for (const who of ['Wideass', 'Tats'] as const) {
+        const isHeld = held.current[who];
+        const was = prevHeld.current[who];
+        if (isHeld && !was) {
+          pending.current[who] = true;
+          fireAcc.current[who] = 0;
+        } else if (isHeld) {
+          fireAcc.current[who] += dt;
+          if (fireAcc.current[who] >= 0.12) {
+            fireAcc.current[who] = 0;
+            pending.current[who] = true;
+          }
+        } else {
+          fireAcc.current[who] = 0;
+        }
+        prevHeld.current[who] = isHeld;
+      }
 
       raf = requestAnimationFrame(tick);
     };
@@ -129,7 +153,9 @@ export function useShooterInput(active: boolean, playerCount: 1 | 2) {
   return {
     getReticles: () => reticles.current,
     consumeFire: () => {
-      const shot = { Wideass: firing.current.Wideass, Tats: firing.current.Tats };
+      const shot = { Wideass: pending.current.Wideass, Tats: pending.current.Tats };
+      pending.current.Wideass = false;
+      pending.current.Tats = false;
       return shot;
     },
   };

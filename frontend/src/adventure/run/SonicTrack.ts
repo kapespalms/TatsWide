@@ -136,14 +136,24 @@ export class ArcSegment implements TrackSegment {
 
   project(px: number, py: number): ProjectResult {
     let theta = Math.atan2(py - this.cy, px - this.cx);
-    if (!this.isFullLoop) {
-      const lo = Math.min(this.a0, this.a1);
-      const hi = Math.max(this.a0, this.a1);
-      while (theta < lo) theta += Math.PI * 2;
-      while (theta > hi) theta -= Math.PI * 2;
-      theta = clamp(theta, lo, hi);
+
+    if (this.isFullLoop) {
+      // Map point angle onto directed sweep starting at a0
+      let delta = (theta - this.a0) * this.dirSign;
+      while (delta < 0) delta += Math.PI * 2;
+      while (delta >= Math.PI * 2) delta -= Math.PI * 2;
+      const t = clamp(delta * this.r, 0, this.length);
+      const p = this.sample(t);
+      return { s: t, dist: Math.hypot(px - p.x, py - p.y) };
     }
-    const t = clamp(Math.abs(theta - this.a0) * this.r, 0, this.length);
+
+    const lo = Math.min(this.a0, this.a1);
+    const hi = Math.max(this.a0, this.a1);
+    while (theta < lo) theta += Math.PI * 2;
+    while (theta > hi) theta -= Math.PI * 2;
+    theta = clamp(theta, lo, hi);
+    const along = this.dirSign > 0 ? theta - this.a0 : this.a0 - theta;
+    const t = clamp(along * this.r, 0, this.length);
     const p = this.sample(t);
     return { s: t, dist: Math.hypot(px - p.x, py - p.y) };
   }

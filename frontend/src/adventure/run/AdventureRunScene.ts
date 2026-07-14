@@ -24,6 +24,8 @@ export interface AdventureRunInit {
   playerCount: 1 | 2;
   primaryCharacter: CharacterId;
   startX: number;
+  seedScore?: number;
+  seedCounts?: CollectibleCounts;
   onProgress: (payload: RunProgress) => void;
   onTrigger: (trigger: LevelTrigger) => void;
 }
@@ -107,11 +109,12 @@ export class AdventureRunScene extends Phaser.Scene {
 
   init(data: AdventureRunInit) {
     this.initData = data;
-    this.counts = { pepper: 0, duck: 0, witchHat: 0 };
-    this.score = 0;
+    this.counts = { ...(data.seedCounts ?? { pepper: 0, duck: 0, witchHat: 0 }) };
+    this.score = data.seedScore ?? 0;
     this.elapsed = 0;
     this.firedTriggers = new Set();
     this.finished = false;
+    this.paused = false;
     this.ghosts = [];
     this.collectibles = [];
     this.springs = [];
@@ -274,15 +277,26 @@ export class AdventureRunScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(6);
 
-    const loop2 = this.kit.tracks.MAIN.path.project(this.kit.jeepAtX + 700, 620);
-    const l2 = this.kit.tracks.MAIN.path.sample(Math.max(0, loop2.s - 80));
+    const loop2 = this.kit.tracks.MAIN.path.sample(this.kit.boost2S.lo);
     this.add
-      .text(l2.x, l2.y - 48, 'BOOST >>', {
+      .text(loop2.x, loop2.y - 48, 'BOOST >>', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#ffb400',
         stroke: '#000',
         strokeThickness: 4,
+      })
+      .setOrigin(0.5)
+      .setDepth(6);
+
+    const highJoin = this.kit.tracks.MAIN.path.sample(this.kit.highJoinS.lo);
+    this.add
+      .text(highJoin.x, highJoin.y - 56, 'JUMP → HIGH', {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#ffe14a',
+        stroke: '#000',
+        strokeThickness: 3,
       })
       .setOrigin(0.5)
       .setDepth(6);
@@ -507,13 +521,25 @@ export class AdventureRunScene extends Phaser.Scene {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
 
+    const clearKeys = () => {
+      for (const k of Object.keys(this.keys) as (keyof typeof this.keys)[]) this.keys[k] = false;
+      this.jumpPressedW = false;
+      this.jumpPressedT = false;
+    };
+    const onBlur = () => clearKeys();
+    window.addEventListener('blur', onBlur);
+
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       window.removeEventListener('keydown', this.onKeyDown);
       window.removeEventListener('keyup', this.onKeyUp);
+      window.removeEventListener('blur', onBlur);
+      this.audio.dispose();
     });
     this.events.once(Phaser.Scenes.Events.DESTROY, () => {
       window.removeEventListener('keydown', this.onKeyDown);
       window.removeEventListener('keyup', this.onKeyUp);
+      window.removeEventListener('blur', onBlur);
+      this.audio.dispose();
     });
   }
 
@@ -545,10 +571,23 @@ export class AdventureRunScene extends Phaser.Scene {
   }
 
   private checkGhostHits(rider: RiderState) {
-    for (const g of this.ghosts) {
+    for (let i = this.ghosts.length - 1; i >= 0; i -= 1) {
+      const g = this.ghosts[i];
       if (!g.sprite.active) continue;
       if (Math.hypot(rider.x - g.sprite.x, rider.y - g.sprite.y) < 34) {
-        this.hitGhost(rider);
+        const stomped =
+          Math.abs(rider.gsp) > 420 ||
+          rider.spindashCharge > 0 ||
+          (rider.mode === 'air' && Math.abs(rider.vx) > 380);
+        if (stomped) {
+          this.score += 200;
+          this.audio.kill();
+          this.dust.emitParticleAt(g.sprite.x, g.sprite.y, 14);
+          g.sprite.destroy();
+          this.ghosts.splice(i, 1);
+        } else {
+          this.hitGhost(rider);
+        }
         break;
       }
     }
@@ -562,9 +601,11 @@ export class AdventureRunScene extends Phaser.Scene {
         : { tx: rider.facing, ty: 0, nx: 0, ny: -1 };
     rider.mode = 'air';
     rider.vx = sample.tx * rider.gsp + sample.nx * power * 0.55 + rider.facing * 80;
-    rider.vy = sample.ty * rider.gsp + sample.ny * power * 0.85;
+    rider.vy = sample.ty * rider.gsp + sample.ny * power * 0.95;
     rider.trackId = null;
-    rider.attachedTrackHint = 'HIGH';
+    // Only big springs near HIGH ramp bias landings onto HIGH
+    const nearHigh = Math.abs(rider.x - this.kit.highX) < 420;
+    rider.attachedTrackHint = nearHigh && power >= 1000 ? 'HIGH' : null;
     rider.jumpGraceUntil = this.time.now + 140;
     this.dust.emitParticleAt(rider.x, rider.y, 10);
     this.cameras.main.shake(60, 0.002);
@@ -625,14 +666,14 @@ export class AdventureRunScene extends Phaser.Scene {
 
   private applyBoostPads(rider: RiderState) {
     if (rider.mode !== 'ground' || rider.trackId !== 'MAIN') return;
-    const { boostS } = this.kit;
-    if (rider.s >= boostS.lo && rider.s <= boostS.hi && Math.abs(rider.gsp) < 600) {
-      rider.gsp = 600 * Math.sign(rider.gsp || 1);
-    }
-    const loop2 = this.kit.tracks.MAIN.path.project(this.kit.jeepAtX + 700, 620).s;
-    if (rider.s >= loop2 - 140 && rider.s <= loop2 - 10 && Math.abs(rider.gsp) < 600) {
-      rider.gsp = 600 * Math.sign(rider.gsp || 1);
-    }
+    const { boostS, boost2S } = this.kit;
+    const push = (lo: number, hi: number) => {
+      if (rider.s >= lo && rider.s <= hi && rider.gsp < 620) {
+        rider.gsp = Math.max(620, Math.abs(rider.gsp)) * (rider.facing || 1);
+      }
+    };
+    push(boostS.lo, boostS.hi);
+    push(boost2S.lo, boost2S.hi);
   }
 
   private syncSprite(sprite: Phaser.GameObjects.Sprite, rider: RiderState, who: CharacterId) {
@@ -698,9 +739,9 @@ export class AdventureRunScene extends Phaser.Scene {
       0,
       this.initData.level.worldWidth - 1280,
     );
-    const targetScrollY = Phaser.Math.Clamp(midY - 360, 0, 60);
+    const targetScrollY = Phaser.Math.Clamp(midY - 380, -220, 80);
     this.cameras.main.scrollX = Phaser.Math.Linear(this.cameras.main.scrollX, targetScrollX, 0.12);
-    this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, targetScrollY, 0.1);
+    this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, targetScrollY, 0.14);
   }
 
   private checkTriggers(x: number) {
@@ -750,12 +791,12 @@ export class AdventureRunScene extends Phaser.Scene {
       .setDepth(10);
   }
 
-  private updateGhosts() {
+  private updateGhosts(dt: number) {
     for (const g of this.ghosts) {
       if (!g.sprite.active) continue;
       if (g.sprite.x > g.homeX + g.patrol) g.dir = -1;
       if (g.sprite.x < g.homeX - g.patrol) g.dir = 1;
-      g.sprite.x += 1.2 * g.dir;
+      g.sprite.x += 72 * g.dir * dt;
       g.sprite.setFlipX(g.dir < 0);
     }
   }
@@ -817,16 +858,19 @@ export class AdventureRunScene extends Phaser.Scene {
     }
 
     this.soloFollow();
-    this.updateGhosts();
+    this.updateGhosts(dt);
     this.updateCamera();
 
     const leadX = lead.x;
     this.checkTriggers(leadX);
 
     this.hudAcc += dt;
-    if (this.hudAcc >= 0.1 || this.finished) {
-      this.hudAcc = 0;
+    // Once finished, report exactly once more — not every frame
+    if (this.hudAcc >= 0.1 || (this.finished && this.hudAcc >= 0)) {
+      const wasFinished = this.finished;
+      this.hudAcc = this.finished ? -999 : 0;
       this.reportProgress(leadX);
+      if (wasFinished) this.hudAcc = -999;
     }
 
     this.clouds.tilePositionX = this.cameras.main.scrollX * 0.15 + this.elapsed * 8;

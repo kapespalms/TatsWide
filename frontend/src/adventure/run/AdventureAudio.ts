@@ -65,4 +65,11 @@ export class AdventureAudio {
   needSpeed() {
     this.tone(110, 0.18, 'square', 0.05);
   }
+
+  dispose() {
+    if (this.ctx) {
+      void this.ctx.close();
+      this.ctx = null;
+    }
+  }
 }

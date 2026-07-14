@@ -10,7 +10,7 @@ export interface TrackJoin {
   sMax: number;
   toTrackId: string;
   toS: number;
-  trigger: 'duck' | 'auto';
+  trigger: 'duck' | 'auto' | 'jump';
 }
 
 export interface TrackDef {
@@ -182,7 +182,10 @@ function stepGround(
   const joins = track0.joins ?? [];
   for (const join of joins) {
     if (state.s < join.sMin || state.s > join.sMax) continue;
-    const fire = join.trigger === 'auto' || (join.trigger === 'duck' && input.down);
+    const fire =
+      join.trigger === 'auto' ||
+      (join.trigger === 'duck' && input.down) ||
+      (join.trigger === 'jump' && input.jumpPressed && !input.down);
     if (!fire) continue;
     const target = tracks[join.toTrackId];
     if (!target) continue;

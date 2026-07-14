@@ -16,6 +16,8 @@ interface AdventureGameProps extends AdventureLaunch {
   embed?: boolean;
 }
 
+const EMPTY_COUNTS: CollectibleCounts = { pepper: 0, duck: 0, witchHat: 0 };
+
 export function AdventureGame({
   level: startLevel,
   playerCount,
@@ -27,15 +29,21 @@ export function AdventureGame({
   const [resumeX, setResumeX] = useState(120);
   const [score, setScore] = useState(0);
   const [zoneScore, setZoneScore] = useState(0);
-  const [counts, setCounts] = useState<CollectibleCounts>({ pepper: 0, duck: 0, witchHat: 0 });
+  const [counts, setCounts] = useState<CollectibleCounts>({ ...EMPTY_COUNTS });
   const [activeTrigger, setActiveTrigger] = useState<LevelTrigger | null>(null);
   const [doneTriggers, setDoneTriggers] = useState<Set<string>>(() => new Set());
   const [timeSec, setTimeSec] = useState(0);
   const [banner, setBanner] = useState('');
+  const [failOverlay, setFailOverlay] = useState('');
   const runKey = useRef(0);
   const phaseRef = useRef(phase);
   const posRef = useRef(120);
+  const finishedHandled = useRef(false);
+  const zoneScoreRef = useRef(0);
+  const countsRef = useRef<CollectibleCounts>({ ...EMPTY_COUNTS });
   phaseRef.current = phase;
+  zoneScoreRef.current = zoneScore;
+  countsRef.current = counts;
 
   const authoring = useMemo(() => getLevelAuthoring(level), [level]);
 
@@ -48,11 +56,11 @@ export function AdventureGame({
   const handleProgress = useCallback(
     (progress: RunProgress) => {
       posRef.current = progress.x;
-      // Throttle React HUD updates — Phaser runs at 60fps
       setZoneScore(progress.score);
       setCounts(progress.counts);
       setTimeSec(progress.timeSec);
-      if (progress.finished && phaseRef.current === 'run') {
+      if (progress.finished && phaseRef.current === 'run' && !finishedHandled.current) {
+        finishedHandled.current = true;
         setScore((s) => s + progress.score);
         if (level >= TOTAL_LEVELS) {
           setPhase('victory');
@@ -69,6 +77,9 @@ export function AdventureGame({
   const handleTrigger = useCallback(
     (trigger: LevelTrigger) => {
       if (doneTriggers.has(trigger.id) || phaseRef.current !== 'run') return;
+      // Snapshot run progress before Phaser tears down
+      zoneScoreRef.current = zoneScore;
+      countsRef.current = counts;
       setResumeX(trigger.resumeX);
       setActiveTrigger(trigger);
       setPhase(trigger.kind);
@@ -76,15 +87,27 @@ export function AdventureGame({
         trigger.kind === 'jeep' ? 'JEEP ENGAGED — T-REX INCOMING!' : 'STARSHIP LAUNCH — ALIENS AHEAD!',
       );
     },
-    [doneTriggers],
+    [doneTriggers, zoneScore, counts],
   );
 
   const handleShooterDone = useCallback(
-    (scores: ShooterScores) => {
+    (result: { scores: ShooterScores; won: boolean; reason: string }) => {
       if (!activeTrigger) return;
-      const bonus = scores.Wideass + scores.Tats;
-      setZoneScore((z) => z + Math.floor(bonus / 10));
-      setScore((s) => s + Math.floor(bonus / 10));
+      if (!result.won) {
+        setFailOverlay(result.reason);
+        setBanner(result.reason);
+        setActiveTrigger(null);
+        // Remount run at same resume without marking trigger done — retry
+        setResumeX(activeTrigger.atX - 80);
+        runKey.current += 1;
+        setPhase('run');
+        window.setTimeout(() => setFailOverlay(''), 2200);
+        return;
+      }
+      const bonus = Math.floor((result.scores.Wideass + result.scores.Tats) / 10);
+      setZoneScore((z) => Math.max(z, zoneScoreRef.current) + bonus);
+      setScore((s) => s + bonus);
+      setCounts(countsRef.current);
       setDoneTriggers((prev) => new Set([...prev, activeTrigger.id]));
       setResumeX(activeTrigger.resumeX);
       setActiveTrigger(null);
@@ -95,15 +118,37 @@ export function AdventureGame({
     [activeTrigger, authoring.name],
   );
 
+  const resetCampaign = () => {
+    setLevel(startLevel);
+    setResumeX(120);
+    setZoneScore(0);
+    setCounts({ ...EMPTY_COUNTS });
+    setDoneTriggers(new Set());
+    setActiveTrigger(null);
+    setBanner('');
+    setFailOverlay('');
+    setTimeSec(0);
+    setScore(0);
+    finishedHandled.current = false;
+    zoneScoreRef.current = 0;
+    countsRef.current = { ...EMPTY_COUNTS };
+    runKey.current += 1;
+    setPhase('run');
+  };
+
   const nextLevel = () => {
     setLevel((l) => Math.min(TOTAL_LEVELS, l + 1));
     setResumeX(120);
     setZoneScore(0);
-    setCounts({ pepper: 0, duck: 0, witchHat: 0 });
+    setCounts({ ...EMPTY_COUNTS });
     setDoneTriggers(new Set());
     setActiveTrigger(null);
     setBanner('');
+    setFailOverlay('');
     setTimeSec(0);
+    finishedHandled.current = false;
+    zoneScoreRef.current = 0;
+    countsRef.current = { ...EMPTY_COUNTS };
     runKey.current += 1;
     setPhase('run');
   };
@@ -115,11 +160,11 @@ export function AdventureGame({
         subtitle={
           phase === 'victory'
             ? `Campaign score ${score.toLocaleString()} · every zone beaten.`
-            : `Zone ${zoneScore.toLocaleString()} · Total ${score.toLocaleString()} · 🥤${counts.pepper} 🦆${counts.duck} 🧙${counts.witchHat}`
+            : `Zone ${zoneScore.toLocaleString()} · Total ${score.toLocaleString()} · PEP ${counts.pepper} · DUCK ${counts.duck} · HAT ${counts.witchHat}`
         }
         embed={embed}
         buttonLabel={phase === 'victory' ? 'PLAY AGAIN' : `ZONE ${level + 1} →`}
-        onAction={phase === 'victory' ? () => window.location.reload() : nextLevel}
+        onAction={phase === 'victory' ? resetCampaign : nextLevel}
       />
     );
   }
@@ -150,12 +195,15 @@ export function AdventureGame({
   return (
     <div className={embed ? 'relative h-full w-full' : 'relative min-h-screen bg-[#1a3a6a]'}>
       {banner && <Banner text={banner} />}
+      {failOverlay && <Banner text={failOverlay} />}
       <RunPhase
         key={`${level}-${runKey.current}`}
         level={authoring}
         playerCount={playerCount}
         primaryCharacter={primaryCharacter}
         startX={resumeX}
+        seedScore={zoneScoreRef.current}
+        seedCounts={countsRef.current}
         embed={embed}
         onProgress={handleProgress}
         onTrigger={handleTrigger}

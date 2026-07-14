@@ -6,7 +6,9 @@ export const GROUND_Y = 620;
 export interface LevelTrackKit {
   tracks: TrackRegistry;
   boostS: { lo: number; hi: number };
+  boost2S: { lo: number; hi: number };
   tunnelDuckS: { lo: number; hi: number };
+  highJoinS: { lo: number; hi: number };
   loopLookaheadStart: number;
   finishTrackId: string;
   finishMinS: number;
@@ -18,6 +20,7 @@ export interface LevelTrackKit {
   worldWidth: number;
   finishX: number;
   loopRadius: number;
+  highX: number;
   skyColor: string;
   theme: 'hills' | 'jungle' | 'crystal' | 'haunted' | 'industrial' | 'snow' | 'alien';
   name: string;
@@ -153,6 +156,14 @@ export function buildZoneTracks(level: number): LevelTrackKit {
     lo: mainPath.project(tunnelX + 20, gy).s,
     hi: mainPath.project(tunnelX + 280, gy).s,
   };
+  const highJoinS = {
+    lo: mainPath.project(highX - 60, gy - 90).s,
+    hi: mainPath.project(highX + 80, gy - 90).s,
+  };
+  const boost2S = {
+    lo: mainPath.project(loop2X - 250, gy).s,
+    hi: mainPath.project(loop2X - 40, gy).s,
+  };
 
   const tracks: TrackRegistry = {
     MAIN: {
@@ -166,15 +177,35 @@ export function buildZoneTracks(level: number): LevelTrackKit {
           toS: 0,
           trigger: 'duck',
         },
+        {
+          // Hold jump near ramp → HIGH route
+          sMin: highJoinS.lo,
+          sMax: highJoinS.hi,
+          toTrackId: 'HIGH',
+          toS: 0,
+          trigger: 'jump',
+        },
       ],
     },
-    HIGH: { id: 'HIGH', path: highPath },
+    HIGH: {
+      id: 'HIGH',
+      path: highPath,
+      joins: [
+        {
+          sMin: Math.max(0, highPath.length - 40),
+          sMax: highPath.length,
+          toTrackId: 'MAIN',
+          toS: mainPath.project(highX + 520, gy - 30).s,
+          trigger: 'auto',
+        },
+      ],
+    },
     LOW: {
       id: 'LOW',
       path: lowPath,
       joins: [
         {
-          sMin: lowPath.length - 8,
+          sMin: Math.max(0, lowPath.length - 48),
           sMax: lowPath.length,
           toTrackId: 'MAIN',
           toS: mainPath.project(tunnelX + 560, gy).s,
@@ -189,7 +220,9 @@ export function buildZoneTracks(level: number): LevelTrackKit {
   return {
     tracks,
     boostS,
+    boost2S,
     tunnelDuckS,
+    highJoinS,
     loopLookaheadStart: boostS.lo,
     finishTrackId: 'MAIN',
     finishMinS: mainPath.project(finishX, gy).s,
@@ -201,6 +234,7 @@ export function buildZoneTracks(level: number): LevelTrackKit {
     worldWidth,
     finishX,
     loopRadius: loopR,
+    highX,
     skyColor: meta.sky,
     theme: meta.theme,
     name: meta.name,

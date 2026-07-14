@@ -22,7 +22,7 @@ interface ShooterPhaseProps {
   intensity: number;
   playerCount: 1 | 2;
   embed?: boolean;
-  onComplete: (scores: ShooterScores) => void;
+  onComplete: (result: { scores: ShooterScores; won: boolean; reason: string }) => void;
 }
 
 const JEEP_HP_MAX = 100;
@@ -78,8 +78,13 @@ export function ShooterPhase(props: ShooterPhaseProps) {
     });
     setKills((k) => k + 1);
     setFlash(who);
-    window.setTimeout(() => setFlash(''), 120);
   }, []);
+
+  useEffect(() => {
+    if (!flash) return;
+    const t = window.setTimeout(() => setFlash(''), 120);
+    return () => window.clearTimeout(t);
+  }, [flash]);
 
   const handleMissPass = useCallback(
     (damage: number) => {
@@ -94,14 +99,19 @@ export function ShooterPhase(props: ShooterPhaseProps) {
     [kind],
   );
 
-  const handleComplete = useCallback(() => {
-    if (finished.current) return;
-    finished.current = true;
-    onComplete(scoresRef.current);
-  }, [onComplete]);
+  const handleComplete = useCallback(
+    (won: boolean, reason: string) => {
+      if (finished.current) return;
+      finished.current = true;
+      onComplete({ scores: scoresRef.current, won, reason });
+    },
+    [onComplete],
+  );
 
   useEffect(() => {
-    if (kind === 'jeep' && jeepHp <= 0) handleComplete();
+    if (kind === 'jeep' && jeepHp <= 0) {
+      handleComplete(false, 'JEEP DESTROYED — RETRY!');
+    }
   }, [jeepHp, kind, handleComplete]);
 
   const cam =
@@ -173,7 +183,7 @@ function ShooterWorld({
   timeLeft: number;
   setTimeLeft: (t: number) => void;
   jeepHpRef: MutableRefObject<number>;
-  onComplete: () => void;
+  onComplete: (won: boolean, reason: string) => void;
 }) {
   const enemies = useRef<Enemy[]>([]);
   const enemyMeshes = useRef<THREE.Group[]>([]);
@@ -190,6 +200,8 @@ function ShooterWorld({
   >([]);
   const roadScroll = useRef(0);
   const laserMeshes = useRef<THREE.Mesh[]>([]);
+  const scratch = useRef(new THREE.Vector3());
+  const ndcScratch = useRef(new THREE.Vector3());
   timeRef.current = timeLeft;
   killsRef.current = kills;
 
@@ -302,8 +314,7 @@ function ShooterWorld({
     const checkHit = (who: CharacterId, nx: number, ny: number) => {
       muzzle.current[who] = 1;
       const color = who === 'Wideass' ? '#ff6644' : '#66eeff';
-      // Ray from gun toward world point under reticle
-      const ndc = new THREE.Vector3(nx * 2 - 1, -(ny * 2 - 1), 0.85);
+      const ndc = ndcScratch.current.set(nx * 2 - 1, -(ny * 2 - 1), 0.85);
       ndc.unproject(camera);
       lasers.current.push({
         id: idRef.current++,
@@ -319,9 +330,9 @@ function ShooterWorld({
 
       for (let i = enemies.current.length - 1; i >= 0; i -= 1) {
         const e = enemies.current[i];
-        const projected = new THREE.Vector3(e.x, e.y + (e.kind === 'trex' ? 1.2 : 0.4), e.z).project(
-          camera,
-        );
+        const projected = scratch.current
+          .set(e.x, e.y + (e.kind === 'trex' ? 1.2 : 0.4), e.z)
+          .project(camera);
         if (projected.z > 1) continue;
         const sx = projected.x * 0.5 + 0.5;
         const sy = -projected.y * 0.5 + 0.5;
@@ -384,9 +395,15 @@ function ShooterWorld({
       (mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, l.life * 8);
     });
 
-    if (killsRef.current >= killQuota || timeRef.current <= 0 || jeepHpRef.current <= 0) {
+    if (killsRef.current >= killQuota) {
       completed.current = true;
-      onComplete();
+      onComplete(true, 'QUOTA CLEAR!');
+    } else if (kind === 'jeep' && jeepHpRef.current <= 0) {
+      completed.current = true;
+      onComplete(false, 'JEEP DESTROYED — RETRY!');
+    } else if (timeRef.current <= 0) {
+      completed.current = true;
+      onComplete(false, 'TIME UP — RETRY!');
     }
   });
 
