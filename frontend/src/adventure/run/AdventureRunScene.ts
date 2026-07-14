@@ -256,15 +256,16 @@ export class AdventureRunScene extends Phaser.Scene {
 
   private buildDecor(level: LevelAuthoring) {
     const step = level.theme === 'industrial' ? 280 : 240;
-    // Midground grass strips using atlas tiles
-    for (let x = 0; x < level.worldWidth; x += 64) {
-      const g = this.add.image(x, 655, 'px_grass').setDepth(-6).setScale(2);
-      g.setOrigin(0, 1);
-      if (level.theme === 'snow') g.setTint(0xddeeff);
-      if (level.theme === 'industrial') g.setTexture('px_stone');
-      if (level.theme === 'alien') g.setTint(0x66ff99);
-      if (level.theme === 'haunted') g.setTint(0x665588);
-    }
+    // One TileSprite ground strip — not thousands of grass images
+    const groundKey = level.theme === 'industrial' ? 'px_stone' : 'px_grass';
+    const ground = this.add
+      .tileSprite(level.worldWidth / 2, 668, level.worldWidth, 64, groundKey)
+      .setDepth(-6);
+    if (level.theme === 'snow') ground.setTint(0xddeeff);
+    if (level.theme === 'alien') ground.setTint(0x66ff99);
+    if (level.theme === 'haunted') ground.setTint(0x665588);
+    if (level.theme === 'jungle') ground.setTint(0x3a8840);
+
     for (let x = 80; x < level.worldWidth; x += step) {
       const key = level.theme === 'industrial' ? 'px_stone' : 'px_pine';
       const pine = this.add
@@ -276,8 +277,11 @@ export class AdventureRunScene extends Phaser.Scene {
       if (level.theme === 'snow') pine.setTint(0xeeffff);
       if (level.theme === 'haunted') pine.setTint(0x664488);
       if (level.theme === 'alien') pine.setTint(0x44ff88);
-      if (level.theme === 'crystal' && x % (step * 2) === 80) {
+      if (level.theme === 'crystal' && x % (step * 2) < step) {
         this.add.image(x + 40, 520, 'px_flower_y').setDepth(-7).setScale(2).setScrollFactor(0.6);
+      }
+      if (level.theme === 'hills' && x % (step * 3) < step) {
+        this.add.image(x + 90, 600, 'px_flower_p').setDepth(-7).setScale(2).setScrollFactor(0.62);
       }
     }
   }
@@ -855,7 +859,12 @@ export class AdventureRunScene extends Phaser.Scene {
       ((this.riderW.trackId === this.kit.finishTrackId && this.riderW.s >= this.kit.finishMinS) ||
         (this.riderT.trackId === this.kit.finishTrackId && this.riderT.s >= this.kit.finishMinS) ||
         x >= this.initData.level.finishX);
-    if (finished) this.finished = true;
+    if (finished && !this.finished) {
+      this.finished = true;
+      this.audio.clear();
+      this.cameras.main.flash(280, 255, 225, 74);
+      this.cameras.main.shake(200, 0.004);
+    }
     this.initData.onProgress({
       x,
       counts: this.counts,

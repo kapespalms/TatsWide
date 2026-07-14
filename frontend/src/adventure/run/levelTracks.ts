@@ -1,4 +1,4 @@
-import { TrackPath, curvePath, linePath, loopArc } from './SonicTrack';
+import { TrackPath, curvePath, linePath, loopArc, type TrackSegment } from './SonicTrack';
 import type { TrackRegistry } from './TrackRider';
 
 export const GROUND_Y = 620;
@@ -181,7 +181,7 @@ export function buildZoneTracks(level: number): LevelTrackKit {
   const loop2R = loopR + (meta.theme === 'industrial' ? 6 : 12);
   const stretch = plan.stretch;
 
-  let loop1X = Math.floor((plan.earlyLoop ? 850 : 1100) * stretch);
+  const loop1X = Math.floor((plan.earlyLoop ? 850 : 1100) * stretch);
   const hillStart = Math.floor(2100 * stretch);
   const hillLen = Math.floor(plan.hillLen);
   const tunnelX = Math.floor(3800 * stretch);
@@ -191,114 +191,92 @@ export function buildZoneTracks(level: number): LevelTrackKit {
   const loop2X = Math.floor(6100 * stretch);
   const spaceX = Math.floor(7100 * stretch);
 
-  const mainSegs = [
-    ...linePath([
-      { x: 0, y: gy },
-      { x: loop1X - 280, y: gy },
-    ]),
-  ];
+  // Build MAIN as one continuous polyline chain — no theme segment gaps.
+  const mainSegs: TrackSegment[] = [];
+  let cx = 0;
+  let cy = gy;
 
-  mainSegs.push(
-    ...linePath([
-      { x: loop1X - 280, y: gy },
-      { x: loop1X, y: gy },
-    ]),
-    loopArc(loop1X, gy - loopR, loopR, -1),
-    ...linePath([
-      { x: loop1X, y: gy },
-      { x: hillStart, y: gy },
-    ]),
-  );
+  const goLine = (x: number, y: number) => {
+    if (Math.hypot(x - cx, y - cy) < 1) {
+      cx = x;
+      cy = y;
+      return;
+    }
+    mainSegs.push(...linePath([{ x: cx, y: cy }, { x, y }]));
+    cx = x;
+    cy = y;
+  };
+  const goCurve = (fn: (t: number) => { x: number; y: number }, steps: number) => {
+    // Anchor start of curve to current tip
+    const start = fn(0);
+    goLine(start.x, start.y);
+    mainSegs.push(...curvePath(fn, steps));
+    const end = fn(1);
+    cx = end.x;
+    cy = end.y;
+  };
 
-  // Primary hill (theme amplitude)
-  mainSegs.push(
-    ...curvePath(
-      (t) => ({
-        x: hillStart + t * hillLen,
-        y: gy - plan.hillAmp * (0.5 - 0.5 * Math.cos(2 * Math.PI * t)),
-      }),
-      32,
-    ),
+  goLine(loop1X - 280, gy);
+  goLine(loop1X, gy);
+  mainSegs.push(loopArc(loop1X, gy - loopR, loopR, -1));
+  cx = loop1X;
+  cy = gy;
+  goLine(hillStart, gy);
+
+  goCurve(
+    (t) => ({
+      x: hillStart + t * hillLen,
+      y: gy - plan.hillAmp * (0.5 - 0.5 * Math.cos(2 * Math.PI * t)),
+    }),
+    32,
   );
 
   if (plan.doubleHill) {
-    const h2 = hillStart + hillLen + 80;
-    mainSegs.push(
-      ...linePath([
-        { x: hillStart + hillLen, y: gy },
-        { x: h2, y: gy },
-      ]),
-      ...curvePath(
-        (t) => ({
-          x: h2 + t * (hillLen * 0.7),
-          y: gy - plan.hillAmp * 0.75 * (0.5 - 0.5 * Math.cos(2 * Math.PI * t)),
-        }),
-        24,
-      ),
+    const h2 = cx + 80;
+    goLine(h2, gy);
+    const h2Len = hillLen * 0.7;
+    goCurve(
+      (t) => ({
+        x: h2 + t * h2Len,
+        y: gy - plan.hillAmp * 0.75 * (0.5 - 0.5 * Math.cos(2 * Math.PI * t)),
+      }),
+      24,
     );
   }
 
   if (plan.extraDip) {
-    const dipX = tunnelX - 500;
-    mainSegs.push(
-      ...curvePath(
-        (t) => ({
-          x: dipX + t * 360,
-          y: gy + 55 * Math.sin(Math.PI * t),
-        }),
-        18,
-      ),
+    const dipStart = cx;
+    goCurve(
+      (t) => ({
+        x: dipStart + t * 360,
+        y: gy + 55 * Math.sin(Math.PI * t),
+      }),
+      18,
     );
   }
 
   if ('wavy' in plan && plan.wavy) {
-    const wx = tunnelX - 900;
-    mainSegs.push(
-      ...curvePath(
-        (t) => ({
-          x: wx + t * 700,
-          y: gy - 36 * Math.sin(t * Math.PI * 3),
-        }),
-        36,
-      ),
+    const wStart = cx;
+    goCurve(
+      (t) => ({
+        x: wStart + t * 700,
+        y: gy - 36 * Math.sin(t * Math.PI * 3),
+      }),
+      36,
     );
   }
 
-  mainSegs.push(
-    ...linePath([
-      { x: Math.max(hillStart + hillLen, tunnelX - 200), y: gy },
-      { x: tunnelX, y: gy },
-    ]),
-    ...linePath([
-      { x: tunnelX, y: gy },
-      { x: tunnelX + plan.tunnelLen, y: gy },
-    ]),
-    ...linePath([
-      { x: tunnelX + plan.tunnelLen, y: gy },
-      { x: highX, y: gy - 90 },
-    ]),
-    ...linePath([
-      { x: highX, y: gy - 90 },
-      { x: jeepX - 200, y: gy },
-    ]),
-    ...linePath([
-      { x: jeepX - 200, y: gy },
-      { x: loop2X, y: gy },
-    ]),
-    loopArc(loop2X, gy - loop2R, loop2R, -1),
-    ...linePath([
-      { x: loop2X, y: gy },
-      { x: spaceX, y: gy },
-    ]),
-    ...linePath([
-      { x: spaceX, y: gy },
-      { x: finishX, y: gy },
-    ]),
-    ...linePath([
-      { x: finishX, y: gy },
-      { x: worldWidth, y: gy },
-    ]),
-  );
+  goLine(tunnelX, gy);
+  goLine(tunnelX + plan.tunnelLen, gy);
+  goLine(highX, gy - 90);
+  goLine(jeepX - 200, gy);
+  goLine(loop2X, gy);
+  mainSegs.push(loopArc(loop2X, gy - loop2R, loop2R, -1));
+  cx = loop2X;
+  cy = gy;
+  goLine(spaceX, gy);
+  goLine(finishX, gy);
+  goLine(worldWidth, gy);
 
   const mainPath = new TrackPath(mainSegs);
 

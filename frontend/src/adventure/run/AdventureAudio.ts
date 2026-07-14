@@ -136,6 +136,12 @@ export class AdventureAudio {
     this.tone(360, 0.2, 'sawtooth', 0.06, 720);
   }
 
+  clear() {
+    this.tone(523, 0.12, 'square', 0.07);
+    window.setTimeout(() => this.tone(659, 0.12, 'square', 0.07), 100);
+    window.setTimeout(() => this.tone(784, 0.22, 'square', 0.08), 200);
+  }
+
   dispose() {
     this.stopMusic();
     if (this.ctx) {

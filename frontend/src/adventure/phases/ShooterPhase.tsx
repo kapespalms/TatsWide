@@ -1,4 +1,5 @@
 import { Canvas, useFrame } from '@react-three/fiber';
+import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import { Suspense, useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import * as THREE from 'three';
 import type { CharacterId, ShooterKind, ShooterScores } from '../types';
@@ -6,6 +7,18 @@ import type { ShooterSegment } from '../shooter/types';
 import { useShooterInput } from '../shooter/useShooterInput';
 import { ShooterHUD } from '../shooter/ShooterHUD';
 import { AdventureAudio } from '../run/AdventureAudio';
+
+const LASER_GEO = new THREE.BoxGeometry(0.06, 0.06, 1);
+const LASER_MAT_W = new THREE.MeshBasicMaterial({
+  color: '#ff6644',
+  transparent: true,
+  depthWrite: false,
+});
+const LASER_MAT_T = new THREE.MeshBasicMaterial({
+  color: '#66eeff',
+  transparent: true,
+  depthWrite: false,
+});
 
 interface Enemy {
   id: number;
@@ -395,8 +408,7 @@ function ShooterWorld({
     while (laserMeshes.current.length > lasers.current.length) {
       const m = laserMeshes.current.pop();
       if (m) {
-        m.geometry.dispose();
-        (m.material as THREE.Material).dispose();
+        m.visible = false;
         root.current?.remove(m);
       }
     }
@@ -404,12 +416,14 @@ function ShooterWorld({
       let mesh = laserMeshes.current[i];
       if (!mesh) {
         mesh = new THREE.Mesh(
-          new THREE.BoxGeometry(0.06, 0.06, 1),
-          new THREE.MeshBasicMaterial({ color: l.color, transparent: true }),
+          LASER_GEO,
+          l.color.startsWith('#ff') ? LASER_MAT_W : LASER_MAT_T,
         );
         root.current?.add(mesh);
         laserMeshes.current[i] = mesh;
       }
+      mesh.visible = true;
+      mesh.material = l.color.startsWith('#ff') ? LASER_MAT_W : LASER_MAT_T;
       const dx = l.x1 - l.x0;
       const dy = l.y1 - l.y0;
       const dz = l.z1 - l.z0;
@@ -417,7 +431,6 @@ function ShooterWorld({
       mesh.position.set((l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2, (l.z0 + l.z1) / 2);
       mesh.scale.set(1, 1, len);
       mesh.lookAt(l.x1, l.y1, l.z1);
-      (mesh.material as THREE.MeshBasicMaterial).color.set(l.color);
       (mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, l.life * 8);
     });
 
@@ -440,6 +453,14 @@ function ShooterWorld({
       {kind === 'space' ? <SpaceEnvironment /> : <JeepEnvironment scroll={roadScroll} />}
       <group ref={root} />
       <VehicleInterior kind={kind} muzzle={muzzle} />
+      <EffectComposer multisampling={0}>
+        <Bloom
+          intensity={kind === 'space' ? 0.55 : 0.35}
+          luminanceThreshold={0.45}
+          luminanceSmoothing={0.4}
+          mipmapBlur
+        />
+      </EffectComposer>
     </>
   );
 }
