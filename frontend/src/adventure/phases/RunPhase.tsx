@@ -11,6 +11,8 @@ interface RunPhaseProps {
   startX: number;
   seedScore?: number;
   seedCounts?: CollectibleCounts;
+  seedTakenIds?: string[];
+  seedKilledGhostIds?: string[];
   embed?: boolean;
   onProgress: (progress: RunProgress) => void;
   onTrigger: (trigger: LevelTrigger) => void;
@@ -28,6 +30,8 @@ export function RunPhase({
   startX,
   seedScore = 0,
   seedCounts,
+  seedTakenIds = [],
+  seedKilledGhostIds = [],
   embed = false,
   onProgress,
   onTrigger,
@@ -51,6 +55,8 @@ export function RunPhase({
       startX,
       seedScore,
       seedCounts: seedCounts ?? { pepper: 0, duck: 0, witchHat: 0 },
+      seedTakenIds,
+      seedKilledGhostIds,
       onProgress: (p) => progressRef.current(p),
       onTrigger: (t) => triggerRef.current(t),
     });

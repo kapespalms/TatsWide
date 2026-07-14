@@ -5,6 +5,7 @@ import type { CharacterId, ShooterKind, ShooterScores } from '../types';
 import type { ShooterSegment } from '../shooter/types';
 import { useShooterInput } from '../shooter/useShooterInput';
 import { ShooterHUD } from '../shooter/ShooterHUD';
+import { AdventureAudio } from '../run/AdventureAudio';
 
 interface Enemy {
   id: number;
@@ -45,8 +46,15 @@ export function ShooterPhase(props: ShooterPhaseProps) {
   const finished = useRef(false);
   const scoresRef = useRef(scores);
   const jeepHpRef = useRef(jeepHp);
+  const sfx = useRef<AdventureAudio | null>(null);
+  if (!sfx.current) sfx.current = new AdventureAudio();
   scoresRef.current = scores;
   jeepHpRef.current = jeepHp;
+
+  useEffect(() => {
+    sfx.current?.unlock();
+    return () => sfx.current?.dispose();
+  }, []);
 
   useEffect(() => {
     let raf = 0;
@@ -78,6 +86,7 @@ export function ShooterPhase(props: ShooterPhaseProps) {
     });
     setKills((k) => k + 1);
     setFlash(who);
+    sfx.current?.kill();
   }, []);
 
   useEffect(() => {
@@ -114,6 +123,12 @@ export function ShooterPhase(props: ShooterPhaseProps) {
     }
   }, [jeepHp, kind, handleComplete]);
 
+  useEffect(() => {
+    if (kind === 'space' && (p1Hp <= 0 || (playerCount === 2 && p2Hp <= 0))) {
+      handleComplete(false, 'SHIP HULL BREACHED — RETRY!');
+    }
+  }, [kind, p1Hp, p2Hp, playerCount, handleComplete]);
+
   const cam =
     kind === 'jeep'
       ? ({ position: [0, 1.05, 5.2] as [number, number, number], fov: 68 })
@@ -136,6 +151,7 @@ export function ShooterPhase(props: ShooterPhaseProps) {
               setTimeLeft={setTimeLeft}
               jeepHpRef={jeepHpRef}
               onComplete={handleComplete}
+              onFire={() => sfx.current?.shoot()}
             />
           </Suspense>
         </Canvas>
@@ -172,6 +188,7 @@ function ShooterWorld({
   setTimeLeft,
   jeepHpRef,
   onComplete,
+  onFire,
 }: {
   kind: ShooterKind;
   intensity: number;
@@ -184,6 +201,7 @@ function ShooterWorld({
   setTimeLeft: (t: number) => void;
   jeepHpRef: MutableRefObject<number>;
   onComplete: (won: boolean, reason: string) => void;
+  onFire: () => void;
 }) {
   const enemies = useRef<Enemy[]>([]);
   const enemyMeshes = useRef<THREE.Group[]>([]);
@@ -357,10 +375,12 @@ function ShooterWorld({
     };
 
     if (fire.Wideass) {
+      onFire();
       checkHit('Wideass', ret.Wideass.x, ret.Wideass.y);
       state.camera.rotation.z += (Math.random() - 0.5) * 0.004;
     }
     if (fire.Tats) {
+      onFire();
       checkHit('Tats', ret.Tats.x, ret.Tats.y);
       state.camera.rotation.z += (Math.random() - 0.5) * 0.004;
     }
@@ -530,25 +550,32 @@ function buildCrateMesh() {
 }
 
 function SpaceEnvironment() {
-  const field = useRef<THREE.Group>(null);
-  const stars = useRef(
-    Array.from({ length: 140 }, () => [
-      (Math.random() - 0.5) * 90,
-      (Math.random() - 0.5) * 50,
-      -10 - Math.random() * 70,
-    ] as [number, number, number]),
-  );
+  const points = useRef<THREE.Points>(null);
+  const positions = useRef<Float32Array | null>(null);
+  if (!positions.current) {
+    const arr = new Float32Array(240 * 3);
+    for (let i = 0; i < 240; i += 1) {
+      arr[i * 3] = (Math.random() - 0.5) * 90;
+      arr[i * 3 + 1] = (Math.random() - 0.5) * 50;
+      arr[i * 3 + 2] = -10 - Math.random() * 70;
+    }
+    positions.current = arr;
+  }
 
   useFrame((_, dt) => {
-    if (!field.current) return;
-    field.current.children.forEach((c) => {
-      c.position.z += dt * 28;
-      if (c.position.z > 10) {
-        c.position.z = -70 - Math.random() * 10;
-        c.position.x = (Math.random() - 0.5) * 90;
-        c.position.y = (Math.random() - 0.5) * 50;
+    const geo = points.current?.geometry;
+    const pos = geo?.attributes.position as THREE.BufferAttribute | undefined;
+    if (!pos) return;
+    for (let i = 0; i < pos.count; i += 1) {
+      let z = pos.getZ(i) + dt * 28;
+      if (z > 10) {
+        z = -70 - Math.random() * 10;
+        pos.setX(i, (Math.random() - 0.5) * 90);
+        pos.setY(i, (Math.random() - 0.5) * 50);
       }
-    });
+      pos.setZ(i, z);
+    }
+    pos.needsUpdate = true;
   });
 
   return (
@@ -559,14 +586,15 @@ function SpaceEnvironment() {
         <sphereGeometry args={[55, 16, 16]} />
         <meshBasicMaterial color="#0a0618" side={THREE.BackSide} />
       </mesh>
-      <group ref={field}>
-        {stars.current.map((p, i) => (
-          <mesh key={i} position={p}>
-            <sphereGeometry args={[0.06 + (i % 3) * 0.02, 4, 4]} />
-            <meshBasicMaterial color={i % 7 === 0 ? '#aaccff' : '#ffffff'} />
-          </mesh>
-        ))}
-      </group>
+      <points ref={points}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            args={[positions.current, 3]}
+          />
+        </bufferGeometry>
+        <pointsMaterial size={0.18} color="#d0e8ff" sizeAttenuation />
+      </points>
     </>
   );
 }

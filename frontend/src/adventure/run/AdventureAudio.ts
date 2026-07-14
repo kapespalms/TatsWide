@@ -21,7 +21,6 @@ export class AdventureAudio {
 
   unlock() {
     this.ensure();
-    this.startMusic();
   }
 
   private tone(freq: number, dur: number, type: OscillatorType, gain = 0.08, slideTo?: number) {

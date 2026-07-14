@@ -34,13 +34,16 @@ export function AdventureGame({
   const [doneTriggers, setDoneTriggers] = useState<Set<string>>(() => new Set());
   const [timeSec, setTimeSec] = useState(0);
   const [banner, setBanner] = useState('');
-  const [failOverlay, setFailOverlay] = useState('');
+  const [failReason, setFailReason] = useState('');
   const runKey = useRef(0);
   const phaseRef = useRef(phase);
   const posRef = useRef(120);
   const finishedHandled = useRef(false);
   const zoneScoreRef = useRef(0);
   const countsRef = useRef<CollectibleCounts>({ ...EMPTY_COUNTS });
+  const takenIdsRef = useRef<Set<string>>(new Set());
+  const killedGhostsRef = useRef<Set<string>>(new Set());
+  const [takenTick, setTakenTick] = useState(0);
   phaseRef.current = phase;
   zoneScoreRef.current = zoneScore;
   countsRef.current = counts;
@@ -59,6 +62,8 @@ export function AdventureGame({
       setZoneScore(progress.score);
       setCounts(progress.counts);
       setTimeSec(progress.timeSec);
+      for (const id of progress.takenIds) takenIdsRef.current.add(id);
+      for (const id of progress.killedGhostIds) killedGhostsRef.current.add(id);
       if (progress.finished && phaseRef.current === 'run' && !finishedHandled.current) {
         finishedHandled.current = true;
         setScore((s) => s + progress.score);
@@ -77,7 +82,6 @@ export function AdventureGame({
   const handleTrigger = useCallback(
     (trigger: LevelTrigger) => {
       if (doneTriggers.has(trigger.id) || phaseRef.current !== 'run') return;
-      // Snapshot run progress before Phaser tears down
       zoneScoreRef.current = zoneScore;
       countsRef.current = counts;
       setResumeX(trigger.resumeX);
@@ -90,68 +94,83 @@ export function AdventureGame({
     [doneTriggers, zoneScore, counts],
   );
 
+  const retryFromFail = () => {
+    setFailReason('');
+    setActiveTrigger(null);
+    runKey.current += 1;
+    setTakenTick((t) => t + 1);
+    setPhase('run');
+    setBanner('CONTINUE — BACK ON THE TRACK!');
+  };
+
   const handleShooterDone = useCallback(
     (result: { scores: ShooterScores; won: boolean; reason: string }) => {
       if (!activeTrigger) return;
       if (!result.won) {
-        setFailOverlay(result.reason);
-        setBanner(result.reason);
+        setFailReason(result.reason);
+        setResumeX(Math.max(120, activeTrigger.atX - 120));
         setActiveTrigger(null);
-        // Remount run at same resume without marking trigger done — retry
-        setResumeX(activeTrigger.atX - 80);
-        runKey.current += 1;
-        setPhase('run');
-        window.setTimeout(() => setFailOverlay(''), 2200);
+        setPhase('failed');
         return;
       }
+      // Bonus only into zone score — campaign absorbs it at zone clear (no double-count)
       const bonus = Math.floor((result.scores.Wideass + result.scores.Tats) / 10);
-      setZoneScore((z) => Math.max(z, zoneScoreRef.current) + bonus);
-      setScore((s) => s + bonus);
+      const nextZone = Math.max(zoneScoreRef.current, zoneScore) + bonus;
+      zoneScoreRef.current = nextZone;
+      setZoneScore(nextZone);
       setCounts(countsRef.current);
       setDoneTriggers((prev) => new Set([...prev, activeTrigger.id]));
       setResumeX(activeTrigger.resumeX);
       setActiveTrigger(null);
       setBanner(`BACK TO ${authoring.name.toUpperCase()}!`);
       runKey.current += 1;
+      setTakenTick((t) => t + 1);
       setPhase('run');
     },
-    [activeTrigger, authoring.name],
+    [activeTrigger, authoring.name, zoneScore],
   );
 
-  const resetCampaign = () => {
-    setLevel(startLevel);
+  const clearZoneState = () => {
     setResumeX(120);
     setZoneScore(0);
     setCounts({ ...EMPTY_COUNTS });
     setDoneTriggers(new Set());
     setActiveTrigger(null);
     setBanner('');
-    setFailOverlay('');
+    setFailReason('');
     setTimeSec(0);
-    setScore(0);
     finishedHandled.current = false;
     zoneScoreRef.current = 0;
     countsRef.current = { ...EMPTY_COUNTS };
+    takenIdsRef.current = new Set();
+    killedGhostsRef.current = new Set();
     runKey.current += 1;
+    setTakenTick((t) => t + 1);
     setPhase('run');
+  };
+
+  const resetCampaign = () => {
+    setLevel(startLevel);
+    setScore(0);
+    clearZoneState();
   };
 
   const nextLevel = () => {
     setLevel((l) => Math.min(TOTAL_LEVELS, l + 1));
-    setResumeX(120);
-    setZoneScore(0);
-    setCounts({ ...EMPTY_COUNTS });
-    setDoneTriggers(new Set());
-    setActiveTrigger(null);
-    setBanner('');
-    setFailOverlay('');
-    setTimeSec(0);
-    finishedHandled.current = false;
-    zoneScoreRef.current = 0;
-    countsRef.current = { ...EMPTY_COUNTS };
-    runKey.current += 1;
-    setPhase('run');
+    clearZoneState();
   };
+
+  if (phase === 'failed') {
+    return (
+      <EndScreen
+        title={failReason || 'MISSION FAILED'}
+        subtitle="Quota or jeep integrity collapsed. Continue from the checkpoint — pickups stay collected."
+        embed={embed}
+        buttonLabel="CONTINUE"
+        onAction={retryFromFail}
+      />
+    );
+  }
 
   if (phase === 'victory' || phase === 'levelComplete') {
     return (
@@ -195,19 +214,20 @@ export function AdventureGame({
   return (
     <div className={embed ? 'relative h-full w-full' : 'relative min-h-screen bg-[#1a3a6a]'}>
       {banner && <Banner text={banner} />}
-      {failOverlay && <Banner text={failOverlay} />}
       <RunPhase
-        key={`${level}-${runKey.current}`}
+        key={`${level}-${runKey.current}-${takenTick}`}
         level={authoring}
         playerCount={playerCount}
         primaryCharacter={primaryCharacter}
         startX={resumeX}
         seedScore={zoneScoreRef.current}
         seedCounts={countsRef.current}
+        seedTakenIds={[...takenIdsRef.current]}
+        seedKilledGhostIds={[...killedGhostsRef.current]}
         embed={embed}
         onProgress={handleProgress}
         onTrigger={handleTrigger}
-        hud={{ score: zoneScore + score, counts, timeSec }}
+        hud={{ score: score + zoneScore, counts, timeSec }}
       />
     </div>
   );

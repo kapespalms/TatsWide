@@ -26,6 +26,8 @@ export interface AdventureRunInit {
   startX: number;
   seedScore?: number;
   seedCounts?: CollectibleCounts;
+  seedTakenIds?: string[];
+  seedKilledGhostIds?: string[];
   onProgress: (payload: RunProgress) => void;
   onTrigger: (trigger: LevelTrigger) => void;
 }
@@ -36,9 +38,12 @@ export interface RunProgress {
   score: number;
   finished: boolean;
   timeSec: number;
+  takenIds: string[];
+  killedGhostIds: string[];
 }
 
 interface GhostState {
+  id: string;
   sprite: Phaser.GameObjects.Sprite;
   homeX: number;
   homeY: number;
@@ -74,8 +79,15 @@ export class AdventureRunScene extends Phaser.Scene {
   };
   private onKeyDown!: (e: KeyboardEvent) => void;
   private onKeyUp!: (e: KeyboardEvent) => void;
-  private collectibles: { x: number; y: number; kind: CollectibleKind; img: Phaser.GameObjects.Image }[] =
-    [];
+  private collectibles: {
+    id: string;
+    x: number;
+    y: number;
+    kind: CollectibleKind;
+    img: Phaser.GameObjects.Image;
+  }[] = [];
+  private takenIds = new Set<string>();
+  private killedGhostIds = new Set<string>();
   private springs: {
     x: number;
     y: number;
@@ -100,6 +112,7 @@ export class AdventureRunScene extends Phaser.Scene {
   private hudAcc = 0;
   private lastNeedSpeed = false;
   private gp = { left: false, right: false, down: false, jump: false };
+  private gp2 = { left: false, right: false, down: false, jump: false };
   private invulnUntil: Record<CharacterId, number> = { Wideass: 0, Tats: 0 };
   private cfgW = DEFAULT_RIDER_CONFIG;
   private cfgT = DEFAULT_RIDER_CONFIG;
@@ -125,6 +138,8 @@ export class AdventureRunScene extends Phaser.Scene {
     this.needSpeed = 0;
     this.jumpPressedW = false;
     this.jumpPressedT = false;
+    this.takenIds = new Set(data.seedTakenIds ?? []);
+    this.killedGhostIds = new Set(data.seedKilledGhostIds ?? []);
     this.invulnUntil = { Wideass: 0, Tats: 0 };
     this.keys = {
       left: false,
@@ -210,6 +225,7 @@ export class AdventureRunScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, level.worldWidth, 780);
     this.drawFinish(level.finishX);
     this.audio.unlock();
+    this.audio.startMusic();
   }
 
   private buildParallax(level: LevelAuthoring) {
@@ -240,16 +256,29 @@ export class AdventureRunScene extends Phaser.Scene {
 
   private buildDecor(level: LevelAuthoring) {
     const step = level.theme === 'industrial' ? 280 : 240;
+    // Midground grass strips using atlas tiles
+    for (let x = 0; x < level.worldWidth; x += 64) {
+      const g = this.add.image(x, 655, 'px_grass').setDepth(-6).setScale(2);
+      g.setOrigin(0, 1);
+      if (level.theme === 'snow') g.setTint(0xddeeff);
+      if (level.theme === 'industrial') g.setTexture('px_stone');
+      if (level.theme === 'alien') g.setTint(0x66ff99);
+      if (level.theme === 'haunted') g.setTint(0x665588);
+    }
     for (let x = 80; x < level.worldWidth; x += step) {
+      const key = level.theme === 'industrial' ? 'px_stone' : 'px_pine';
       const pine = this.add
-        .image(x + (x % 60), 600, 'px_pine')
+        .image(x + (x % 60), 640, key)
         .setDepth(-8)
-        .setScale(2)
+        .setScale(level.theme === 'industrial' ? 2.4 : 2)
         .setScrollFactor(0.55);
       pine.setOrigin(0.5, 1);
       if (level.theme === 'snow') pine.setTint(0xeeffff);
       if (level.theme === 'haunted') pine.setTint(0x664488);
       if (level.theme === 'alien') pine.setTint(0x44ff88);
+      if (level.theme === 'crystal' && x % (step * 2) === 80) {
+        this.add.image(x + 40, 520, 'px_flower_y').setDepth(-7).setScale(2).setScrollFactor(0.6);
+      }
     }
   }
 
@@ -257,6 +286,9 @@ export class AdventureRunScene extends Phaser.Scene {
     this.drawTrackPath(this.kit.tracks.MAIN.path, 0xf0f0f8, 0x101018, 1.15);
     this.drawTrackPath(this.kit.tracks.HIGH.path, 0xffe14a, 0x8a6010, 0.95);
     this.drawTrackPath(this.kit.tracks.LOW.path, 0xc8d0e0, 0x202028, 0.9);
+    if (this.kit.tracks.GRIND) {
+      this.drawTrackPath(this.kit.tracks.GRIND.path, 0xffd020, 0x886600, 0.85);
+    }
 
     const boost = this.kit.tracks.MAIN.path.sample(this.kit.boostS.lo);
     this.add
@@ -300,6 +332,18 @@ export class AdventureRunScene extends Phaser.Scene {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#ffe14a',
+        stroke: '#000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(6);
+
+    const grindJoin = this.kit.tracks.MAIN.path.sample(this.kit.grindJoinS.lo);
+    this.add
+      .text(grindJoin.x, grindJoin.y - 56, 'JUMP → GRIND', {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#ffd020',
         stroke: '#000',
         strokeThickness: 3,
       })
@@ -381,9 +425,10 @@ export class AdventureRunScene extends Phaser.Scene {
   }
 
   private buildGrindVisual(level: LevelAuthoring) {
+    // Rails rendered via track path; sprinkle sparkle markers
     for (const r of level.grindRails) {
-      for (let x = 0; x < r.length; x += 32) {
-        this.add.image(r.x + x + 16, r.y, 'px_rail').setDepth(4).setScale(2);
+      for (let x = 0; x < r.length; x += 48) {
+        this.add.image(r.x + x + 16, r.y - 8, 'px_rail').setDepth(4).setScale(2);
       }
     }
   }
@@ -391,19 +436,21 @@ export class AdventureRunScene extends Phaser.Scene {
   private buildCollectibles(level: LevelAuthoring) {
     this.collectibles = [];
     for (const c of level.collectibles) {
+      if (this.takenIds.has(c.id)) continue;
       const key = c.kind === 'pepper' ? 'px_pepper' : c.kind === 'duck' ? 'px_duck' : 'px_hat';
       const img = this.add.image(c.x, c.y, key).setDepth(8).setScale(2);
-      this.collectibles.push({ x: c.x, y: c.y, kind: c.kind, img });
+      this.collectibles.push({ id: c.id, x: c.x, y: c.y, kind: c.kind, img });
     }
   }
 
   private buildGhosts(level: LevelAuthoring) {
     this.ghosts = [];
     for (const g of level.ghosts) {
+      if (this.killedGhostIds.has(g.id)) continue;
       const sprite = this.add.sprite(g.x, g.y, 'px_ghost_0');
       sprite.setDepth(9).setScale(2);
       if (this.anims.exists('ghost-float')) sprite.play('ghost-float');
-      this.ghosts.push({ sprite, homeX: g.x, homeY: g.y, patrol: g.patrol, dir: 1 });
+      this.ghosts.push({ id: g.id, sprite, homeX: g.x, homeY: g.y, patrol: g.patrol, dir: 1 });
     }
   }
 
@@ -590,6 +637,7 @@ export class AdventureRunScene extends Phaser.Scene {
       if (Math.hypot(rider.x - c.x, rider.y - c.y) < 36) {
         c.img.destroy();
         this.collectibles.splice(i, 1);
+        this.takenIds.add(c.id);
         this.counts[c.kind] += 1;
         this.score += c.kind === 'witchHat' ? 500 : c.kind === 'duck' ? 250 : 100;
         this.audio.collect();
@@ -621,6 +669,7 @@ export class AdventureRunScene extends Phaser.Scene {
           (rider.mode === 'air' && Math.abs(rider.vx) > 380);
         if (stomped) {
           this.score += 200;
+          this.killedGhostIds.add(g.id);
           this.audio.kill();
           this.dust.emitParticleAt(g.sprite.x, g.sprite.y, 14);
           g.sprite.destroy();
@@ -693,11 +742,11 @@ export class AdventureRunScene extends Phaser.Scene {
     if (who === 'Tats') {
       if (solo && primary === 'Tats') return p1;
       return {
-        left: this.keys.j,
-        right: this.keys.l,
-        down: this.keys.k,
-        jumpPressed: this.jumpPressedT,
-        jumpHeld: this.keys.i || this.keys.enter,
+        left: this.keys.j || this.gp2.left,
+        right: this.keys.l || this.gp2.right,
+        down: this.keys.k || this.gp2.down,
+        jumpPressed: this.jumpPressedT || this.gp2.jump,
+        jumpHeld: this.keys.i || this.keys.enter || this.gp2.jump,
       };
     }
 
@@ -813,6 +862,8 @@ export class AdventureRunScene extends Phaser.Scene {
       score: this.score,
       finished: this.finished,
       timeSec: this.elapsed,
+      takenIds: [...this.takenIds],
+      killedGhostIds: [...this.killedGhostIds],
     });
   }
 
@@ -965,20 +1016,38 @@ export class AdventureRunScene extends Phaser.Scene {
   }
 
   private pollGamepad() {
-    const pad = navigator.getGamepads?.()[0];
+    const pads = navigator.getGamepads?.() ?? [];
+    const pad = pads[0];
     this.gp.left = false;
     this.gp.right = false;
     this.gp.down = false;
     const wasJump = this.gp.jump;
     this.gp.jump = false;
-    if (!pad) return;
     const dead = 0.28;
-    const ax = pad.axes[0] ?? 0;
-    if (ax < -dead || pad.buttons[14]?.pressed) this.gp.left = true;
-    if (ax > dead || pad.buttons[15]?.pressed) this.gp.right = true;
-    if (pad.buttons[1]?.pressed || pad.buttons[13]?.pressed) this.gp.down = true;
-    const jumpNow = !!(pad.buttons[12]?.pressed || pad.buttons[0]?.pressed);
-    this.gp.jump = jumpNow;
-    if (jumpNow && !wasJump) this.jumpPressedW = true;
+    if (pad) {
+      const ax = pad.axes[0] ?? 0;
+      if (ax < -dead || pad.buttons[14]?.pressed) this.gp.left = true;
+      if (ax > dead || pad.buttons[15]?.pressed) this.gp.right = true;
+      if (pad.buttons[1]?.pressed || pad.buttons[13]?.pressed) this.gp.down = true;
+      const jumpNow = !!(pad.buttons[12]?.pressed || pad.buttons[0]?.pressed);
+      this.gp.jump = jumpNow;
+      if (jumpNow && !wasJump) this.jumpPressedW = true;
+    }
+
+    const pad2 = pads[1];
+    this.gp2.left = false;
+    this.gp2.right = false;
+    this.gp2.down = false;
+    const wasJump2 = this.gp2.jump;
+    this.gp2.jump = false;
+    if (pad2 && this.initData.playerCount === 2) {
+      const ax = pad2.axes[0] ?? 0;
+      if (ax < -dead || pad2.buttons[14]?.pressed) this.gp2.left = true;
+      if (ax > dead || pad2.buttons[15]?.pressed) this.gp2.right = true;
+      if (pad2.buttons[1]?.pressed || pad2.buttons[13]?.pressed) this.gp2.down = true;
+      const jumpNow = !!(pad2.buttons[12]?.pressed || pad2.buttons[0]?.pressed);
+      this.gp2.jump = jumpNow;
+      if (jumpNow && !wasJump2) this.jumpPressedT = true;
+    }
   }
 }

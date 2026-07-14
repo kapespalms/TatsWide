@@ -1,5 +1,5 @@
 export type CharacterId = 'Wideass' | 'Tats';
-export type GamePhase = 'run' | 'jeep' | 'space' | 'levelComplete' | 'victory';
+export type GamePhase = 'run' | 'jeep' | 'space' | 'levelComplete' | 'victory' | 'failed';
 export type ShooterKind = 'jeep' | 'space';
 export type CollectibleKind = 'pepper' | 'duck' | 'witchHat';
 
@@ -60,12 +60,14 @@ export interface GrindRailDef {
 }
 
 export interface CollectibleSpawn {
+  id: string;
   x: number;
   y: number;
   kind: CollectibleKind;
 }
 
 export interface GhostSpawn {
+  id: string;
   x: number;
   y: number;
   patrol: number;
