@@ -72,21 +72,55 @@ function register(scene: Phaser.Scene, key: string, c: HTMLCanvasElement) {
   scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
 }
 
-function drawSky(w: number, h: number) {
+function drawSky(w: number, h: number, top = PAL.skyTop, bot = PAL.skyBot) {
   const c = canvas(w, h);
   const ctx = ctxOf(c);
   const g = ctx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, PAL.skyTop);
-  g.addColorStop(0.55, '#6eb4ff');
-  g.addColorStop(1, PAL.skyBot);
+  g.addColorStop(0, top);
+  g.addColorStop(0.55, mixHex(top, bot, 0.45));
+  g.addColorStop(1, bot);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
-  // soft banding for 16-bit sky feel
   for (let y = 0; y < h; y += 4) {
     ctx.fillStyle = `rgba(255,255,255,${0.03 + (y / h) * 0.04})`;
     ctx.fillRect(0, y, w, 2);
   }
   return c;
+}
+
+function mixHex(a: string, b: string, t: number) {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ar = (pa >> 16) & 255;
+  const ag = (pa >> 8) & 255;
+  const ab = pa & 255;
+  const br = (pb >> 16) & 255;
+  const bg = (pb >> 8) & 255;
+  const bb = pb & 255;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return `#${((1 << 24) + (r << 16) + (g << 8) + bl).toString(16).slice(1)}`;
+}
+
+function themeSky(theme: string, sky: string): [string, string] {
+  const bot = sky;
+  switch (theme) {
+    case 'haunted':
+      return ['#120818', bot];
+    case 'alien':
+      return ['#050214', bot];
+    case 'snow':
+      return ['#6a9ad8', bot];
+    case 'industrial':
+      return ['#2a3440', bot];
+    case 'jungle':
+      return ['#1a5038', bot];
+    case 'crystal':
+      return ['#4080d0', bot];
+    default:
+      return [PAL.skyTop, bot || PAL.skyBot];
+  }
 }
 
 function drawCloudStrip() {
@@ -463,8 +497,13 @@ function drawLoopSegment() {
 /**
  * Register the modern 16-bit atlas and character animations.
  */
-export function createModern16BitAtlas(scene: Phaser.Scene) {
-  register(scene, 'px_sky', drawSky(8, 256));
+export function createModern16BitAtlas(
+  scene: Phaser.Scene,
+  theme = 'hills',
+  skyColor = PAL.skyBot,
+) {
+  const [skyTop, skyBot] = themeSky(theme, skyColor);
+  register(scene, 'px_sky', drawSky(8, 256, skyTop, skyBot));
   register(scene, 'px_clouds', drawCloudStrip());
   register(scene, 'px_mountains', drawFarMountains());
   register(scene, 'px_pine', drawPine());

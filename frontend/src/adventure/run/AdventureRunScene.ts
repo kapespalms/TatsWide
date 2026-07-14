@@ -13,6 +13,7 @@ import {
   DEFAULT_RIDER_CONFIG,
   checkApproachSpeed,
   createRiderState,
+  riderConfigFor,
   stepRider,
   type RiderInput,
   type RiderState,
@@ -72,7 +73,13 @@ export class AdventureRunScene extends Phaser.Scene {
   private onKeyUp!: (e: KeyboardEvent) => void;
   private collectibles: { x: number; y: number; kind: CollectibleKind; img: Phaser.GameObjects.Image }[] =
     [];
-  private springs: { x: number; y: number; power: number; img: Phaser.GameObjects.Image }[] = [];
+  private springs: {
+    x: number;
+    y: number;
+    power: number;
+    img: Phaser.GameObjects.Image;
+    coolUntil: number;
+  }[] = [];
   private ghosts: GhostState[] = [];
   private clouds!: Phaser.GameObjects.TileSprite;
   private mountains!: Phaser.GameObjects.TileSprite;
@@ -90,6 +97,9 @@ export class AdventureRunScene extends Phaser.Scene {
   private hudAcc = 0;
   private lastNeedSpeed = false;
   private gp = { left: false, right: false, down: false, jump: false };
+  private invulnUntil: Record<CharacterId, number> = { Wideass: 0, Tats: 0 };
+  private cfgW = DEFAULT_RIDER_CONFIG;
+  private cfgT = DEFAULT_RIDER_CONFIG;
 
   constructor() {
     super('AdventureRunScene');
@@ -108,6 +118,7 @@ export class AdventureRunScene extends Phaser.Scene {
     this.needSpeed = 0;
     this.jumpPressedW = false;
     this.jumpPressedT = false;
+    this.invulnUntil = { Wideass: 0, Tats: 0 };
     this.keys = {
       left: false,
       right: false,
@@ -127,9 +138,11 @@ export class AdventureRunScene extends Phaser.Scene {
   }
 
   create() {
-    createModern16BitAtlas(this);
+    createModern16BitAtlas(this, this.initData.level.theme, this.initData.level.skyColor);
     const level = this.initData.level;
     this.kit = getTrackKitForLevel(level.level);
+    this.cfgW = riderConfigFor('Wideass');
+    this.cfgT = riderConfigFor('Tats');
 
     this.cameras.main.setBackgroundColor(level.skyColor);
     this.physics.world.setBounds(0, 0, level.worldWidth, 780);
@@ -204,24 +217,38 @@ export class AdventureRunScene extends Phaser.Scene {
       .tileSprite(640, 140, 1280, 96, 'px_clouds')
       .setScrollFactor(0)
       .setDepth(-10);
-    void level;
+    if (level.theme === 'haunted' || level.theme === 'alien') {
+      this.mountains.setTint(0x8866aa);
+      this.clouds.setTint(0xccaaff);
+    } else if (level.theme === 'snow') {
+      this.mountains.setTint(0xddeeff);
+    } else if (level.theme === 'industrial') {
+      this.mountains.setTint(0x8899aa);
+      this.clouds.setTint(0x8899aa);
+    } else if (level.theme === 'jungle') {
+      this.mountains.setTint(0x66aa55);
+    }
   }
 
   private buildDecor(level: LevelAuthoring) {
-    for (let x = 80; x < level.worldWidth; x += 220) {
+    const step = level.theme === 'industrial' ? 280 : 240;
+    for (let x = 80; x < level.worldWidth; x += step) {
       const pine = this.add
         .image(x + (x % 60), 600, 'px_pine')
         .setDepth(-8)
         .setScale(2)
         .setScrollFactor(0.55);
       pine.setOrigin(0.5, 1);
+      if (level.theme === 'snow') pine.setTint(0xeeffff);
+      if (level.theme === 'haunted') pine.setTint(0x664488);
+      if (level.theme === 'alien') pine.setTint(0x44ff88);
     }
   }
 
   private drawAllTracks() {
-    this.drawTrackPath(this.kit.tracks.MAIN.path, 'px_lane', 1.15);
-    this.drawTrackPath(this.kit.tracks.HIGH.path, 'px_lane_gold', 0.95);
-    this.drawTrackPath(this.kit.tracks.LOW.path, 'px_lane', 0.9);
+    this.drawTrackPath(this.kit.tracks.MAIN.path, 0xf0f0f8, 0x101018, 1.15);
+    this.drawTrackPath(this.kit.tracks.HIGH.path, 0xffe14a, 0x8a6010, 0.95);
+    this.drawTrackPath(this.kit.tracks.LOW.path, 0xc8d0e0, 0x202028, 0.9);
 
     const boost = this.kit.tracks.MAIN.path.sample(this.kit.boostS.lo);
     this.add
@@ -261,52 +288,76 @@ export class AdventureRunScene extends Phaser.Scene {
       .setDepth(6);
   }
 
+  /** Draw track as batched Graphics — thousands of Image sprites killed 60fps. */
   private drawTrackPath(
     path: {
       length: number;
-      sample: (s: number) => { x: number; y: number; nx: number; ny: number; angle: number };
+      sample: (s: number) => { x: number; y: number; nx: number; ny: number };
     },
-    laneKey: string,
+    light: number,
+    dark: number,
     scale: number,
   ) {
-    const step = 18;
+    const step = 12;
+    const halfW = 16 * scale;
+    const dirt = this.add.graphics().setDepth(1);
+    const lane = this.add.graphics().setDepth(3);
+    const rail = this.add.graphics().setDepth(5);
+    rail.lineStyle(3, 0x78a8f8, 0.9);
+    rail.beginPath();
+
     for (let s = 0; s < path.length; s += step) {
       const p = path.sample(s);
-      // dirt/grass underlay
-      const under = this.add.image(p.x + p.nx * 10, p.y + p.ny * 10, 'px_dirt').setDepth(1);
-      under.setDisplaySize(22, 22);
-      under.setRotation(p.angle);
-      // checker lane surface
-      const lane = this.add.image(p.x, p.y, laneKey).setDepth(3);
-      lane.setScale(scale);
-      lane.setRotation(p.angle);
-      // edge gleam
-      if (Math.floor(s / step) % 2 === 0) {
-        const dash = this.add.image(p.x - p.nx * 2, p.y - p.ny * 2, 'px_lane_dash').setDepth(4);
-        dash.setRotation(p.angle);
-        dash.setScale(1.1);
-      }
+      const n = Math.min(path.length, s + step);
+      const q = path.sample(n);
+      const checker = Math.floor(s / step) % 2 === 0 ? light : dark;
+      dirt.fillStyle(0x8a4a18, 1);
+      dirt.fillTriangle(
+        p.x + p.nx * (halfW + 10),
+        p.y + p.ny * (halfW + 10),
+        q.x + q.nx * (halfW + 10),
+        q.y + q.ny * (halfW + 10),
+        q.x - q.nx * 4,
+        q.y - q.ny * 4,
+      );
+      dirt.fillTriangle(
+        p.x + p.nx * (halfW + 10),
+        p.y + p.ny * (halfW + 10),
+        q.x - q.nx * 4,
+        q.y - q.ny * 4,
+        p.x - p.nx * 4,
+        p.y - p.ny * 4,
+      );
+      lane.fillStyle(checker, 1);
+      lane.fillTriangle(
+        p.x + p.nx * halfW,
+        p.y + p.ny * halfW,
+        q.x + q.nx * halfW,
+        q.y + q.ny * halfW,
+        q.x - q.nx * halfW,
+        q.y - q.ny * halfW,
+      );
+      lane.fillTriangle(
+        p.x + p.nx * halfW,
+        p.y + p.ny * halfW,
+        q.x - q.nx * halfW,
+        q.y - q.ny * halfW,
+        p.x - p.nx * halfW,
+        p.y - p.ny * halfW,
+      );
+      const rx = p.x - p.nx * (halfW + 2);
+      const ry = p.y - p.ny * (halfW + 2);
+      if (s === 0) rail.moveTo(rx, ry);
+      else rail.lineTo(rx, ry);
     }
-
-    // Blue rail continuous stroke for readability on MAIN-style tracks
-    const g = this.add.graphics().setDepth(5);
-    g.lineStyle(3, 0x78a8f8, 0.85);
-    g.beginPath();
-    for (let s = 0; s <= path.length; s += step) {
-      const p = path.sample(s);
-      const px = p.x - p.nx * 14 * scale;
-      const py = p.y - p.ny * 14 * scale;
-      if (s === 0) g.moveTo(px, py);
-      else g.lineTo(px, py);
-    }
-    g.strokePath();
+    rail.strokePath();
   }
 
   private buildSprings(level: LevelAuthoring) {
     this.springs = [];
     for (const s of level.springs) {
       const img = this.add.image(s.x, s.y, 'px_spring').setDepth(5).setScale(2);
-      this.springs.push({ x: s.x, y: s.y, power: s.power, img });
+      this.springs.push({ x: s.x, y: s.y, power: s.power, img, coolUntil: 0 });
     }
   }
 
@@ -482,10 +533,12 @@ export class AdventureRunScene extends Phaser.Scene {
   }
 
   private checkSprings(rider: RiderState) {
-    if (rider.mode !== 'ground') return;
+    const now = this.time.now;
     for (const s of this.springs) {
-      if (Math.hypot(rider.x - s.x, rider.y - s.y) < 40) {
+      if (now < s.coolUntil) continue;
+      if (Math.hypot(rider.x - s.x, rider.y - s.y) < 44) {
         this.bounceSpring(rider, s.power);
+        s.coolUntil = now + 450;
         break;
       }
     }
@@ -502,15 +555,17 @@ export class AdventureRunScene extends Phaser.Scene {
   }
 
   private bounceSpring(rider: RiderState, powerRaw: number) {
-    if (rider.mode !== 'ground' || !rider.trackId) return;
     const power = Math.abs(powerRaw || 900);
-    const sample = this.kit.tracks[rider.trackId].path.sample(rider.s);
+    const sample =
+      rider.trackId && this.kit.tracks[rider.trackId]
+        ? this.kit.tracks[rider.trackId].path.sample(rider.s)
+        : { tx: rider.facing, ty: 0, nx: 0, ny: -1 };
     rider.mode = 'air';
-    rider.vx = sample.tx * rider.gsp + sample.nx * power * 0.7;
-    rider.vy = sample.ty * rider.gsp + sample.ny * power * 0.7;
+    rider.vx = sample.tx * rider.gsp + sample.nx * power * 0.55 + rider.facing * 80;
+    rider.vy = sample.ty * rider.gsp + sample.ny * power * 0.85;
     rider.trackId = null;
-    rider.attachedTrackHint = null;
-    rider.jumpGraceUntil = this.time.now + DEFAULT_RIDER_CONFIG.jumpGraceMs;
+    rider.attachedTrackHint = 'HIGH';
+    rider.jumpGraceUntil = this.time.now + 140;
     this.dust.emitParticleAt(rider.x, rider.y, 10);
     this.cameras.main.shake(60, 0.002);
     this.audio.spring();
@@ -719,7 +774,7 @@ export class AdventureRunScene extends Phaser.Scene {
     const inT = this.inputFor('Tats');
 
     if (!solo || primary === 'Wideass') {
-      stepRider(this.riderW, this.kit.tracks, inW, dt, now);
+      stepRider(this.riderW, this.kit.tracks, inW, dt, now, this.cfgW);
       this.handleRiderEvents(this.riderW);
       this.applyBoostPads(this.riderW);
       this.pickupAt(this.riderW);
@@ -729,7 +784,7 @@ export class AdventureRunScene extends Phaser.Scene {
       this.wideass.setAlpha(now < this.invulnUntil.Wideass ? 0.45 : 1);
     }
     if (!solo || primary === 'Tats') {
-      stepRider(this.riderT, this.kit.tracks, solo ? inW : inT, dt, now);
+      stepRider(this.riderT, this.kit.tracks, solo ? inW : inT, dt, now, this.cfgT);
       this.handleRiderEvents(this.riderT);
       this.applyBoostPads(this.riderT);
       this.pickupAt(this.riderT);

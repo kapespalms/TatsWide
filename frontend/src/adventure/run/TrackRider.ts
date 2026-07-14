@@ -66,14 +66,44 @@ export const DEFAULT_RIDER_CONFIG: RiderConfig = {
   jumpSpeed: 660,
   detachSpeedInverted: 240,
   invertThreshold: 0.3,
-  snapDistance: 42,
+  snapDistance: 56,
   jumpGraceMs: 120,
   detachGraceMs: 220,
-  hysteresisMargin: 6,
+  hysteresisMargin: 8,
   spindashChargeRate: 1600,
   spindashMax: 980,
   spindashMinDuckSpeed: 40,
 };
+
+/** Per-character feel — Wideass heavy/strong, Tats snappy/fast. */
+export function riderConfigFor(who: 'Wideass' | 'Tats'): RiderConfig {
+  if (who === 'Tats') {
+    return {
+      ...DEFAULT_RIDER_CONFIG,
+      accel: 1280,
+      brake: 2300,
+      friction: 120,
+      topSpeed: 860,
+      airAccel: 960,
+      airGravity: 2050,
+      jumpSpeed: 640,
+      spindashChargeRate: 1900,
+      spindashMax: 1100,
+    };
+  }
+  return {
+    ...DEFAULT_RIDER_CONFIG,
+    accel: 1050,
+    brake: 2000,
+    friction: 155,
+    topSpeed: 760,
+    airAccel: 760,
+    airGravity: 2280,
+    jumpSpeed: 700,
+    spindashChargeRate: 1500,
+    spindashMax: 1020,
+  };
+}
 
 export type RiderEvent =
   | { type: 'jump' }

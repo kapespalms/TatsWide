@@ -185,6 +185,11 @@ function ShooterWorld({
   const killsRef = useRef(kills);
   const completed = useRef(false);
   const muzzle = useRef({ Wideass: 0, Tats: 0 });
+  const lasers = useRef<
+    { id: number; x0: number; y0: number; z0: number; x1: number; y1: number; z1: number; life: number; color: string }[]
+  >([]);
+  const roadScroll = useRef(0);
+  const laserMeshes = useRef<THREE.Mesh[]>([]);
   timeRef.current = timeLeft;
   killsRef.current = kills;
 
@@ -192,12 +197,17 @@ function ShooterWorld({
     if (completed.current) return;
     const dt = Math.min(delta, 0.05);
 
+    roadScroll.current += dt * (kind === 'jeep' ? 22 : 8);
+
     // Soft camera bob / shake when jeep damaged
     if (kind === 'jeep') {
       const hurt = 1 - jeepHpRef.current / JEEP_HP_MAX;
       state.camera.position.x = Math.sin(state.clock.elapsedTime * 2.2) * 0.04 * (1 + hurt * 3);
       state.camera.position.y = 1.05 + Math.sin(state.clock.elapsedTime * 3.1) * 0.03;
       state.camera.rotation.z = Math.sin(state.clock.elapsedTime * 1.4) * 0.01 * (1 + hurt);
+    } else {
+      state.camera.position.x = Math.sin(state.clock.elapsedTime * 0.7) * 0.08;
+      state.camera.position.y = 1.2 + Math.sin(state.clock.elapsedTime * 1.1) * 0.04;
     }
 
     timerAcc.current += dt;
@@ -291,6 +301,22 @@ function ShooterWorld({
 
     const checkHit = (who: CharacterId, nx: number, ny: number) => {
       muzzle.current[who] = 1;
+      const color = who === 'Wideass' ? '#ff6644' : '#66eeff';
+      // Ray from gun toward world point under reticle
+      const ndc = new THREE.Vector3(nx * 2 - 1, -(ny * 2 - 1), 0.85);
+      ndc.unproject(camera);
+      lasers.current.push({
+        id: idRef.current++,
+        x0: who === 'Wideass' ? -1.55 : 1.55,
+        y0: -0.7,
+        z0: 3.2,
+        x1: ndc.x,
+        y1: ndc.y,
+        z1: ndc.z,
+        life: 0.12,
+        color,
+      });
+
       for (let i = enemies.current.length - 1; i >= 0; i -= 1) {
         const e = enemies.current[i];
         const projected = new THREE.Vector3(e.x, e.y + (e.kind === 'trex' ? 1.2 : 0.4), e.z).project(
@@ -325,6 +351,39 @@ function ShooterWorld({
     muzzle.current.Wideass = Math.max(0, muzzle.current.Wideass - dt * 6);
     muzzle.current.Tats = Math.max(0, muzzle.current.Tats - dt * 6);
 
+    lasers.current = lasers.current
+      .map((l) => ({ ...l, life: l.life - dt }))
+      .filter((l) => l.life > 0);
+
+    while (laserMeshes.current.length > lasers.current.length) {
+      const m = laserMeshes.current.pop();
+      if (m) {
+        m.geometry.dispose();
+        (m.material as THREE.Material).dispose();
+        root.current?.remove(m);
+      }
+    }
+    lasers.current.forEach((l, i) => {
+      let mesh = laserMeshes.current[i];
+      if (!mesh) {
+        mesh = new THREE.Mesh(
+          new THREE.BoxGeometry(0.06, 0.06, 1),
+          new THREE.MeshBasicMaterial({ color: l.color, transparent: true }),
+        );
+        root.current?.add(mesh);
+        laserMeshes.current[i] = mesh;
+      }
+      const dx = l.x1 - l.x0;
+      const dy = l.y1 - l.y0;
+      const dz = l.z1 - l.z0;
+      const len = Math.max(0.2, Math.hypot(dx, dy, dz));
+      mesh.position.set((l.x0 + l.x1) / 2, (l.y0 + l.y1) / 2, (l.z0 + l.z1) / 2);
+      mesh.scale.set(1, 1, len);
+      mesh.lookAt(l.x1, l.y1, l.z1);
+      (mesh.material as THREE.MeshBasicMaterial).color.set(l.color);
+      (mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, l.life * 8);
+    });
+
     if (killsRef.current >= killQuota || timeRef.current <= 0 || jeepHpRef.current <= 0) {
       completed.current = true;
       onComplete();
@@ -335,7 +394,7 @@ function ShooterWorld({
     <>
       <color attach="background" args={[kind === 'space' ? '#050510' : '#1a2818']} />
       <fog attach="fog" args={[kind === 'space' ? '#050510' : '#2a3a22', 12, kind === 'jeep' ? 70 : 55]} />
-      {kind === 'space' ? <SpaceEnvironment /> : <JeepEnvironment />}
+      {kind === 'space' ? <SpaceEnvironment /> : <JeepEnvironment scroll={roadScroll} />}
       <group ref={root} />
       <VehicleInterior kind={kind} muzzle={muzzle} />
     </>
@@ -448,24 +507,71 @@ function buildCrateMesh() {
 }
 
 function SpaceEnvironment() {
+  const field = useRef<THREE.Group>(null);
+  const stars = useRef(
+    Array.from({ length: 140 }, () => [
+      (Math.random() - 0.5) * 90,
+      (Math.random() - 0.5) * 50,
+      -10 - Math.random() * 70,
+    ] as [number, number, number]),
+  );
+
+  useFrame((_, dt) => {
+    if (!field.current) return;
+    field.current.children.forEach((c) => {
+      c.position.z += dt * 28;
+      if (c.position.z > 10) {
+        c.position.z = -70 - Math.random() * 10;
+        c.position.x = (Math.random() - 0.5) * 90;
+        c.position.y = (Math.random() - 0.5) * 50;
+      }
+    });
+  });
+
   return (
     <>
       <ambientLight intensity={0.35} />
       <pointLight position={[0, 3, 2]} intensity={1.2} color="#88ccff" />
-      {Array.from({ length: 120 }, (_, i) => (
-        <mesh
-          key={i}
-          position={[(Math.random() - 0.5) * 80, (Math.random() - 0.5) * 40, -20 - Math.random() * 60]}
-        >
-          <sphereGeometry args={[0.05, 4, 4]} />
-          <meshBasicMaterial color="#ffffff" />
-        </mesh>
-      ))}
+      <mesh position={[0, 0, -40]}>
+        <sphereGeometry args={[55, 16, 16]} />
+        <meshBasicMaterial color="#0a0618" side={THREE.BackSide} />
+      </mesh>
+      <group ref={field}>
+        {stars.current.map((p, i) => (
+          <mesh key={i} position={p}>
+            <sphereGeometry args={[0.06 + (i % 3) * 0.02, 4, 4]} />
+            <meshBasicMaterial color={i % 7 === 0 ? '#aaccff' : '#ffffff'} />
+          </mesh>
+        ))}
+      </group>
     </>
   );
 }
 
-function JeepEnvironment() {
+function JeepEnvironment({ scroll }: { scroll: MutableRefObject<number> }) {
+  const trees = useRef<THREE.Group>(null);
+  const stripes = useRef<THREE.Mesh>(null);
+  const rocks = useRef<THREE.Group>(null);
+
+  useFrame(() => {
+    const s = scroll.current;
+    if (trees.current) {
+      trees.current.children.forEach((c, i) => {
+        const base = -6 - (i % 14) * 4.2;
+        c.position.z = ((base + s) % 58) - 52;
+      });
+    }
+    if (rocks.current) {
+      rocks.current.children.forEach((c, i) => {
+        const base = -8 - i * 5;
+        c.position.z = ((base + s) % 50) - 45;
+      });
+    }
+    if (stripes.current) {
+      stripes.current.position.z = -8 + (s % 6);
+    }
+  });
+
   return (
     <>
       <ambientLight intensity={0.45} />
@@ -473,19 +579,16 @@ function JeepEnvironment() {
       <pointLight position={[-4, 3, -8]} intensity={1.8} color="#ff6622" />
       <pointLight position={[3, 2, 2]} intensity={0.6} color="#88ffaa" />
 
-      {/* Sky wash */}
       <mesh position={[0, 10, -40]}>
         <sphereGeometry args={[60, 16, 16]} />
         <meshBasicMaterial color="#6aa0c8" side={THREE.BackSide} />
       </mesh>
 
-      {/* Sun */}
       <mesh position={[14, 9, -35]}>
         <sphereGeometry args={[3.2, 16, 16]} />
         <meshBasicMaterial color="#fff3c0" />
       </mesh>
 
-      {/* Erupting volcano */}
       <mesh position={[-16, 2, -32]}>
         <coneGeometry args={[4.5, 11, 8]} />
         <meshStandardMaterial color="#2a1810" emissive="#ff3300" emissiveIntensity={0.55} />
@@ -495,26 +598,26 @@ function JeepEnvironment() {
         <meshStandardMaterial color="#ff8800" emissive="#ff4400" emissiveIntensity={1.2} transparent opacity={0.7} />
       </mesh>
 
-      {/* Jungle trunks */}
-      {Array.from({ length: 28 }, (_, i) => {
-        const side = i % 2 === 0 ? -1 : 1;
-        const z = -6 - (i % 14) * 4.2;
-        const x = side * (5.5 + (i % 5) * 1.1);
-        return (
-          <group key={`tree-${i}`} position={[x, 0, z]}>
-            <mesh position={[0, 1.8, 0]}>
-              <cylinderGeometry args={[0.25, 0.4, 3.6, 6]} />
-              <meshStandardMaterial color="#2a1810" />
-            </mesh>
-            <mesh position={[0, 4.1, 0]}>
-              <coneGeometry args={[1.6, 3.2, 7]} />
-              <meshStandardMaterial color="#1a4d22" />
-            </mesh>
-          </group>
-        );
-      })}
+      <group ref={trees}>
+        {Array.from({ length: 28 }, (_, i) => {
+          const side = i % 2 === 0 ? -1 : 1;
+          const z = -6 - (i % 14) * 4.2;
+          const x = side * (5.5 + (i % 5) * 1.1);
+          return (
+            <group key={`tree-${i}`} position={[x, 0, z]}>
+              <mesh position={[0, 1.8, 0]}>
+                <cylinderGeometry args={[0.25, 0.4, 3.6, 6]} />
+                <meshStandardMaterial color="#2a1810" />
+              </mesh>
+              <mesh position={[0, 4.1, 0]}>
+                <coneGeometry args={[1.6, 3.2, 7]} />
+                <meshStandardMaterial color="#1a4d22" />
+              </mesh>
+            </group>
+          );
+        })}
+      </group>
 
-      {/* Path / dirt track rushing under jeep */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.35, -8]}>
         <planeGeometry args={[18, 100]} />
         <meshStandardMaterial color="#5a3a1e" roughness={1} />
@@ -523,17 +626,22 @@ function JeepEnvironment() {
         <planeGeometry args={[5.5, 100]} />
         <meshStandardMaterial color="#7a5530" roughness={1} />
       </mesh>
+      <mesh ref={stripes} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.31, -8]}>
+        <planeGeometry args={[0.35, 100]} />
+        <meshStandardMaterial color="#c9a227" emissive="#886600" emissiveIntensity={0.25} />
+      </mesh>
 
-      {/* Roadside rocks */}
-      {Array.from({ length: 10 }, (_, i) => (
-        <mesh
-          key={`rock-${i}`}
-          position={[(i % 2 === 0 ? -1 : 1) * (3.2 + (i % 3) * 0.4), -0.7, -8 - i * 5]}
-        >
-          <dodecahedronGeometry args={[0.55 + (i % 3) * 0.15, 0]} />
-          <meshStandardMaterial color="#4a4038" roughness={0.95} />
-        </mesh>
-      ))}
+      <group ref={rocks}>
+        {Array.from({ length: 10 }, (_, i) => (
+          <mesh
+            key={`rock-${i}`}
+            position={[(i % 2 === 0 ? -1 : 1) * (3.2 + (i % 3) * 0.4), -0.7, -8 - i * 5]}
+          >
+            <dodecahedronGeometry args={[0.55 + (i % 3) * 0.15, 0]} />
+            <meshStandardMaterial color="#4a4038" roughness={0.95} />
+          </mesh>
+        ))}
+      </group>
     </>
   );
 }
