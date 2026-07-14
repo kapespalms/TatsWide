@@ -289,7 +289,22 @@ function stepGround(
   state.angle = next.angle;
 
   if (adv.hitEnd || adv.hitStart) {
-    // Prefer merging to MAIN instead of freefall off HIGH/LOW/GRIND
+    // hitStart (backing off branch start) → local drop onto MAIN under you, NOT exit warp
+    if (adv.hitStart && ridden.id !== 'MAIN' && tracks.MAIN) {
+      const proj = tracks.MAIN.path.project(state.x, state.y);
+      const landed = tracks.MAIN.path.sample(proj.s);
+      state.mode = 'ground';
+      state.trackId = 'MAIN';
+      state.s = proj.s;
+      state.x = landed.x;
+      state.y = landed.y;
+      state.angle = landed.angle;
+      state.gsp = Math.abs(state.gsp) * (state.facing || 1);
+      state.attachedTrackHint = 'MAIN';
+      state.events.push({ type: 'join', toTrackId: 'MAIN' });
+      return;
+    }
+    // hitEnd → use authored exit merge
     const merge = (ridden.joins ?? []).find((j) => j.trigger === 'auto' && tracks[j.toTrackId]);
     if (merge && ridden.id !== 'MAIN') {
       const target = tracks[merge.toTrackId];
@@ -301,19 +316,6 @@ function stepGround(
       state.y = landed.y;
       state.angle = landed.angle;
       state.events.push({ type: 'join', toTrackId: merge.toTrackId });
-      return;
-    }
-    if (ridden.id !== 'MAIN' && tracks.MAIN) {
-      const proj = tracks.MAIN.path.project(state.x, state.y);
-      const landed = tracks.MAIN.path.sample(proj.s);
-      state.mode = 'ground';
-      state.trackId = 'MAIN';
-      state.s = proj.s;
-      state.x = landed.x;
-      state.y = landed.y;
-      state.angle = landed.angle;
-      state.attachedTrackHint = 'MAIN';
-      state.events.push({ type: 'join', toTrackId: 'MAIN' });
       return;
     }
     state.mode = 'air';

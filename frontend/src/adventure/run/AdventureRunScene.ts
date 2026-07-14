@@ -668,9 +668,9 @@ export class AdventureRunScene extends Phaser.Scene {
       if (!g.sprite.active) continue;
       if (Math.hypot(rider.x - g.sprite.x, rider.y - g.sprite.y) < 34) {
         const stomped =
-          Math.abs(rider.gsp) > 420 ||
+          Math.abs(rider.gsp) > 280 ||
           rider.spindashCharge > 0 ||
-          (rider.mode === 'air' && Math.abs(rider.vx) > 380);
+          (rider.mode === 'air' && (rider.vy > 80 || Math.abs(rider.vx) > 220));
         if (stomped) {
           this.score += 200;
           this.killedGhostIds.add(g.id);
@@ -847,14 +847,13 @@ export class AdventureRunScene extends Phaser.Scene {
     for (const t of this.initData.level.triggers) {
       if (this.firedTriggers.has(t.id)) continue;
       if (x >= t.atX) {
-        // Don't yank mid-branch — finish the rail first
+        // Only gate on the lead rider — partner on a rail shouldn't soft-lock co-op
+        const lead =
+          this.initData.playerCount === 1 && this.initData.primaryCharacter === 'Tats'
+            ? this.riderT
+            : this.riderW;
         const onBranch =
-          this.riderW.trackId === 'GRIND' ||
-          this.riderW.trackId === 'HIGH' ||
-          this.riderW.trackId === 'LOW' ||
-          this.riderT.trackId === 'GRIND' ||
-          this.riderT.trackId === 'HIGH' ||
-          this.riderT.trackId === 'LOW';
+          lead.trackId === 'GRIND' || lead.trackId === 'HIGH' || lead.trackId === 'LOW';
         if (onBranch) continue;
         this.firedTriggers.add(t.id);
         // Flush HUD/score/pickups before Phaser tears down

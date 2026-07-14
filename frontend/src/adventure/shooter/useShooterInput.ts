@@ -20,7 +20,9 @@ function clamp01(v: number) {
 }
 
 function pointerNorm(e: PointerEvent) {
-  const canvas = document.querySelector('canvas');
+  // Prefer the topmost / last WebGL canvas (R3F shooter when mounted)
+  const canvases = document.querySelectorAll('canvas');
+  const canvas = canvases.length ? canvases[canvases.length - 1] : null;
   const rect = canvas?.getBoundingClientRect();
   if (rect && rect.width > 8 && rect.height > 8) {
     return {

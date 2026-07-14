@@ -1,6 +1,14 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
-import { Suspense, useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import {
+  Suspense,
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from 'react';
 import * as THREE from 'three';
 import type { CharacterId, ShooterKind, ShooterScores } from '../types';
 import type { ShooterSegment } from '../shooter/types';
@@ -87,7 +95,7 @@ export function ShooterPhase(props: ShooterPhaseProps) {
     return () => cancelAnimationFrame(raf);
   }, [input]);
 
-  const handleKill = useCallback((who: CharacterId, points: number) => {
+  const handleKill = useCallback((who: CharacterId, points: number, countsForQuota: boolean) => {
     setStreaks((s) => {
       const streak = s[who] + 1;
       const bonus = streak > 1 ? Math.floor(points * 0.15 * Math.min(streak, 8)) : 0;
@@ -98,8 +106,10 @@ export function ShooterPhase(props: ShooterPhaseProps) {
       });
       return { ...s, [who]: streak };
     });
-    killsCountRef.current += 1;
-    setKills(killsCountRef.current);
+    if (countsForQuota) {
+      killsCountRef.current += 1;
+      setKills(killsCountRef.current);
+    }
     setFlash(who);
     sfx.current?.kill();
   }, []);
@@ -160,10 +170,9 @@ export function ShooterPhase(props: ShooterPhaseProps) {
               input={input}
               onKill={handleKill}
               onMissPass={handleMissPass}
-              kills={kills}
               killsCountRef={killsCountRef}
               killQuota={segment.killQuota}
-              timeLeft={timeLeft}
+              durationSec={segment.durationSec}
               setTimeLeft={setTimeLeft}
               jeepHpRef={jeepHpRef}
               onComplete={handleComplete}
@@ -192,16 +201,15 @@ export function ShooterPhase(props: ShooterPhaseProps) {
   );
 }
 
-function ShooterWorld({
+const ShooterWorld = memo(function ShooterWorld({
   kind,
   intensity,
   input,
   onKill,
   onMissPass,
-  kills,
   killsCountRef,
   killQuota,
-  timeLeft,
+  durationSec,
   setTimeLeft,
   jeepHpRef,
   onComplete,
@@ -210,12 +218,11 @@ function ShooterWorld({
   kind: ShooterKind;
   intensity: number;
   input: ReturnType<typeof useShooterInput>;
-  onKill: (who: CharacterId, points: number) => void;
+  onKill: (who: CharacterId, points: number, countsForQuota: boolean) => void;
   onMissPass: (damage: number) => void;
-  kills: number;
   killsCountRef: MutableRefObject<number>;
   killQuota: number;
-  timeLeft: number;
+  durationSec: number;
   setTimeLeft: (t: number) => void;
   jeepHpRef: MutableRefObject<number>;
   onComplete: (won: boolean, reason: string) => void;
@@ -227,7 +234,8 @@ function ShooterWorld({
   const idRef = useRef(0);
   const spawnTimer = useRef(0);
   const timerAcc = useRef(0);
-  const timeRef = useRef(timeLeft);
+  // Owned only by the frame loop — never overwritten by React re-renders
+  const timeRef = useRef(durationSec);
   const completed = useRef(false);
   const muzzle = useRef({ Wideass: 0, Tats: 0 });
   const lasers = useRef<
@@ -237,7 +245,6 @@ function ShooterWorld({
   const laserMeshes = useRef<THREE.Mesh[]>([]);
   const scratch = useRef(new THREE.Vector3());
   const ndcScratch = useRef(new THREE.Vector3());
-  timeRef.current = timeLeft;
 
   useFrame((state, delta) => {
     if (completed.current) return;
@@ -295,7 +302,7 @@ function ShooterWorld({
     for (const e of enemies.current) {
       e.z += speed * dt;
       if (e.z >= 6.5) {
-        if (e.kind !== 'crate') onMissPass(e.kind === 'trex' ? 14 : 8);
+        if (e.kind !== 'crate') onMissPass(e.kind === 'trex' ? 10 : 6);
         continue;
       }
       survivors.push(e);
@@ -383,7 +390,7 @@ function ShooterWorld({
             }
             const points =
               e.kind === 'trex' ? 1000 : e.kind === 'raptor' ? 600 : e.kind === 'crate' ? 250 : 400;
-            onKill(who, points);
+            onKill(who, points, e.kind !== 'crate');
           }
           break;
         }
@@ -468,34 +475,32 @@ function ShooterWorld({
       </EffectComposer>
     </>
   );
-}
+});
 
-function disposeObject(obj: THREE.Object3D) {
-  obj.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (mesh.isMesh) {
-      mesh.geometry?.dispose();
-      const mat = mesh.material;
-      if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
-      else mat?.dispose();
-    }
-  });
-}
+const MAT = {
+  alienBody: new THREE.MeshStandardMaterial({ color: '#cc2222', emissive: '#ff0000', emissiveIntensity: 0.5 }),
+  alienHead: new THREE.MeshStandardMaterial({ color: '#ff4444', emissive: '#ffff00', emissiveIntensity: 0.8 }),
+  trexSkin: new THREE.MeshStandardMaterial({ color: '#4a6b32', roughness: 0.85 }),
+  trexBelly: new THREE.MeshStandardMaterial({ color: '#8a9a60', roughness: 0.9 }),
+  trexEye: new THREE.MeshStandardMaterial({ color: '#ffff44', emissive: '#ffaa00', emissiveIntensity: 2 }),
+  raptor: new THREE.MeshStandardMaterial({ color: '#3d5a3a', roughness: 0.8 }),
+  raptorEye: new THREE.MeshStandardMaterial({ color: '#ff2200', emissive: '#ff2200', emissiveIntensity: 1.5 }),
+  crate: new THREE.MeshStandardMaterial({ color: '#8b5a2b', roughness: 0.95 }),
+  crateStripe: new THREE.MeshStandardMaterial({ color: '#c9a227', emissive: '#886600', emissiveIntensity: 0.3 }),
+};
 
 function disposeGroup(g: THREE.Group) {
-  disposeObject(g);
+  // Shared materials — only dispose unique geometries on this instance
+  g.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh) mesh.geometry?.dispose();
+  });
 }
 
 function buildAlienMesh() {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.SphereGeometry(0.7, 10, 10),
-    new THREE.MeshStandardMaterial({ color: '#cc2222', emissive: '#ff0000', emissiveIntensity: 0.5 }),
-  );
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.35, 8, 8),
-    new THREE.MeshStandardMaterial({ color: '#ff4444', emissive: '#ffff00', emissiveIntensity: 0.8 }),
-  );
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.7, 10, 10), MAT.alienBody);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 8), MAT.alienHead);
   head.position.set(0, 0.5, 0.3);
   g.add(body, head);
   return g;
@@ -503,58 +508,41 @@ function buildAlienMesh() {
 
 function buildTreXMesh() {
   const g = new THREE.Group();
-  const skin = new THREE.MeshStandardMaterial({ color: '#4a6b32', roughness: 0.85 });
-  const belly = new THREE.MeshStandardMaterial({ color: '#8a9a60', roughness: 0.9 });
-
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.8, 1.1), skin);
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.8, 1.1), MAT.trexSkin);
   torso.position.set(0, 1.4, 0);
-  const bellyMesh = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.3, 0.9), belly);
+  const bellyMesh = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.3, 0.7), MAT.trexBelly);
   bellyMesh.position.set(0.15, 1.3, 0.15);
-
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.0, 0.55), skin);
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.0, 0.55), MAT.trexSkin);
   neck.position.set(0.85, 2.2, 0);
   neck.rotation.z = -0.4;
-
-  const head = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, 0.65), skin);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, 0.65), MAT.trexSkin);
   head.position.set(1.55, 2.55, 0);
-
-  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.25, 0.5), belly);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.25, 0.5), MAT.trexBelly);
   jaw.position.set(1.65, 2.2, 0);
-
-  const eye = new THREE.Mesh(
-    new THREE.SphereGeometry(0.12, 8, 8),
-    new THREE.MeshStandardMaterial({ color: '#ffff44', emissive: '#ffaa00', emissiveIntensity: 2 }),
-  );
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), MAT.trexEye);
   eye.position.set(1.7, 2.7, 0.28);
-
-  const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.9, 0.45), skin);
+  const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.9, 0.45), MAT.trexSkin);
   thigh.position.set(-0.2, 0.55, 0.25);
-  const calf = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.7, 0.35), skin);
+  const calf = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.7, 0.35), MAT.trexSkin);
   calf.position.set(0.1, 0.15, 0.35);
-  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.55, 0.2), skin);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.55, 0.2), MAT.trexSkin);
   arm.position.set(0.7, 1.5, 0.45);
-
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.35, 0.35), skin);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.35, 0.35), MAT.trexSkin);
   tail.position.set(-1.4, 1.3, 0);
   tail.rotation.z = 0.25;
-
   g.add(torso, bellyMesh, neck, head, jaw, eye, thigh, calf, arm, tail);
   return g;
 }
 
 function buildRaptorMesh() {
   const g = new THREE.Group();
-  const skin = new THREE.MeshStandardMaterial({ color: '#3d5a3a', roughness: 0.8 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.5), skin);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.5), MAT.raptor);
   body.position.y = 0.7;
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.4, 0.35), skin);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.4, 0.35), MAT.raptor);
   head.position.set(0.55, 1.0, 0);
-  const eye = new THREE.Mesh(
-    new THREE.SphereGeometry(0.07, 6, 6),
-    new THREE.MeshStandardMaterial({ color: '#ff2200', emissive: '#ff2200', emissiveIntensity: 1.5 }),
-  );
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), MAT.raptorEye);
   eye.position.set(0.7, 1.1, 0.15);
-  const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.55, 0.2), skin);
+  const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.55, 0.2), MAT.raptor);
   leg.position.set(-0.1, 0.25, 0.15);
   g.add(body, head, eye, leg);
   return g;
@@ -562,14 +550,8 @@ function buildRaptorMesh() {
 
 function buildCrateMesh() {
   const g = new THREE.Group();
-  const crate = new THREE.Mesh(
-    new THREE.BoxGeometry(0.9, 0.9, 0.9),
-    new THREE.MeshStandardMaterial({ color: '#8b5a2b', roughness: 0.95 }),
-  );
-  const stripe = new THREE.Mesh(
-    new THREE.BoxGeometry(0.95, 0.12, 0.95),
-    new THREE.MeshStandardMaterial({ color: '#c9a227', emissive: '#886600', emissiveIntensity: 0.3 }),
-  );
+  const crate = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), MAT.crate);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.12, 0.95), MAT.crateStripe);
   stripe.position.y = 0.1;
   g.add(crate, stripe);
   return g;
