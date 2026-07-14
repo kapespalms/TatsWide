@@ -18,14 +18,17 @@ export function createRunGame(parent: HTMLElement, initData: AdventureRunInit): 
     height: 720,
     backgroundColor: '#5ca4ff',
     input: { gamepad: true },
+    fps: { target: 60, forceSetTimeOut: false },
+    disableContextMenu: true,
     render: {
       pixelArt: true,
       antialias: false,
       roundPixels: true,
+      powerPreference: 'high-performance',
     },
     physics: {
       default: 'arcade',
-      arcade: { gravity: { x: 0, y: 2300 }, debug: false },
+      arcade: { gravity: { x: 0, y: 0 }, debug: false },
     },
     scene: [BootScene, AdventureRunScene],
     scale: {

@@ -39,10 +39,12 @@ export function ShooterHUD({
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden font-mono">
-      <div className="absolute left-0 right-0 top-0 bg-gradient-to-b from-black/80 to-transparent px-4 pb-8 pt-3">
-        <p className="text-center text-sm font-black tracking-[0.3em] text-amber-300">{title}</p>
-        <p className="text-center text-[10px] text-white/70">
-          ZONE {level} · {kills}/{killQuota} · {timeLeft}s
+      <div className="absolute left-0 right-0 top-0 bg-gradient-to-b from-black/85 via-black/40 to-transparent px-4 pb-10 pt-3">
+        <p className="wa-display text-center text-base tracking-[0.18em] text-[#ffe14a] drop-shadow-[2px_2px_0_#101018]">
+          {title}
+        </p>
+        <p className="mt-1 text-center text-[11px] font-black tracking-[0.2em] text-white/80">
+          ZONE {level} · KILLS {kills}/{killQuota} · {timeLeft}s
         </p>
       </div>
 

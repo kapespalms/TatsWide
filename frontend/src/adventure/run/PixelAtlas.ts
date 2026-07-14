@@ -143,19 +143,33 @@ function drawCloudStrip() {
 }
 
 function drawFarMountains() {
-  const c = canvas(320, 120);
+  const c = canvas(384, 140);
   const ctx = ctxOf(c);
-  // orange rock columns
-  const peaks = [20, 55, 90, 130, 170, 210, 250, 290];
-  for (const x of peaks) {
-    const h = 50 + ((x * 7) % 40);
-    rect(ctx, x, 120 - h, 28, h, PAL.farRockDeep);
-    rect(ctx, x + 4, 120 - h, 14, h, PAL.farRock);
-    // white cloud band
-    rect(ctx, x - 6, 120 - h + 18, 40, 10, PAL.cloud);
+  // distant haze ridge
+  rect(ctx, 0, 110, 384, 30, '#6aaa78');
+  const farPeaks = [
+    [0, 70],
+    [48, 90],
+    [96, 60],
+    [150, 95],
+    [210, 55],
+    [260, 85],
+    [310, 65],
+    [350, 80],
+  ];
+  for (const [x, h] of farPeaks) {
+    rect(ctx, x, 140 - h, 44, h, '#c86838');
+    rect(ctx, x + 6, 140 - h, 18, h, '#e88850');
+    rect(ctx, x + 10, 140 - h + 4, 8, 10, '#fff8e0');
   }
-  // green distant hills
-  rect(ctx, 0, 100, 320, 20, PAL.farGreen);
+  // mid green foothills
+  for (let x = 0; x < 384; x += 36) {
+    const h = 28 + ((x * 3) % 18);
+    rect(ctx, x, 140 - h, 40, h, PAL.farGreen);
+    rect(ctx, x + 4, 140 - h, 12, h, '#58c068');
+  }
+  // near dirt band
+  rect(ctx, 0, 128, 384, 12, '#8a6038');
   return c;
 }
 
@@ -379,8 +393,13 @@ function drawHat() {
   return c;
 }
 
+function inkOutline(ctx: Ctx, x: number, y: number, w: number, h: number) {
+  rect(ctx, x - 1, y, w + 2, h, PAL.black);
+  rect(ctx, x, y - 1, w, h + 2, PAL.black);
+}
+
 function drawCharacterFrame(who: 'Wideass' | 'Tats', f: number) {
-  const c = canvas(48, 48);
+  const c = canvas(64, 64);
   const ctx = ctxOf(c);
   const primary = who === 'Wideass' ? PAL.wideass : PAL.tats;
   const dark = who === 'Wideass' ? PAL.wideassDark : PAL.tatsDark;
@@ -388,75 +407,112 @@ function drawCharacterFrame(who: 'Wideass' | 'Tats', f: number) {
   const wide = who === 'Wideass';
   const run = f === 1 || f === 2;
   const jump = f === 3;
-  const leg = f === 1 ? -3 : f === 2 ? 3 : 0;
+  const leg = f === 1 ? -4 : f === 2 ? 4 : 0;
 
-  // soft shadow
-  rect(ctx, 14, 42, 20, 3, 'rgba(0,0,0,0.28)');
+  // soft contact shadow
+  rect(ctx, 18, 58, 28, 4, 'rgba(0,0,0,0.32)');
 
   if (jump) {
-    // ball / spindash silhouette
-    rect(ctx, 12, 12, 24, 24, primary);
-    rect(ctx, 14, 14, 20, 6, accent);
-    rect(ctx, 16, 22, 16, 10, dark);
-    // spike tufts
-    rect(ctx, 8, 16, 6, 4, dark);
-    rect(ctx, 34, 18, 6, 4, dark);
-    rect(ctx, 10, 28, 5, 4, dark);
-    rect(ctx, 33, 28, 5, 4, dark);
-    rect(ctx, 20, 18, 4, 4, PAL.white);
-    rect(ctx, 28, 20, 3, 2, PAL.black);
+    // spinning ball — Sonic-style roll
+    inkOutline(ctx, 16, 16, 32, 32);
+    rect(ctx, 16, 16, 32, 32, primary);
+    rect(ctx, 18, 18, 28, 8, accent);
+    rect(ctx, 20, 28, 24, 14, dark);
+    // radial spikes
+    const spikes: [number, number, number, number][] = [
+      [10, 22, 8, 6],
+      [46, 24, 8, 6],
+      [14, 42, 8, 6],
+      [42, 42, 8, 6],
+      [28, 10, 8, 6],
+      [28, 48, 8, 6],
+    ];
+    for (const [sx, sy, sw, sh] of spikes) {
+      inkOutline(ctx, sx, sy, sw, sh);
+      rect(ctx, sx, sy, sw, sh, dark);
+    }
+    rect(ctx, 26, 24, 6, 6, PAL.white);
+    rect(ctx, 36, 26, 4, 3, PAL.black);
+    rect(ctx, 22, 34, 20, 3, accent);
     return c;
   }
 
-  const by = run ? 18 + (f === 1 ? -1 : 1) : 20;
-  const bw = wide ? 22 : 16;
-  const bh = wide ? 16 : 14;
-  const bx = 24 - bw / 2;
+  const by = run ? 26 + (f === 1 ? -1 : 1) : 28;
+  const bw = wide ? 28 : 20;
+  const bh = wide ? 20 : 18;
+  const bx = 32 - bw / 2;
 
-  // legs
-  rect(ctx, bx + 2, by + bh - 2, 5, 10 + leg, dark);
-  rect(ctx, bx + bw - 7, by + bh - 2, 5, 10 - leg, dark);
-  rect(ctx, bx + 1, by + bh + 7 + leg, 7, 3, PAL.black);
-  rect(ctx, bx + bw - 8, by + bh + 7 - leg, 7, 3, PAL.black);
+  // legs + shoes
+  inkOutline(ctx, bx + 3, by + bh - 2, 7, 12 + leg);
+  inkOutline(ctx, bx + bw - 10, by + bh - 2, 7, 12 - leg);
+  rect(ctx, bx + 3, by + bh - 2, 7, 12 + leg, dark);
+  rect(ctx, bx + bw - 10, by + bh - 2, 7, 12 - leg, dark);
+  rect(ctx, bx + 2, by + bh + 9 + leg, 9, 4, PAL.black);
+  rect(ctx, bx + bw - 11, by + bh + 9 - leg, 9, 4, PAL.black);
+  rect(ctx, bx + 3, by + bh + 9 + leg, 7, 2, accent);
 
   // torso
+  inkOutline(ctx, bx, by, bw, bh);
   rect(ctx, bx, by, bw, bh, primary);
-  rect(ctx, bx, by, bw, 4, accent);
-  rect(ctx, bx + 2, by + 5, bw - 4, 6, '#ffe0c8');
-  rect(ctx, bx, by + bh - 4, bw, 4, dark);
+  rect(ctx, bx, by, bw, 5, accent);
+  rect(ctx, bx + 3, by + 6, bw - 6, 8, '#ffe8d0');
+  rect(ctx, bx + 4, by + 8, bw - 8, 2, '#ffd0b0');
+  rect(ctx, bx, by + bh - 5, bw, 5, dark);
+  // belt buckle
+  rect(ctx, bx + bw / 2 - 3, by + bh - 6, 6, 4, PAL.gold);
 
   // arms
-  const armY = by + 4 + (run ? leg * 0.3 : 0);
-  rect(ctx, bx - 5, armY, 5, 10, primary);
-  rect(ctx, bx + bw, armY, 5, 10, primary);
+  const armY = by + 5 + (run ? Math.sign(leg) * 2 : 0);
+  inkOutline(ctx, bx - 7, armY, 7, 12);
+  inkOutline(ctx, bx + bw, armY, 7, 12);
+  rect(ctx, bx - 7, armY, 7, 12, primary);
+  rect(ctx, bx + bw, armY, 7, 12, primary);
+  rect(ctx, bx - 7, armY + 9, 7, 3, accent);
+  rect(ctx, bx + bw, armY + 9, 7, 3, accent);
 
   // head
-  const hx = 15;
-  const hy = by - 14;
-  rect(ctx, hx, hy, 18, 16, primary);
-  rect(ctx, hx + 1, hy + 1, 16, 5, accent);
-  // quills / hair spikes
+  const hx = 20;
+  const hy = by - 18;
+  inkOutline(ctx, hx, hy, 24, 20);
+  rect(ctx, hx, hy, 24, 20, primary);
+  rect(ctx, hx + 2, hy + 2, 20, 6, accent);
   if (wide) {
-    rect(ctx, hx - 4, hy + 2, 5, 8, dark);
-    rect(ctx, hx - 2, hy - 4, 6, 6, dark);
-    rect(ctx, hx + 14, hy - 3, 6, 5, dark);
+    // Wideass quills
+    const qs: [number, number, number, number][] = [
+      [hx - 6, hy + 2, 7, 10],
+      [hx - 4, hy - 6, 8, 8],
+      [hx + 18, hy - 5, 8, 7],
+      [hx + 22, hy + 4, 6, 8],
+    ];
+    for (const [qx, qy, qw, qh] of qs) {
+      inkOutline(ctx, qx, qy, qw, qh);
+      rect(ctx, qx, qy, qw, qh, dark);
+      rect(ctx, qx + 1, qy + 1, 2, qh - 2, accent);
+    }
   } else {
-    rect(ctx, hx + 14, hy - 2, 8, 4, accent);
-    rect(ctx, hx + 16, hy + 2, 6, 8, dark);
+    // Tats sleek crest
+    inkOutline(ctx, hx + 18, hy - 4, 12, 6);
+    rect(ctx, hx + 18, hy - 4, 12, 6, accent);
+    inkOutline(ctx, hx + 22, hy + 2, 8, 12);
+    rect(ctx, hx + 22, hy + 2, 8, 12, dark);
+    rect(ctx, hx + 24, hy + 4, 3, 8, accent);
   }
-  // eyes + smile
-  rect(ctx, hx + 4, hy + 7, 4, 4, PAL.white);
-  rect(ctx, hx + 11, hy + 7, 4, 4, PAL.white);
-  rect(ctx, hx + 5, hy + 8, 2, 2, PAL.black);
-  rect(ctx, hx + 12, hy + 8, 2, 2, PAL.black);
-  rect(ctx, hx + 7, hy + 12, 6, 2, dark);
+  // eyes
+  rect(ctx, hx + 5, hy + 8, 6, 6, PAL.white);
+  rect(ctx, hx + 14, hy + 8, 6, 6, PAL.white);
+  rect(ctx, hx + 7, hy + 10, 3, 3, PAL.black);
+  rect(ctx, hx + 16, hy + 10, 3, 3, PAL.black);
+  rect(ctx, hx + 5, hy + 8, 6, 2, 'rgba(255,255,255,0.55)');
+  // smile
+  rect(ctx, hx + 9, hy + 15, 8, 2, dark);
+  rect(ctx, hx + 10, hy + 16, 6, 1, accent);
 
   return c;
 }
 
 function drawCharacterSheet(who: 'Wideass' | 'Tats') {
-  const frameW = 48;
-  const frameH = 48;
+  const frameW = 64;
+  const frameH = 64;
   const frames = 4;
   const c = canvas(frameW * frames, frameH);
   const ctx = ctxOf(c);

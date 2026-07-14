@@ -140,7 +140,7 @@ function App() {
         </div>
 
         <p className="text-center text-[10px] font-bold text-white/55">
-          A/D run · SPACE jump · ↓+SPACE spindash · ↓ at tunnel = low route
+          Cabinets grades · 20 zones · loops · jeep · space — hard refresh after update
         </p>
 
         <button

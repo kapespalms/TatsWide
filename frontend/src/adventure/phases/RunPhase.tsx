@@ -107,7 +107,7 @@ export function RunPhase({
 
       <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 w-[92%] -translate-x-1/2 text-center">
         <p className="wa-hud-shadow text-[10px] font-bold text-white/85 sm:text-[11px]">
-          A/D or ←→ run · SPACE jump · ↓+SPACE spindash · ↓ at tunnel = LOW · hold BOOST into loops
+          ←→ / A D run · SPACE jump · ↓+SPACE spindash · ↓ tunnel · JUMP near gold ramp = HIGH · BOOST into loops · ESC pause
         </p>
       </div>
     </div>

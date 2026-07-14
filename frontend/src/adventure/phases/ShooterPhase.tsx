@@ -356,8 +356,14 @@ function ShooterWorld({
       }
     };
 
-    if (fire.Wideass) checkHit('Wideass', ret.Wideass.x, ret.Wideass.y);
-    if (fire.Tats) checkHit('Tats', ret.Tats.x, ret.Tats.y);
+    if (fire.Wideass) {
+      checkHit('Wideass', ret.Wideass.x, ret.Wideass.y);
+      state.camera.rotation.z += (Math.random() - 0.5) * 0.004;
+    }
+    if (fire.Tats) {
+      checkHit('Tats', ret.Tats.x, ret.Tats.y);
+      state.camera.rotation.z += (Math.random() - 0.5) * 0.004;
+    }
 
     muzzle.current.Wideass = Math.max(0, muzzle.current.Wideass - dt * 6);
     muzzle.current.Tats = Math.max(0, muzzle.current.Tats - dt * 6);

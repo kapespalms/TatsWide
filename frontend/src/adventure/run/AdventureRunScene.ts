@@ -41,6 +41,7 @@ export interface RunProgress {
 interface GhostState {
   sprite: Phaser.GameObjects.Sprite;
   homeX: number;
+  homeY: number;
   patrol: number;
   dir: number;
 }
@@ -102,6 +103,9 @@ export class AdventureRunScene extends Phaser.Scene {
   private invulnUntil: Record<CharacterId, number> = { Wideass: 0, Tats: 0 };
   private cfgW = DEFAULT_RIDER_CONFIG;
   private cfgT = DEFAULT_RIDER_CONFIG;
+  private speedLines!: Phaser.GameObjects.Graphics;
+  private vignette!: Phaser.GameObjects.Rectangle;
+  private lastBoostS = -1;
 
   constructor() {
     super('AdventureRunScene');
@@ -160,6 +164,7 @@ export class AdventureRunScene extends Phaser.Scene {
     this.buildGhosts(level);
     this.buildPlayers();
     this.buildDust();
+    this.buildSpeedFx();
     this.setupInput();
 
     this.needSpeedText = this.add
@@ -398,7 +403,7 @@ export class AdventureRunScene extends Phaser.Scene {
       const sprite = this.add.sprite(g.x, g.y, 'px_ghost_0');
       sprite.setDepth(9).setScale(2);
       if (this.anims.exists('ghost-float')) sprite.play('ghost-float');
-      this.ghosts.push({ sprite, homeX: g.x, patrol: g.patrol, dir: 1 });
+      this.ghosts.push({ sprite, homeX: g.x, homeY: g.y, patrol: g.patrol, dir: 1 });
     }
   }
 
@@ -412,9 +417,9 @@ export class AdventureRunScene extends Phaser.Scene {
       ['Wideass', this.wideass] as const,
       ['Tats', this.tats] as const,
     ]) {
-      p.setDepth(20).setScale(who === 'Wideass' ? 1.65 : 1.55);
+      p.setDepth(20).setScale(who === 'Wideass' ? 1.35 : 1.28);
       p.setData('char', who);
-      p.setOrigin(0.5, 0.78);
+      p.setOrigin(0.5, 0.82);
     }
 
     this.riderW = createRiderState('MAIN', startS, this.kit.tracks.MAIN.path);
@@ -431,13 +436,48 @@ export class AdventureRunScene extends Phaser.Scene {
 
   private buildDust() {
     this.dust = this.add.particles(0, 0, 'px_flower_y', {
-      speed: { min: 20, max: 60 },
-      scale: { start: 0.6, end: 0 },
-      lifespan: 320,
+      speed: { min: 40, max: 120 },
+      scale: { start: 0.85, end: 0 },
+      lifespan: 280,
       emitting: false,
-      gravityY: 200,
+      gravityY: 180,
+      tint: [0xffe14a, 0xffffff, 0xff8866],
     });
     this.dust.setDepth(18);
+  }
+
+  private buildSpeedFx() {
+    this.speedLines = this.add.graphics().setScrollFactor(0).setDepth(90).setAlpha(0);
+    this.vignette = this.add
+      .rectangle(640, 360, 1280, 720, 0x000000, 0.35)
+      .setScrollFactor(0)
+      .setDepth(89)
+      .setAlpha(0);
+  }
+
+  private updateSpeedFx(lead: RiderState) {
+    const speed = Math.abs(lead.gsp);
+    const intensity = Phaser.Math.Clamp((speed - 380) / 420, 0, 1);
+    this.speedLines.clear();
+    if (intensity <= 0.02) {
+      this.speedLines.setAlpha(0);
+      this.vignette.setAlpha(0);
+      return;
+    }
+    this.speedLines.setAlpha(0.35 + intensity * 0.55);
+    this.vignette.setAlpha(intensity * 0.22);
+    const dir = lead.facing;
+    for (let i = 0; i < 14; i += 1) {
+      const y = 40 + i * 48 + ((this.elapsed * 900 * intensity) % 48);
+      const len = 80 + intensity * 160 + (i % 3) * 30;
+      const x0 = dir > 0 ? 1280 - 40 : 40;
+      const x1 = dir > 0 ? 1280 - 40 - len : 40 + len;
+      this.speedLines.lineStyle(2, i % 2 === 0 ? 0xffffff : 0xffe14a, 0.5 + intensity * 0.4);
+      this.speedLines.lineBetween(x0, y, x1, y + (i % 2 === 0 ? 4 : -4));
+    }
+    if (lead.mode === 'ground' && speed > 220) {
+      this.dust.emitParticleAt(lead.x - lead.facing * 18, lead.y + 8, intensity > 0.5 ? 2 : 1);
+    }
   }
 
   private setupInput() {
@@ -670,6 +710,12 @@ export class AdventureRunScene extends Phaser.Scene {
     const push = (lo: number, hi: number) => {
       if (rider.s >= lo && rider.s <= hi && rider.gsp < 620) {
         rider.gsp = Math.max(620, Math.abs(rider.gsp)) * (rider.facing || 1);
+        if (Math.abs(rider.s - this.lastBoostS) > 40) {
+          this.lastBoostS = rider.s;
+          this.audio.boost();
+          this.cameras.main.flash(90, 255, 225, 74);
+          this.dust.emitParticleAt(rider.x, rider.y, 12);
+        }
       }
     };
     push(boostS.lo, boostS.hi);
@@ -698,10 +744,10 @@ export class AdventureRunScene extends Phaser.Scene {
     }
 
     if (rider.spindashCharge > 0) {
-      const base = who === 'Wideass' ? 1.65 : 1.55;
+      const base = who === 'Wideass' ? 1.35 : 1.28;
       sprite.setScale(base, base * (0.72 + Math.min(0.2, rider.spindashCharge / 5000)));
     } else {
-      sprite.setScale(who === 'Wideass' ? 1.65 : 1.55);
+      sprite.setScale(who === 'Wideass' ? 1.35 : 1.28);
     }
   }
 
@@ -797,7 +843,16 @@ export class AdventureRunScene extends Phaser.Scene {
       if (g.sprite.x > g.homeX + g.patrol) g.dir = -1;
       if (g.sprite.x < g.homeX - g.patrol) g.dir = 1;
       g.sprite.x += 72 * g.dir * dt;
+      g.sprite.y = g.homeY + Math.sin(this.elapsed * 4 + g.homeX) * 6;
       g.sprite.setFlipX(g.dir < 0);
+    }
+  }
+
+  private bobCollectibles() {
+    for (const c of this.collectibles) {
+      if (!c.img.active) continue;
+      c.img.y = c.y + Math.sin(this.elapsed * 5 + c.x * 0.02) * 5;
+      c.img.setScale(2 + Math.sin(this.elapsed * 6 + c.x) * 0.08);
     }
   }
 
@@ -860,6 +915,8 @@ export class AdventureRunScene extends Phaser.Scene {
     this.soloFollow();
     this.updateGhosts(dt);
     this.updateCamera();
+    this.updateSpeedFx(lead);
+    this.bobCollectibles();
 
     const leadX = lead.x;
     this.checkTriggers(leadX);
