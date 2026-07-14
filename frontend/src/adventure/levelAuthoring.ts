@@ -57,6 +57,7 @@ function authorLevel(level: number): LevelAuthoring {
       { x: onMain(650).x, y: onMain(650, 8).y, power: -900 },
       { x: onMain(2400).x, y: onMain(2400, 8).y, power: -880 - level * 4 },
       { x: onMain(kit.jeepAtX - 500).x, y: onMain(kit.jeepAtX - 500, 8).y, power: -920 },
+      { x: onMain(kit.jeepAtX - 900).x, y: onMain(kit.jeepAtX - 900, 8).y, power: -1100 },
       { x: onMain(kit.spaceAtX - 300).x, y: onMain(kit.spaceAtX - 300, 8).y, power: -900 },
     ],
     seesaws: [],

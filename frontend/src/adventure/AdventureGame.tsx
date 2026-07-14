@@ -48,6 +48,7 @@ export function AdventureGame({
   const handleProgress = useCallback(
     (progress: RunProgress) => {
       posRef.current = progress.x;
+      // Throttle React HUD updates — Phaser runs at 60fps
       setZoneScore(progress.score);
       setCounts(progress.counts);
       setTimeSec(progress.timeSec);

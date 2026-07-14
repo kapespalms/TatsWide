@@ -66,7 +66,7 @@ export const DEFAULT_RIDER_CONFIG: RiderConfig = {
   jumpSpeed: 660,
   detachSpeedInverted: 240,
   invertThreshold: 0.3,
-  snapDistance: 32,
+  snapDistance: 42,
   jumpGraceMs: 120,
   detachGraceMs: 220,
   hysteresisMargin: 6,
@@ -166,6 +166,7 @@ function stepGround(
   const track = tracks[state.trackId as string];
   const sample = track.path.sample(state.s);
 
+  // --- 2. Spindash charge (blocks jump while crouched) ---
   if (input.down && Math.abs(state.gsp) < config.spindashMinDuckSpeed) {
     if (input.jumpHeld) {
       state.spindashCharge = Math.min(
@@ -173,28 +174,35 @@ function stepGround(
         state.spindashCharge + config.spindashChargeRate * dt,
       );
     }
+    // Still apply gentle slope while charged duck
+    state.gsp += config.slopeGravity * sample.ty * config.slopeFactor * dt * 0.25;
+    const nextDuck = track.path.sample(state.s);
+    state.x = nextDuck.x;
+    state.y = nextDuck.y;
+    state.angle = nextDuck.angle;
+    return;
+  }
+
+  if (state.spindashCharge > 0) {
+    const dir = state.facing;
+    state.gsp = dir * Math.min(config.spindashMax, state.spindashCharge);
+    state.events.push({ type: 'spindashRelease', speed: state.gsp });
+    state.spindashCharge = 0;
+  }
+
+  const moveDir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+  if (moveDir !== 0) {
+    const sameDir = Math.sign(state.gsp || moveDir) === moveDir;
+    const rate = sameDir ? config.accel : config.brake;
+    state.gsp += moveDir * rate * dt;
+    state.facing = moveDir as 1 | -1;
   } else {
-    if (state.spindashCharge > 0) {
-      const dir = state.facing;
-      state.gsp = dir * Math.min(config.spindashMax, state.spindashCharge);
-      state.events.push({ type: 'spindashRelease', speed: state.gsp });
-      state.spindashCharge = 0;
-    }
+    const decel = Math.min(Math.abs(state.gsp), config.friction * dt);
+    state.gsp -= Math.sign(state.gsp) * decel;
+  }
 
-    const moveDir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-    if (moveDir !== 0) {
-      const sameDir = Math.sign(state.gsp || moveDir) === moveDir;
-      const rate = sameDir ? config.accel : config.brake;
-      state.gsp += moveDir * rate * dt;
-      state.facing = moveDir as 1 | -1;
-    } else {
-      const decel = Math.min(Math.abs(state.gsp), config.friction * dt);
-      state.gsp -= Math.sign(state.gsp) * decel;
-    }
-
-    if (Math.abs(state.gsp) > config.topSpeed && moveDir !== 0) {
-      state.gsp = Math.sign(state.gsp) * config.topSpeed;
-    }
+  if (Math.abs(state.gsp) > config.topSpeed && moveDir !== 0) {
+    state.gsp = Math.sign(state.gsp) * config.topSpeed;
   }
 
   state.gsp += config.slopeGravity * sample.ty * config.slopeFactor * dt;
@@ -210,7 +218,8 @@ function stepGround(
     return;
   }
 
-  if (input.jumpPressed) {
+  // Jump only when not holding down (spindash owns down+jump)
+  if (input.jumpPressed && !input.down) {
     state.mode = 'air';
     state.vx = sample.tx * state.gsp + sample.nx * config.jumpSpeed;
     state.vy = sample.ty * state.gsp + sample.ny * config.jumpSpeed;
@@ -249,7 +258,7 @@ function stepAir(
 ): void {
   const moveDir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
   state.vx += moveDir * config.airAccel * dt;
-  state.vx *= config.airDrag;
+  state.vx *= Math.pow(config.airDrag, dt * 60);
   state.vy += config.airGravity * dt;
   state.x += state.vx * dt;
   state.y += state.vy * dt;

@@ -346,63 +346,83 @@ function drawHat() {
 }
 
 function drawCharacterFrame(who: 'Wideass' | 'Tats', f: number) {
-  const c = canvas(32, 32);
+  const c = canvas(48, 48);
   const ctx = ctxOf(c);
   const primary = who === 'Wideass' ? PAL.wideass : PAL.tats;
   const dark = who === 'Wideass' ? PAL.wideassDark : PAL.tatsDark;
   const accent = who === 'Wideass' ? PAL.wideassAccent : PAL.tatsAccent;
   const wide = who === 'Wideass';
-  const runLift = f === 1 ? -1 : f === 2 ? 1 : 0;
+  const run = f === 1 || f === 2;
   const jump = f === 3;
+  const leg = f === 1 ? -3 : f === 2 ? 3 : 0;
 
-  rect(ctx, 8, 28, 16, 3, 'rgba(0,0,0,0.25)');
+  // soft shadow
+  rect(ctx, 14, 42, 20, 3, 'rgba(0,0,0,0.28)');
 
-  const by = (jump ? 4 : 8) + runLift;
-  const bw = wide ? 18 : 14;
-  const bh = wide ? 14 : 12;
-  const bx = 16 - bw / 2;
+  if (jump) {
+    // ball / spindash silhouette
+    rect(ctx, 12, 12, 24, 24, primary);
+    rect(ctx, 14, 14, 20, 6, accent);
+    rect(ctx, 16, 22, 16, 10, dark);
+    // spike tufts
+    rect(ctx, 8, 16, 6, 4, dark);
+    rect(ctx, 34, 18, 6, 4, dark);
+    rect(ctx, 10, 28, 5, 4, dark);
+    rect(ctx, 33, 28, 5, 4, dark);
+    rect(ctx, 20, 18, 4, 4, PAL.white);
+    rect(ctx, 28, 20, 3, 2, PAL.black);
+    return c;
+  }
+
+  const by = run ? 18 + (f === 1 ? -1 : 1) : 20;
+  const bw = wide ? 22 : 16;
+  const bh = wide ? 16 : 14;
+  const bx = 24 - bw / 2;
+
+  // legs
+  rect(ctx, bx + 2, by + bh - 2, 5, 10 + leg, dark);
+  rect(ctx, bx + bw - 7, by + bh - 2, 5, 10 - leg, dark);
+  rect(ctx, bx + 1, by + bh + 7 + leg, 7, 3, PAL.black);
+  rect(ctx, bx + bw - 8, by + bh + 7 - leg, 7, 3, PAL.black);
+
+  // torso
   rect(ctx, bx, by, bw, bh, primary);
-  rect(ctx, bx, by, bw, 3, accent);
-  rect(ctx, bx, by + bh - 3, bw, 3, dark);
+  rect(ctx, bx, by, bw, 4, accent);
+  rect(ctx, bx + 2, by + 5, bw - 4, 6, '#ffe0c8');
+  rect(ctx, bx, by + bh - 4, bw, 4, dark);
 
-  const hx = 10;
-  const hy = by - 10;
-  rect(ctx, hx, hy, 12, 12, primary);
-  rect(ctx, hx + 1, hy + 1, 10, 4, accent);
-  rect(ctx, hx + 2, hy + 5, 8, 3, PAL.black);
-  rect(ctx, hx + 3, hy + 5, 2, 2, PAL.white);
-  rect(ctx, hx + 7, hy + 5, 2, 2, accent);
+  // arms
+  const armY = by + 4 + (run ? leg * 0.3 : 0);
+  rect(ctx, bx - 5, armY, 5, 10, primary);
+  rect(ctx, bx + bw, armY, 5, 10, primary);
 
+  // head
+  const hx = 15;
+  const hy = by - 14;
+  rect(ctx, hx, hy, 18, 16, primary);
+  rect(ctx, hx + 1, hy + 1, 16, 5, accent);
+  // quills / hair spikes
   if (wide) {
-    rect(ctx, bx - 4, by + 3, 4, 8, dark);
-    rect(ctx, bx + bw, by + 3, 4, 8, dark);
+    rect(ctx, hx - 4, hy + 2, 5, 8, dark);
+    rect(ctx, hx - 2, hy - 4, 6, 6, dark);
+    rect(ctx, hx + 14, hy - 3, 6, 5, dark);
   } else {
-    rect(ctx, hx + 4, hy - 6, 4, 6, accent);
-    rect(ctx, hx + 5, hy - 8, 2, 3, PAL.white);
+    rect(ctx, hx + 14, hy - 2, 8, 4, accent);
+    rect(ctx, hx + 16, hy + 2, 6, 8, dark);
   }
+  // eyes + smile
+  rect(ctx, hx + 4, hy + 7, 4, 4, PAL.white);
+  rect(ctx, hx + 11, hy + 7, 4, 4, PAL.white);
+  rect(ctx, hx + 5, hy + 8, 2, 2, PAL.black);
+  rect(ctx, hx + 12, hy + 8, 2, 2, PAL.black);
+  rect(ctx, hx + 7, hy + 12, 6, 2, dark);
 
-  if (f === 0) {
-    rect(ctx, bx + 2, by + bh, 4, 6, dark);
-    rect(ctx, bx + bw - 6, by + bh, 4, 6, dark);
-  } else if (f === 1) {
-    rect(ctx, bx + 1, by + bh, 4, 5, dark);
-    rect(ctx, bx + bw - 5, by + bh - 1, 4, 7, dark);
-  } else if (f === 2) {
-    rect(ctx, bx + 1, by + bh - 1, 4, 7, dark);
-    rect(ctx, bx + bw - 5, by + bh, 4, 5, dark);
-  } else {
-    rect(ctx, bx + 3, by + bh, 3, 5, dark);
-    rect(ctx, bx + bw - 6, by + bh, 3, 5, dark);
-  }
-
-  rect(ctx, bx, by + bh + (jump ? 4 : 5), 5, 3, PAL.gold);
-  rect(ctx, bx + bw - 5, by + bh + (jump ? 4 : 5), 5, 3, PAL.gold);
   return c;
 }
 
 function drawCharacterSheet(who: 'Wideass' | 'Tats') {
-  const frameW = 32;
-  const frameH = 32;
+  const frameW = 48;
+  const frameH = 48;
   const frames = 4;
   const c = canvas(frameW * frames, frameH);
   const ctx = ctxOf(c);

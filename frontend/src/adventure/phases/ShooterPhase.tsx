@@ -50,8 +50,15 @@ export function ShooterPhase(props: ShooterPhaseProps) {
 
   useEffect(() => {
     let raf = 0;
-    const tick = () => {
-      setReticles(input.getReticles());
+    let acc = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      acc += now - last;
+      last = now;
+      if (acc >= 50) {
+        acc = 0;
+        setReticles({ ...input.getReticles() });
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -202,7 +209,7 @@ function ShooterWorld({
     }
 
     spawnTimer.current += dt;
-    const spawnEvery = Math.max(0.4, (kind === 'jeep' ? 1.35 : 1.8) - intensity * 0.08);
+    const spawnEvery = Math.max(0.28, (kind === 'jeep' ? 0.75 : 0.95) - intensity * 0.1);
     if (spawnTimer.current >= spawnEvery) {
       spawnTimer.current = 0;
       const roll = Math.random();

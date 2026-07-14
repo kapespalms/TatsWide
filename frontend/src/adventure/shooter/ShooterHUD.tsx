@@ -61,7 +61,7 @@ export function ShooterHUD({
       <div className="absolute right-4 top-14 w-44 text-right">
         <p className="text-[10px] font-black tracking-widest text-yellow-300">P2 SCORE</p>
         <p className="text-2xl font-black text-yellow-300 drop-shadow">{scores.Tats.toLocaleString()}</p>
-        <p className="text-xs font-bold text-cyan-300">TATS{playerCount === 1 ? ' (CPU AIM)' : ''}</p>
+        <p className="text-xs font-bold text-cyan-300">TATS{playerCount === 1 ? ' (LINKED)' : ''}</p>
         <div className="ml-auto w-full">
           <Meter label="HP" value={p2Hp} color="#00ffff" align="right" />
         </div>
