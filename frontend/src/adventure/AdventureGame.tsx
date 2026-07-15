@@ -13,6 +13,7 @@ import { RunPhase } from './phases/RunPhase';
 import { ShooterPhase } from './phases/ShooterPhase';
 import type { RunProgress } from './run/AdventureRunScene';
 import { AdventureAudio } from './run/AdventureAudio';
+import { clearCampaignSave, readCampaignSave, writeCampaignSave } from './campaignSave';
 
 interface AdventureGameProps extends AdventureLaunch {
   embed?: boolean;
@@ -22,13 +23,13 @@ const EMPTY_COUNTS: CollectibleCounts = { pepper: 0, duck: 0, witchHat: 0 };
 
 function triggerBanner(trigger: LevelTrigger): string {
   if (trigger.boss) {
-    if (trigger.kind === 'jeep') return 'BOSS KEEP — CYBER T-REX FIREWALL!';
-    if (trigger.kind === 'space') return 'BOSS KEEP — DREADNOUGHT CORE!';
-    return 'BOSS KEEP — HEART-BREAK ENGINE!';
+    if (trigger.kind === 'jeep') return 'BOSS FINALE — CYBER T-REX!';
+    if (trigger.kind === 'space') return 'BOSS FINALE — DREADNOUGHT!';
+    return 'BOSS FINALE — HEART-BREAK ENGINE!';
   }
-  if (trigger.kind === 'jeep') return 'JEEP KEEP CLEARED — SHOOT THE DINOSAURS!';
-  if (trigger.kind === 'space') return 'STAR KEEP CLEARED — LOAD YOUR WEAPON!';
-  return 'CUPID KEEP — POP THE HEARTS!';
+  if (trigger.kind === 'jeep') return 'ACT FINALE — JUNGLE JEEP!';
+  if (trigger.kind === 'space') return 'ACT FINALE — ALIEN ATTACK!';
+  return 'ACT FINALE — CUPID HEARTS!';
 }
 
 function demoBanner(kind: ShooterKind): string {
@@ -39,6 +40,18 @@ function demoBanner(kind: ShooterKind): string {
 
 function zoneEnterBanner(name: string, sectorLabel: string, boss: boolean): string {
   return boss ? `BOSS ZONE · ${sectorLabel}` : `${sectorLabel} · ${name.toUpperCase()}`;
+}
+
+function demoTriggerFromPhase(kind: ShooterKind, level: number): LevelTrigger {
+  return {
+    id: `demo-${kind}`,
+    kind,
+    atX: 0,
+    resumeX: 120,
+    killQuota: kind === 'space' ? 10 : 8,
+    durationSec: 70,
+    boss: false,
+  };
 }
 
 export function AdventureGame({
@@ -52,23 +65,37 @@ export function AdventureGame({
   // Title ModeCard demos are one-shot — sticky forcePhase must not poison the full campaign
   const demoSeedRef = useRef<LevelTrigger | null>(
     forcePhase
-      ? (startAuthoring.triggers.find((t) => t.kind === forcePhase) ?? null)
+      ? (startAuthoring.triggers.find((t) => t.kind === forcePhase) ??
+          demoTriggerFromPhase(forcePhase, startLevel))
       : null,
   );
   const [demoArmed, setDemoArmed] = useState(() => !!demoSeedRef.current);
   const demoTrigger = demoArmed ? demoSeedRef.current : null;
 
-  const [level, setLevel] = useState(startLevel);
+  const bootSave = useMemo(() => {
+    if (forcePhase) return null;
+    const s = readCampaignSave();
+    if (!s) return null;
+    if (s.playerCount !== playerCount || s.primaryCharacter !== primaryCharacter) return null;
+    return s;
+  }, [forcePhase, playerCount, primaryCharacter]);
+
+  const [level, setLevel] = useState(bootSave?.level ?? startLevel);
   const [phase, setPhase] = useState<GamePhase>(() =>
     demoSeedRef.current ? demoSeedRef.current.kind : 'run',
   );
-  const [resumeX, setResumeX] = useState(120);
-  const [score, setScore] = useState(0);
-  const [zoneScore, setZoneScore] = useState(0);
-  const [counts, setCounts] = useState<CollectibleCounts>({ ...EMPTY_COUNTS });
+  const [resumeX, setResumeX] = useState(bootSave?.resumeX ?? 120);
+  const [score, setScore] = useState(bootSave?.score ?? 0);
+  const [zoneScore, setZoneScore] = useState(bootSave?.zoneScore ?? 0);
+  const [counts, setCounts] = useState<CollectibleCounts>(
+    () => bootSave?.counts ?? { ...EMPTY_COUNTS },
+  );
   const [activeTrigger, setActiveTrigger] = useState<LevelTrigger | null>(() => demoSeedRef.current);
-  const [doneTriggers, setDoneTriggers] = useState<Set<string>>(() => new Set());
-  const [timeSec, setTimeSec] = useState(0);
+  const [doneTriggers, setDoneTriggers] = useState<Set<string>>(
+    () => new Set(bootSave?.doneTriggers ?? []),
+  );
+  const [timeSec, setTimeSec] = useState(bootSave?.timeSec ?? 0);
+  const [lives, setLives] = useState(bootSave?.lives ?? 3);
   const [banner, setBanner] = useState(() =>
     demoSeedRef.current
       ? demoBanner(demoSeedRef.current.kind)
@@ -89,14 +116,38 @@ export function AdventureGame({
   const phaseRef = useRef(phase);
   const posRef = useRef(120);
   const finishedHandled = useRef(false);
-  const zoneScoreRef = useRef(0);
-  const countsRef = useRef<CollectibleCounts>({ ...EMPTY_COUNTS });
-  const takenIdsRef = useRef<Set<string>>(new Set());
-  const killedGhostsRef = useRef<Set<string>>(new Set());
-  const [takenTick, setTakenTick] = useState(0);
+  const zoneScoreRef = useRef(bootSave?.zoneScore ?? 0);
+  const countsRef = useRef<CollectibleCounts>(bootSave?.counts ?? { ...EMPTY_COUNTS });
+  const takenIdsRef = useRef<Set<string>>(new Set(bootSave?.takenIds ?? []));
+  const killedGhostsRef = useRef<Set<string>>(new Set(bootSave?.killedGhostIds ?? []));
+  const lastPersistAt = useRef(0);
   phaseRef.current = phase;
   zoneScoreRef.current = zoneScore;
   countsRef.current = counts;
+
+  const persistCampaign = useCallback(
+    (partial?: { resumeX?: number; lives?: number; level?: number; force?: boolean }) => {
+      if (demoArmed) return;
+      const now = performance.now();
+      if (!partial?.force && now - lastPersistAt.current < 1200) return;
+      lastPersistAt.current = now;
+      writeCampaignSave({
+        level: partial?.level ?? level,
+        score,
+        zoneScore: zoneScoreRef.current,
+        lives: partial?.lives ?? lives,
+        resumeX: partial?.resumeX ?? resumeX,
+        timeSec,
+        counts: countsRef.current,
+        doneTriggers: [...doneTriggers],
+        takenIds: [...takenIdsRef.current],
+        killedGhostIds: [...killedGhostsRef.current],
+        playerCount,
+        primaryCharacter,
+      });
+    },
+    [demoArmed, level, score, lives, resumeX, timeSec, doneTriggers, playerCount, primaryCharacter],
+  );
 
   const authoring = useMemo(() => getLevelAuthoring(level), [level]);
 
@@ -130,24 +181,38 @@ export function AdventureGame({
       setZoneScore(progress.score);
       setCounts(progress.counts);
       setTimeSec(progress.timeSec);
+      setLives(progress.lives);
       for (const id of progress.takenIds) takenIdsRef.current.add(id);
       for (const id of progress.killedGhostIds) killedGhostsRef.current.add(id);
+      if (progress.dead && phaseRef.current === 'run') {
+        const ck = Math.max(120, progress.checkpointX);
+        setResumeX(ck);
+        persistCampaign({ resumeX: ck, lives: 0, force: true });
+        setFailReason('OUT OF LIVES — FELL OR GOT SPIKED!');
+        phaseRef.current = 'failed';
+        setPhase('failed');
+        return;
+      }
       if (progress.finished && phaseRef.current === 'run' && !finishedHandled.current) {
         finishedHandled.current = true;
         setScore((s) => s + progress.score);
         playWipe();
         if (level >= TOTAL_LEVELS) {
+          clearCampaignSave();
           phaseRef.current = 'victory';
           setPhase('victory');
           setBanner('ALL 20 ZONES CLEAR!');
         } else {
+          persistCampaign({ resumeX: 120 });
           phaseRef.current = 'levelComplete';
           setPhase('levelComplete');
           setBanner(`${authoring.name.toUpperCase()} CLEAR!`);
         }
+      } else if (phaseRef.current === 'run') {
+        persistCampaign({ resumeX: Math.max(120, progress.checkpointX), lives: progress.lives });
       }
     },
-    [level, authoring.name, playWipe],
+    [level, authoring.name, playWipe, persistCampaign],
   );
 
   const handleTrigger = useCallback(
@@ -175,8 +240,9 @@ export function AdventureGame({
 
   const retryFromFail = () => {
     setFailReason('');
+    setLives(3);
     runKey.current += 1;
-    setTakenTick((t) => t + 1);
+    persistCampaign({ lives: 3, force: true });
     playWipe();
     // Title demos re-open the keep — never dump a demo fail onto the run mid-act
     if (demoArmed && demoSeedRef.current) {
@@ -221,26 +287,53 @@ export function AdventureGame({
         setActiveTrigger(null);
         setBanner('DEMO CLEAR — FULL ZONE RUN!');
         runKey.current += 1;
-        setTakenTick((t) => t + 1);
         playWipe();
         phaseRef.current = 'run';
         setPhase('run');
         return;
       }
-      setDoneTriggers((prev) => new Set([...prev, activeTrigger.id]));
+      const cleared = new Set([...doneTriggers, activeTrigger.id]);
+      setDoneTriggers(cleared);
       setResumeX(activeTrigger.resumeX);
       setActiveTrigger(null);
       setBanner(`BACK TO ${authoring.name.toUpperCase()}!`);
-      runKey.current += 1;
-      setTakenTick((t) => t + 1);
+      // Keep Phaser alive — no runKey remount stutter after keep clear
+      writeCampaignSave({
+        level,
+        score,
+        zoneScore: nextZone,
+        lives,
+        resumeX: activeTrigger.resumeX,
+        timeSec,
+        counts: countsRef.current,
+        doneTriggers: [...cleared],
+        takenIds: [...takenIdsRef.current],
+        killedGhostIds: [...killedGhostsRef.current],
+        playerCount,
+        primaryCharacter,
+      });
       playWipe();
       phaseRef.current = 'run';
       setPhase('run');
     },
-    [activeTrigger, authoring.name, zoneScore, playWipe, demoArmed],
+    [
+      activeTrigger,
+      authoring.name,
+      zoneScore,
+      playWipe,
+      demoArmed,
+      doneTriggers,
+      level,
+      score,
+      lives,
+      timeSec,
+      playerCount,
+      primaryCharacter,
+    ],
   );
 
   const resetCampaign = () => {
+    clearCampaignSave();
     setLevel(startLevel);
     setScore(0);
     playWipe();
@@ -254,13 +347,13 @@ export function AdventureGame({
     setActiveTrigger(null);
     setFailReason('');
     setTimeSec(0);
+    setLives(3);
     finishedHandled.current = false;
     zoneScoreRef.current = 0;
     countsRef.current = { ...EMPTY_COUNTS };
     takenIdsRef.current = new Set();
     killedGhostsRef.current = new Set();
     runKey.current += 1;
-    setTakenTick((t) => t + 1);
     phaseRef.current = 'run';
     setPhase('run');
     setBanner(zoneEnterBanner(start.name, start.story.sectorLabel, start.story.bossZone));
@@ -283,13 +376,27 @@ export function AdventureGame({
     setActiveTrigger(null);
     setFailReason('');
     setTimeSec(0);
+    setLives(3);
     finishedHandled.current = false;
     zoneScoreRef.current = 0;
     countsRef.current = { ...EMPTY_COUNTS };
     takenIdsRef.current = new Set();
     killedGhostsRef.current = new Set();
     runKey.current += 1;
-    setTakenTick((t) => t + 1);
+    writeCampaignSave({
+      level: next,
+      score,
+      zoneScore: 0,
+      lives: 3,
+      resumeX: 120,
+      timeSec: 0,
+      counts: { ...EMPTY_COUNTS },
+      doneTriggers: [],
+      takenIds: [],
+      killedGhostIds: [],
+      playerCount,
+      primaryCharacter,
+    });
     phaseRef.current = 'run';
     setPhase('run');
     setBanner(zoneEnterBanner(auth.name, auth.story.sectorLabel, auth.story.bossZone));
@@ -307,7 +414,9 @@ export function AdventureGame({
         subtitle={
           demoArmed
             ? 'Demo keep failed. Retry the keep, or return to title.'
-            : 'Quota or vehicle integrity collapsed. Continue from the checkpoint — pickups stay collected.'
+            : failReason.includes('LIVES')
+              ? 'You ran out of lives. Continue from the checkpoint — pickups stay collected.'
+              : 'Quota or vehicle integrity collapsed. Continue from the checkpoint — pickups stay collected.'
         }
         embed={embed}
         buttonLabel={demoArmed ? 'RETRY KEEP' : 'CONTINUE'}
@@ -325,7 +434,7 @@ export function AdventureGame({
         subtitle={
           phase === 'victory'
             ? `Campaign score ${score.toLocaleString()} · Sector Escape complete.`
-            : `Zone ${zoneScore.toLocaleString()} · Total ${score.toLocaleString()} · RINGS ${counts.pepper} · DUCK ${counts.duck} · HAT ${counts.witchHat}`
+            : `Zone ${zoneScore.toLocaleString()} · Total ${score.toLocaleString()} · HEARTS ${counts.pepper} · WIDEASS ${counts.duck} · TATS ${counts.witchHat}`
         }
         embed={embed}
         buttonLabel={phase === 'victory' ? 'PLAY AGAIN' : `ZONE ${level + 1} →`}
@@ -337,58 +446,58 @@ export function AdventureGame({
   }
 
   const shooterActive =
-    (phase === 'jeep' || phase === 'space' || phase === 'cupid') && activeTrigger;
-
-  if (shooterActive && activeTrigger) {
-    return (
-      <div className={embed ? 'relative h-full w-full' : 'relative min-h-screen'}>
-        {wipe && <WipeOverlay />}
-        {banner && <Banner text={banner} accent={authoring.story.accent} />}
-        {storyCard && <StoryBanner {...storyCard} />}
-        <ShooterPhase
-          key={`shoot-${phase}-${runKey.current}-${activeTrigger.id}`}
-          kind={phase}
-          segment={{
-            id: activeTrigger.id.length,
-            kind: phase,
-            atDistance: activeTrigger.atX,
-            killQuota: activeTrigger.killQuota,
-            durationSec: activeTrigger.durationSec,
-          }}
-          level={level}
-          intensity={0.4 + level * 0.025 + (activeTrigger.boss ? 0.12 : 0)}
-          playerCount={playerCount}
-          primaryCharacter={primaryCharacter}
-          embed={embed}
-          boss={!!activeTrigger.boss}
-          onComplete={handleShooterDone}
-        />
-      </div>
-    );
-  }
+    (phase === 'jeep' || phase === 'space' || phase === 'cupid') && !!activeTrigger;
+  // Title demos start mid-keep — only mount the run once the campaign is live
+  const mountRun = !demoArmed || phase === 'run';
 
   return (
     <div className={embed ? 'relative h-full w-full' : 'relative min-h-screen bg-[#1a3a6a]'}>
       {wipe && <WipeOverlay />}
       {banner && <Banner text={banner} accent={authoring.story.accent} />}
       {storyCard && <StoryBanner {...storyCard} />}
-      <RunPhase
-        key={`${level}-${runKey.current}-${takenTick}`}
-        level={authoring}
-        playerCount={playerCount}
-        primaryCharacter={primaryCharacter}
-        startX={resumeX}
-        seedScore={zoneScoreRef.current}
-        seedCounts={countsRef.current}
-        seedTakenIds={[...takenIdsRef.current]}
-        seedKilledGhostIds={[...killedGhostsRef.current]}
-        seedElapsed={timeSec}
-        seedFiredTriggers={[...doneTriggers]}
-        embed={embed}
-        onProgress={handleProgress}
-        onTrigger={handleTrigger}
-        hud={{ score: score + zoneScore, counts, timeSec }}
-      />
+      {mountRun ? (
+        <RunPhase
+          key={`${level}-${runKey.current}`}
+          level={authoring}
+          playerCount={playerCount}
+          primaryCharacter={primaryCharacter}
+          startX={resumeX}
+          seedScore={zoneScoreRef.current}
+          seedCounts={countsRef.current}
+          seedTakenIds={[...takenIdsRef.current]}
+          seedKilledGhostIds={[...killedGhostsRef.current]}
+          seedElapsed={timeSec}
+          seedFiredTriggers={[...doneTriggers]}
+          seedLives={lives}
+          suspended={shooterActive}
+          embed={embed}
+          onProgress={handleProgress}
+          onTrigger={handleTrigger}
+          hud={{ score: score + zoneScore, counts, timeSec, lives }}
+        />
+      ) : null}
+      {shooterActive && activeTrigger ? (
+        <div className="absolute inset-0 z-30">
+          <ShooterPhase
+            key={`shoot-${phase}-${activeTrigger.id}`}
+            kind={phase as ShooterKind}
+            segment={{
+              id: activeTrigger.id.length,
+              kind: phase as ShooterKind,
+              atDistance: activeTrigger.atX,
+              killQuota: activeTrigger.killQuota,
+              durationSec: activeTrigger.durationSec,
+            }}
+            level={level}
+            intensity={0.4 + level * 0.025 + (activeTrigger.boss ? 0.12 : 0)}
+            playerCount={playerCount}
+            primaryCharacter={primaryCharacter}
+            embed={embed}
+            boss={!!activeTrigger.boss}
+            onComplete={handleShooterDone}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -411,7 +520,7 @@ function Banner({ text, accent = '#ffe14a' }: { text: string; accent?: string })
   return (
     <div className="pointer-events-none absolute inset-x-0 top-10 z-50 flex justify-center px-4">
       <p
-        className="wa-display animate-pulse border-2 bg-black/85 px-6 py-3 text-sm tracking-wide shadow-[0_6px_0_#101018] sm:text-lg"
+        className="wa-display border-2 bg-black/85 px-6 py-3 text-sm tracking-wide shadow-[0_6px_0_#101018] sm:text-lg"
         style={{ borderColor: accent, color: accent }}
       >
         {text}

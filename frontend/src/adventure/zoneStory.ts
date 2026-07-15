@@ -55,8 +55,8 @@ const SECTOR_META: Record<
       title: n === 20 ? 'FINAL CORE: Escape the Cabinet' : `Grid Runner · Stage ${n - 15}`,
       blurb:
         n === 20
-          ? 'Deletion wave on your heels. Rings, golden ducks, and Dr Pepper overload the mainframe.'
-          : 'Merge into pure speed. Collect golden ducks and Dr Pepper to crash the AI core.',
+          ? 'Deletion wave on your heels. Hearts, WIDEASS word-hearts, and TATS overload the mainframe.'
+          : 'Merge into pure speed. Collect WIDEASS & TATS word-hearts to crash the AI core.',
     }),
   },
 };

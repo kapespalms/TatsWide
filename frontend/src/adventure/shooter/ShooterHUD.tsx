@@ -73,7 +73,7 @@ export function ShooterHUD({
           {title}
         </p>
         <p className="mt-1 text-center text-[11px] font-black tracking-[0.22em] text-white/85">
-          ZONE {level} · KILLS {kills}/{killQuota} · {timeLeft}s
+          ZONE {level} · KILLS {kills}/{killQuota} · {Math.max(0, Math.floor(timeLeft))}s
         </p>
         <p className="mt-1 text-center text-[11px] font-bold text-[#ffee88]">{tip}</p>
         <p className="mt-1 text-center text-[10px] font-black tracking-wide text-white/75">{fireTip}</p>

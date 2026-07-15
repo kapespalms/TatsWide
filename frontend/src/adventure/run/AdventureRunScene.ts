@@ -11,6 +11,8 @@ import { getTrackKitForLevel, type LevelTrackKit } from './levelTracks';
 import { AdventureAudio } from './AdventureAudio';
 import {
   DEFAULT_RIDER_CONFIG,
+  applyInvincibility,
+  applySpringLaunch,
   checkApproachSpeed,
   createRiderState,
   riderConfigFor,
@@ -18,6 +20,13 @@ import {
   type RiderInput,
   type RiderState,
 } from './TrackRider';
+import {
+  createButtonTile,
+  resolveSpikeCollision,
+  springOverride,
+  updateButtonTile,
+  type ButtonTile,
+} from './SonicPhysics';
 
 export interface AdventureRunInit {
   level: LevelAuthoring;
@@ -30,6 +39,7 @@ export interface AdventureRunInit {
   seedKilledGhostIds?: string[];
   seedElapsed?: number;
   seedFiredTriggers?: string[];
+  seedLives?: number;
   onProgress: (payload: RunProgress) => void;
   onTrigger: (trigger: LevelTrigger) => void;
 }
@@ -42,6 +52,9 @@ export interface RunProgress {
   timeSec: number;
   takenIds: string[];
   killedGhostIds: string[];
+  lives: number;
+  dead: boolean;
+  checkpointX: number;
 }
 
 interface GhostState {
@@ -94,18 +107,35 @@ export class AdventureRunScene extends Phaser.Scene {
     x: number;
     y: number;
     power: number;
+    vx?: number;
     img: Phaser.GameObjects.Image;
     coolUntil: number;
   }[] = [];
   private ghosts: GhostState[] = [];
   private hazards: { x: number; y: number; r: number; ball: Phaser.GameObjects.Image }[] = [];
+  private spikes: { x: number; y: number; halfW: number; img: Phaser.GameObjects.Image }[] = [];
+  private buttons: { tile: ButtonTile; img: Phaser.GameObjects.Image; eventId?: string }[] = [];
+  private buttonHeld = new Set<string>();
   private keepBeacons: { atX: number; imgs: Phaser.GameObjects.Image[] }[] = [];
+  private flyingRings: {
+    img: Phaser.GameObjects.Image;
+    vx: number;
+    vy: number;
+    life: number;
+  }[] = [];
   private clouds!: Phaser.GameObjects.TileSprite;
   private brandClouds!: Phaser.GameObjects.TileSprite;
   private mountains!: Phaser.GameObjects.TileSprite;
   private counts: CollectibleCounts = { pepper: 0, duck: 0, witchHat: 0 };
   private score = 0;
+  private lives = 3;
+  private checkpointX = 120;
+  private dying = false;
+  private dead = false;
   private firedTriggers = new Set<string>();
+  /** Keeps that finished successfully — required before zone GOAL counts */
+  private clearedKeeps = new Set<string>();
+  private keepSuspended = false;
   private finished = false;
   private elapsed = 0;
   private dust!: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -127,6 +157,7 @@ export class AdventureRunScene extends Phaser.Scene {
   private pepperBoostUntil = 0;
   private baseCfgW = DEFAULT_RIDER_CONFIG;
   private baseCfgT = DEFAULT_RIDER_CONFIG;
+  private lastLeadX = 0;
 
   constructor() {
     super('AdventureRunScene');
@@ -138,10 +169,20 @@ export class AdventureRunScene extends Phaser.Scene {
     this.score = data.seedScore ?? 0;
     this.elapsed = data.seedElapsed ?? 0;
     this.firedTriggers = new Set(data.seedFiredTriggers ?? []);
+    this.clearedKeeps = new Set(data.seedFiredTriggers ?? []);
+    this.keepSuspended = false;
     this.finished = false;
     this.paused = false;
+    this.dying = false;
+    this.dead = false;
+    this.lives = Math.max(1, Math.min(9, data.seedLives ?? 3));
+    this.checkpointX = Math.max(120, data.startX);
     this.ghosts = [];
     this.hazards = [];
+    this.spikes = [];
+    this.buttons = [];
+    this.buttonHeld.clear();
+    this.flyingRings = [];
     this.keepBeacons = [];
     this.collectibles = [];
     this.springs = [];
@@ -186,8 +227,11 @@ export class AdventureRunScene extends Phaser.Scene {
     this.buildParallax(level);
     this.buildDecor(level);
     this.drawAllTracks();
+    this.buildDeathGaps();
     this.buildMilestoneKeeps(level);
     this.buildSeesaws(level);
+    this.buildSpikes(level);
+    this.buildButtons(level);
     this.buildSprings(level);
     this.buildGrindVisual(level);
     this.buildCollectibles(level);
@@ -249,7 +293,7 @@ export class AdventureRunScene extends Phaser.Scene {
       .tileSprite(640, 88, 1280, 96, 'px_brand_clouds')
       .setScrollFactor(0)
       .setDepth(-9)
-      .setAlpha(0.92);
+      .setAlpha(0.35);
     if (level.theme === 'haunted' || level.theme === 'alien') {
       this.mountains.setTint(0x8866aa);
       this.clouds.setTint(0xccaaff);
@@ -314,6 +358,9 @@ export class AdventureRunScene extends Phaser.Scene {
     const loop2 = this.kit.tracks.MAIN.path.sample(this.kit.boost2S.lo);
     this.add.image(loop2.x, loop2.y - 48, 'px_sign_boost').setOrigin(0.5).setDepth(6).setScale(1.6);
 
+    const midBoost = this.kit.tracks.MAIN.path.sample(this.kit.boost3S.lo);
+    this.add.image(midBoost.x, midBoost.y - 48, 'px_sign_boost').setOrigin(0.5).setDepth(6).setScale(1.5);
+
     const highJoin = this.kit.tracks.MAIN.path.sample(this.kit.highJoinS.lo);
     this.add.image(highJoin.x, highJoin.y - 56, 'px_sign_boost').setOrigin(0.5).setDepth(6).setScale(1.3).setTint(0xffe14a);
 
@@ -321,36 +368,76 @@ export class AdventureRunScene extends Phaser.Scene {
     this.add.image(grindJoin.x, grindJoin.y - 56, 'px_sign_boost').setOrigin(0.5).setDepth(6).setScale(1.3).setTint(0xffd020);
   }
 
-  /** Keep gates at ~50% jeep · ~75% space · ~88% cupid */
+  /** Visual void under bottomless jumps so the risk reads clearly. */
+  private buildDeathGaps() {
+    for (const gap of this.kit.deathGaps) {
+      const mid = (gap.xMin + gap.xMax) / 2;
+      const w = gap.xMax - gap.xMin;
+      const pit = this.add.rectangle(mid, 740, w + 40, 220, 0x080810, 0.92).setDepth(-5);
+      pit.setStrokeStyle(3, 0xff2244, 0.55);
+      // Cliff lips
+      this.add.rectangle(gap.xMin - 6, 610, 14, 40, 0x101018, 1).setDepth(4);
+      this.add.rectangle(gap.xMax + 6, 610, 14, 40, 0x101018, 1).setDepth(4);
+    }
+  }
+
+  private buildSpikes(level: LevelAuthoring) {
+    this.spikes = [];
+    for (const s of level.spikes ?? []) {
+      const halfW = (s.width ?? 64) / 2;
+      const img = this.add
+        .image(s.x, s.y + 6, 'px_spikes')
+        .setDepth(7)
+        .setScale(2.1)
+        .setOrigin(0.5, 1);
+      this.spikes.push({ x: s.x, y: s.y, halfW, img });
+    }
+  }
+
+  private buildButtons(level: LevelAuthoring) {
+    this.buttons = [];
+    const defs =
+      level.buttons ??
+      level.seesaws.map((s, i) => ({
+        x: s.x,
+        y: s.y - 8,
+        w: 44,
+        h: 12,
+        eventId: `seesaw-btn-${i}`,
+      }));
+    for (const b of defs) {
+      const tile = createButtonTile(b.x, b.y, b.w ?? 44, b.h ?? 12, 4);
+      const img = this.add
+        .image(tile.x, tile.y, 'px_button')
+        .setDepth(7)
+        .setScale(2)
+        .setOrigin(0.5, 0.5);
+      this.buttons.push({ tile, img, eventId: b.eventId });
+    }
+  }
+
+  /** Finale keep at end of the Sonic act — one side game after the full run */
   private buildMilestoneKeeps(level: LevelAuthoring) {
-    const jeep = level.triggers.find((t) => t.kind === 'jeep');
-    const space = level.triggers.find((t) => t.kind === 'space');
-    const cupid = level.triggers.find((t) => t.kind === 'cupid');
-    if (jeep) {
+    const finale = level.triggers[0];
+    if (finale) {
+      const label =
+        finale.kind === 'jeep'
+          ? finale.boss
+            ? 'BOSS FINALE · T-REX'
+            : 'FINALE · JUNGLE JEEP'
+          : finale.kind === 'space'
+            ? finale.boss
+              ? 'BOSS FINALE · DREADNOUGHT'
+              : 'FINALE · STAR KEEP'
+            : finale.boss
+              ? 'BOSS FINALE · HEART ENGINE'
+              : 'FINALE · CUPID GRID';
       this.placeKeep(
-        jeep.atX,
-        jeep.atX - 160,
-        jeep.boss ? 'BOSS KEEP' : 'HALF WAY',
-        jeep.boss ? 'CYBER T-REX AHEAD' : 'JEEP KEEP · DINOS AHEAD',
-        0xff8844,
-      );
-    }
-    if (space) {
-      this.placeKeep(
-        space.atX,
-        space.atX - 160,
-        space.boss ? 'BOSS KEEP' : 'FINAL PUSH',
-        space.boss ? 'DREADNOUGHT CORE' : 'STAR KEEP · ALIENS AHEAD',
-        0x66ccff,
-      );
-    }
-    if (cupid) {
-      this.placeKeep(
-        cupid.atX,
-        cupid.atX - 160,
-        cupid.boss ? 'BOSS KEEP' : 'HEART GRID',
-        cupid.boss ? 'HEART-BREAK ENGINE' : 'CUPID KEEP · HEARTS AHEAD',
-        0xff66aa,
+        finale.atX,
+        finale.atX - 160,
+        finale.boss ? 'BOSS KEEP' : 'ACT CLEAR',
+        label,
+        finale.kind === 'jeep' ? 0xff8844 : finale.kind === 'space' ? 0x66ccff : 0xff66aa,
       );
     }
     this.drawFinish(level.finishX);
@@ -383,7 +470,7 @@ export class AdventureRunScene extends Phaser.Scene {
     dark: number,
     scale: number,
   ) {
-    const step = 12;
+    const step = path.length > 50000 ? 32 : path.length > 25000 ? 22 : 12;
     const halfW = 16 * scale;
     const dirt = this.add.graphics().setDepth(1);
     const lane = this.add.graphics().setDepth(3);
@@ -441,11 +528,11 @@ export class AdventureRunScene extends Phaser.Scene {
   private buildSeesaws(level: LevelAuthoring) {
     for (const s of level.seesaws) {
       this.add.image(s.x, s.y, 'px_seesaw').setDepth(5).setScale(2.2);
-      // Live hazard orb — contact hurts like ghosts (spin / invuln clears)
-      const hx = s.x + s.width * 0.35;
-      const hy = s.y - 28;
+      // Hazard hangs ABOVE the lane — runners pass under; jump/roll to smash
+      const hx = s.x + s.width * 0.2;
+      const hy = s.y - 96;
       const ball = this.add.image(hx, hy, 'px_hazard').setDepth(6).setScale(2.2);
-      this.hazards.push({ x: hx, y: hy, r: 22, ball });
+      this.hazards.push({ x: hx, y: hy, r: 20, ball });
     }
   }
 
@@ -453,7 +540,7 @@ export class AdventureRunScene extends Phaser.Scene {
     this.springs = [];
     for (const s of level.springs) {
       const img = this.add.image(s.x, s.y, 'px_spring').setDepth(5).setScale(2.3);
-      this.springs.push({ x: s.x, y: s.y, power: s.power, img, coolUntil: 0 });
+      this.springs.push({ x: s.x, y: s.y, power: s.power, vx: s.vx, img, coolUntil: 0 });
     }
   }
 
@@ -476,12 +563,9 @@ export class AdventureRunScene extends Phaser.Scene {
     for (const c of level.collectibles) {
       if (this.takenIds.has(c.id)) continue;
       const key = c.kind === 'pepper' ? 'px_pepper' : c.kind === 'duck' ? 'px_duck' : 'px_hat';
-      // Rings slightly larger; brand bonuses extra punchy
-      const scale = c.kind === 'pepper' ? 2.35 : 2.7;
+      // Small hearts / WIDEASS hearts / TATS hearts — brand art baked in
+      const scale = c.kind === 'pepper' ? 2.1 : c.kind === 'duck' ? 1.55 : 1.65;
       const img = this.add.image(c.x, c.y, key).setDepth(8).setScale(scale);
-      if (c.kind !== 'pepper') {
-        img.setTint(c.kind === 'duck' ? 0xffee88 : 0xe0a0ff);
-      }
       this.collectibles.push({ id: c.id, x: c.x, y: c.y, kind: c.kind, img });
     }
   }
@@ -518,6 +602,7 @@ export class AdventureRunScene extends Phaser.Scene {
       Math.max(0, startS - 40),
       this.kit.tracks.MAIN.path,
     );
+    this.lastLeadX = sample.x;
 
     // Snap sprite to rider immediately
     this.syncSprite(this.wideass, this.riderW, 'Wideass');
@@ -546,27 +631,13 @@ export class AdventureRunScene extends Phaser.Scene {
   }
 
   private updateSpeedFx(lead: RiderState) {
-    const speed = Math.abs(lead.gsp);
-    const intensity = Phaser.Math.Clamp((speed - 380) / 420, 0, 1);
+    // Keep the view clean — no strobing speed lines / vignette
     this.speedLines.clear();
-    if (intensity <= 0.02) {
-      this.speedLines.setAlpha(0);
-      this.vignette.setAlpha(0);
-      return;
-    }
-    this.speedLines.setAlpha(0.35 + intensity * 0.55);
-    this.vignette.setAlpha(intensity * 0.22);
-    const dir = lead.facing;
-    for (let i = 0; i < 14; i += 1) {
-      const y = 40 + i * 48 + ((this.elapsed * 900 * intensity) % 48);
-      const len = 80 + intensity * 160 + (i % 3) * 30;
-      const x0 = dir > 0 ? 1280 - 40 : 40;
-      const x1 = dir > 0 ? 1280 - 40 - len : 40 + len;
-      this.speedLines.lineStyle(2, i % 2 === 0 ? 0xffffff : 0xffe14a, 0.5 + intensity * 0.4);
-      this.speedLines.lineBetween(x0, y, x1, y + (i % 2 === 0 ? 4 : -4));
-    }
-    if (lead.mode === 'ground' && speed > 220) {
-      this.dust.emitParticleAt(lead.x - lead.facing * 18, lead.y + 8, intensity > 0.5 ? 2 : 1);
+    this.speedLines.setAlpha(0);
+    this.vignette.setAlpha(0);
+    const speed = Math.abs(lead.gsp);
+    if (lead.mode === 'ground' && speed > 280 && Math.random() < 0.12) {
+      this.dust.emitParticleAt(lead.x - lead.facing * 18, lead.y + 8, 1);
     }
   }
 
@@ -622,16 +693,17 @@ export class AdventureRunScene extends Phaser.Scene {
           break;
         case 'Escape':
         case 'KeyP':
-          if (down) {
+          if (down && !this.keepSuspended) {
             this.paused = !this.paused;
             this.pauseText.setVisible(this.paused);
             this.physics.world.isPaused = this.paused;
+            if (this.paused) this.audio.stopMusic();
+            else if (!this.audio.isMuted()) this.audio.startMusic();
           }
           break;
         case 'KeyM':
           if (down) {
             this.audio.toggleMute();
-            this.cameras.main.flash(70, 40, 40, 70);
           }
           break;
         default:
@@ -683,34 +755,32 @@ export class AdventureRunScene extends Phaser.Scene {
     for (let i = this.collectibles.length - 1; i >= 0; i -= 1) {
       const c = this.collectibles[i];
       if (!c.img.active) continue;
-      if (Math.hypot(rider.x - c.x, rider.y - c.y) < 36) {
+      if (Math.hypot(rider.x - c.x, rider.y - c.y) < 52) {
         c.img.destroy();
         this.collectibles.splice(i, 1);
         this.takenIds.add(c.id);
         this.counts[c.kind] += 1;
         this.score += c.kind === 'witchHat' ? 500 : c.kind === 'duck' ? 250 : 100;
-        if (c.kind === 'duck') this.audio.duckChime();
-        else if (c.kind === 'pepper') {
-          this.audio.pepperFizz();
-          this.applyPepperBoost(rider);
-        } else this.audio.collect();
-        this.dust.emitParticleAt(c.x, c.y, 8);
+        // Rings = score only. Speed sneakers = duck. No flash spam.
+        if (c.kind === 'duck') {
+          this.audio.duckChime();
+          this.applySpeedSneakers(rider);
+        } else if (c.kind === 'pepper') {
+          this.audio.collect();
+        } else {
+          this.audio.collect();
+        }
+        this.dust.emitParticleAt(c.x, c.y, 6);
       }
     }
   }
 
-  /** Pepper (gold ring / Dr Pepper story) = temporary speed boost + camera punch */
-  private applyPepperBoost(rider: RiderState) {
-    this.pepperBoostUntil = this.time.now + 2800;
-    const dir = Math.sign(rider.gsp || rider.facing || 1);
-    rider.gsp = dir * Math.max(Math.abs(rider.gsp), 820);
-    this.cameras.main.shake(110, 0.007);
-    this.cameras.main.flash(70, 255, 80, 120);
-    this.cameras.main.zoomTo(1.07, 90);
-    this.time.delayedCall(160, () => {
-      if (this.cameras?.main) this.cameras.main.zoomTo(1, 180);
-    });
-    this.dust.emitParticleAt(rider.x, rider.y, 16);
+  /** Classic monitor-style sneakers — mild, no screen flash */
+  private applySpeedSneakers(rider: RiderState) {
+    this.pepperBoostUntil = this.time.now + 2200;
+    const dir = Math.sign(rider.gsp || rider.facing || 1) || 1;
+    rider.gsp = dir * Math.min(640, Math.max(Math.abs(rider.gsp) + 80, 420));
+    this.dust.emitParticleAt(rider.x, rider.y, 8);
   }
 
   private refreshPepperBoostConfigs() {
@@ -718,13 +788,13 @@ export class AdventureRunScene extends Phaser.Scene {
     if (boosted) {
       this.cfgW = {
         ...this.baseCfgW,
-        topSpeed: this.baseCfgW.topSpeed * 1.38,
-        accel: this.baseCfgW.accel * 1.25,
+        topSpeed: this.baseCfgW.topSpeed * 1.22,
+        accel: this.baseCfgW.accel * 1.1,
       };
       this.cfgT = {
         ...this.baseCfgT,
-        topSpeed: this.baseCfgT.topSpeed * 1.38,
-        accel: this.baseCfgT.accel * 1.25,
+        topSpeed: this.baseCfgT.topSpeed * 1.22,
+        accel: this.baseCfgT.accel * 1.1,
       };
     } else {
       this.cfgW = this.baseCfgW;
@@ -733,12 +803,15 @@ export class AdventureRunScene extends Phaser.Scene {
   }
 
   private checkSprings(rider: RiderState) {
+    if (rider.mode !== 'ground') return;
     const now = this.time.now;
     for (const s of this.springs) {
       if (now < s.coolUntil) continue;
-      if (Math.hypot(rider.x - s.x, rider.y - s.y) < 44) {
-        this.bounceSpring(rider, s.power);
-        s.coolUntil = now + 450;
+      const dx = rider.x - s.x;
+      const dy = rider.y - s.y;
+      if (Math.abs(dx) < 28 && Math.abs(dy) < 36) {
+        this.bounceSpring(rider, s.power, s.vx ?? 0);
+        s.coolUntil = now + 700;
         break;
       }
     }
@@ -750,6 +823,7 @@ export class AdventureRunScene extends Phaser.Scene {
       if (!g.sprite.active) continue;
       if (Math.hypot(rider.x - g.sprite.x, rider.y - g.sprite.y) < 34) {
         const stomped =
+          rider.physState === 'ROLLING_SLIDE' ||
           Math.abs(rider.gsp) > 280 ||
           rider.spindashCharge > 0 ||
           (rider.mode === 'air' && (rider.vy > 80 || Math.abs(rider.vx) > 220));
@@ -768,47 +842,127 @@ export class AdventureRunScene extends Phaser.Scene {
     }
   }
 
-  private bounceSpring(rider: RiderState, powerRaw: number) {
-    const power = Math.abs(powerRaw || 900);
-    const sample =
-      rider.trackId && this.kit.tracks[rider.trackId]
-        ? this.kit.tracks[rider.trackId].path.sample(rider.s)
-        : { tx: rider.facing, ty: 0, nx: 0, ny: -1 };
-    rider.mode = 'air';
-    rider.vx = sample.tx * rider.gsp + sample.nx * power * 0.55 + rider.facing * 80;
-    rider.vy = sample.ty * rider.gsp + sample.ny * power * 0.95;
-    rider.trackId = null;
-    // Only big springs near HIGH ramp bias landings onto HIGH
+  private bounceSpring(rider: RiderState, powerRaw: number, springVx = 0) {
+    const power = Math.abs(powerRaw || 820);
+    // SPRING TILE: override all velocities to spring constants → IN_AIR
+    const impulse = springOverride(springVx || rider.facing * 60, -power);
     const nearHigh = Math.abs(rider.x - this.kit.highX) < 420;
+    applySpringLaunch(rider, impulse.vx, impulse.vy, this.time.now, 140);
     rider.attachedTrackHint = nearHigh && power >= 1000 ? 'HIGH' : null;
-    rider.jumpGraceUntil = this.time.now + 140;
     this.dust.emitParticleAt(rider.x, rider.y, 10);
-    this.cameras.main.shake(60, 0.002);
     this.audio.spring();
   }
 
   private hitGhost(rider: RiderState) {
+    this.hurtRider(rider, false);
+  }
+
+  /**
+   * SPIKES / badnik hurt: if Rings > 0 scatter them + 60f INVINCIBLE;
+   * if Rings === 0 → PlayerDeath (loseLife).
+   */
+  private hurtRider(rider: RiderState, isSpike: boolean) {
+    if (this.dying || this.dead || this.finished) return;
     const who = rider === this.riderW ? 'Wideass' : 'Tats';
-    if (this.time.now < this.invulnUntil[who]) return;
+    if (this.time.now < this.invulnUntil[who] || rider.invincibleFrames > 0) return;
+    if (rider.physState === 'INVINCIBLE') return;
     if (rider.mode === 'air' && this.time.now < rider.jumpGraceUntil) return;
-    rider.gsp *= -0.4;
-    rider.vx = -rider.facing * 200;
-    rider.vy = -280;
-    rider.mode = 'air';
-    rider.trackId = null;
-    rider.jumpGraceUntil = this.time.now + 400;
-    this.invulnUntil[who] = this.time.now + 900;
-    this.score = Math.max(0, this.score - 50);
-    this.cameras.main.shake(100, 0.004);
+
+    const hit = resolveSpikeCollision(
+      this.counts.pepper,
+      rider.physState,
+      rider.invincibleFrames,
+    );
+    if (hit.kind === 'ignored') return;
+    if (hit.kind === 'death') {
+      this.loseLife(rider);
+      return;
+    }
+
+    this.counts.pepper = 0;
+    this.score = Math.max(0, this.score - (isSpike ? 100 : 50));
+    this.spawnScatteredRings(rider.x, rider.y, hit.scatterVelocities);
+    applyInvincibility(rider, hit.invincibleFrames);
+    applySpringLaunch(rider, -rider.facing * 220, -320, this.time.now, 450);
+    this.invulnUntil[who] = this.time.now + (hit.invincibleFrames / 60) * 1000;
     this.audio.hurt();
+    this.dust.emitParticleAt(rider.x, rider.y, 12);
+  }
+
+  private spawnScatteredRings(
+    x: number,
+    y: number,
+    velocities: Array<{ vx: number; vy: number }>,
+  ) {
+    const max = Math.min(velocities.length, 12);
+    for (let i = 0; i < max; i += 1) {
+      const v = velocities[i];
+      const img = this.add.image(x, y, 'px_pepper').setDepth(20).setScale(1.6);
+      this.flyingRings.push({ img, vx: v.vx, vy: v.vy, life: 1.4 });
+    }
+  }
+
+  private updateFlyingRings(dt: number) {
+    for (let i = this.flyingRings.length - 1; i >= 0; i -= 1) {
+      const r = this.flyingRings[i];
+      r.vy += 1800 * dt;
+      r.img.x += r.vx * dt;
+      r.img.y += r.vy * dt;
+      r.life -= dt;
+      r.img.setAlpha(Math.max(0, r.life));
+      if (r.life <= 0 || r.img.y > 900) {
+        r.img.destroy();
+        this.flyingRings.splice(i, 1);
+      }
+    }
+  }
+
+  private spikeRetracted(sx: number): boolean {
+    for (const b of this.buttons) {
+      if (!b.eventId || !this.buttonHeld.has(b.eventId)) continue;
+      // Pressure plate retracts spikes ahead of the pad (classic hold-gate)
+      if (sx >= b.tile.x - 40 && sx <= b.tile.x + 560) return true;
+    }
+    return false;
+  }
+
+  private checkSpikeHits(rider: RiderState) {
+    if (this.dying || this.dead) return;
+    const r = rider.collisionRadius ?? 20;
+    for (const s of this.spikes) {
+      if (this.spikeRetracted(s.x)) continue;
+      if (Math.abs(rider.x - s.x) > s.halfW + r) continue;
+      if (rider.y < s.y - 36 || rider.y > s.y + 28) continue;
+      this.hurtRider(rider, true);
+      return;
+    }
+  }
+
+  private updateButtons(rider: RiderState) {
+    for (const b of this.buttons) {
+      updateButtonTile(b.tile, rider.x, rider.y, rider.collisionRadius, (pressed, justPressed) => {
+        b.img.setY(b.tile.y);
+        b.img.setTint(pressed ? 0xffcc66 : 0xffffff);
+        if (!b.eventId) return;
+        if (pressed) this.buttonHeld.add(b.eventId);
+        else this.buttonHeld.delete(b.eventId);
+        if (justPressed) this.dust.emitParticleAt(b.tile.x, b.tile.y, 4);
+      });
+    }
+    for (const s of this.spikes) {
+      const down = this.spikeRetracted(s.x);
+      s.img.setAlpha(down ? 0.22 : 1);
+      s.img.setY(down ? s.y + 18 : s.y + 6);
+    }
   }
 
   private checkHazardHits(rider: RiderState) {
     for (let i = this.hazards.length - 1; i >= 0; i -= 1) {
       const h = this.hazards[i];
-      if (Math.hypot(rider.x - h.x, rider.y - h.y) < h.r + 18) {
-        // Air roll / spindash smash clears the orb
-        if (rider.mode === 'air' || Math.abs(rider.gsp) > 420) {
+      // Orbs hang overhead — only collide when jumping up into them
+      if (rider.y > h.y + 28) continue;
+      if (Math.hypot(rider.x - h.x, rider.y - h.y) < h.r + 16) {
+        if (rider.physState === 'ROLLING_SLIDE' || rider.mode === 'air' || Math.abs(rider.gsp) > 420) {
           h.ball.destroy();
           this.hazards.splice(i, 1);
           this.score += 100;
@@ -816,9 +970,76 @@ export class AdventureRunScene extends Phaser.Scene {
           this.dust.emitParticleAt(h.x, h.y, 8);
           return;
         }
-        this.hitGhost(rider);
+        this.hurtRider(rider, false);
         return;
       }
+    }
+  }
+
+  private loseLife(rider: RiderState) {
+    if (this.dying || this.dead || this.finished) return;
+    this.dying = true;
+    this.lives = Math.max(0, this.lives - 1);
+    this.audio.hurt();
+    this.dust.emitParticleAt(rider.x, rider.y, 18);
+
+    if (this.lives <= 0) {
+      this.dead = true;
+      this.dying = false;
+      this.reportProgress(this.progressLead().x);
+      return;
+    }
+
+    // Brief freeze then checkpoint respawn
+    this.time.delayedCall(480, () => {
+      this.respawnAtCheckpoint();
+      this.dying = false;
+    });
+  }
+
+  private respawnAtCheckpoint() {
+    const s = this.kit.tracks.MAIN.path.project(Math.max(120, this.checkpointX), 620).s;
+    const sample = this.kit.tracks.MAIN.path.sample(s);
+    for (const rider of [this.riderW, this.riderT]) {
+      rider.mode = 'ground';
+      rider.physState = 'NORMAL_RUN';
+      rider.invincibleFrames = 90;
+      rider.trackId = 'MAIN';
+      rider.s = s;
+      rider.x = sample.x;
+      rider.y = sample.y;
+      rider.angle = sample.angle;
+      rider.gsp = 0;
+      rider.vx = 0;
+      rider.vy = 0;
+      rider.spindashCharge = 0;
+      rider.attachedTrackHint = 'MAIN';
+    }
+    this.invulnUntil = {
+      Wideass: this.time.now + 1500,
+      Tats: this.time.now + 1500,
+    };
+    this.cameras.main.scrollX = Phaser.Math.Clamp(
+      sample.x - 380,
+      0,
+      this.initData.level.worldWidth - 1280,
+    );
+  }
+
+  private updateCheckpoint(leadX: number) {
+    // Advance checkpoint through keeps and major set pieces
+    const gates = [
+      this.kit.loop1X + 80,
+      this.kit.hillStart + 200,
+      this.kit.tunnelX,
+      this.kit.loop2X + 80,
+      this.kit.hillStart + (this.kit.loop3X - this.kit.hillStart) * 0.5,
+      this.kit.loop3X + 80,
+      this.kit.grindX,
+      this.kit.loop4X + 80,
+    ];
+    for (const g of gates) {
+      if (leadX > g && g > this.checkpointX) this.checkpointX = g;
     }
   }
 
@@ -835,11 +1056,21 @@ export class AdventureRunScene extends Phaser.Scene {
     if (this.initData.playerCount !== 2) return;
     const lead = this.progressLead();
     const lag = lead === this.riderW ? this.riderT : this.riderW;
-    if (lead.x - lag.x < 820) return;
-    // Snap lagging teammate onto MAIN under the camera so 2P never soft-locks off-screen
+    const gap = lead.x - lag.x;
+    if (gap < 700) return;
+    // Gentle tug first — hard snap only if the partner is truly off-cabinet
+    if (gap < 1100) {
+      const assist = Math.max(260, Math.abs(lead.gsp) * 0.92) * (lead.facing || 1);
+      if (lag.mode === 'ground' && Math.abs(lag.gsp) < Math.abs(assist)) {
+        lag.gsp = assist;
+        lag.facing = lead.facing || 1;
+      }
+      return;
+    }
     const s = this.kit.tracks.MAIN.path.project(Math.max(120, lead.x - 280), 620).s;
     const sample = this.kit.tracks.MAIN.path.sample(s);
     lag.mode = 'ground';
+    lag.physState = 'NORMAL_RUN';
     lag.trackId = 'MAIN';
     lag.s = s;
     lag.x = sample.x;
@@ -850,6 +1081,25 @@ export class AdventureRunScene extends Phaser.Scene {
     lag.vy = 0;
     lag.facing = lead.facing || 1;
     lag.attachedTrackHint = 'MAIN';
+  }
+
+  /** Freeze scene under a keep overlay — never destroy Phaser mid-act. */
+  suspendForKeep() {
+    this.keepSuspended = true;
+    this.jumpPressedW = false;
+    this.jumpPressedT = false;
+    this.audio.stopMusic();
+  }
+
+  resumeFromKeep(clearedIds: string[]) {
+    for (const id of clearedIds) this.clearedKeeps.add(id);
+    for (const t of this.initData.level.triggers) {
+      if (clearedIds.includes(t.id) && t.resumeX > this.checkpointX) {
+        this.checkpointX = t.resumeX;
+      }
+    }
+    this.keepSuspended = false;
+    if (!this.paused && !this.audio.isMuted()) this.audio.startMusic();
   }
 
   /** P1 (primaryCharacter) = arrows/WASD/pad0. P2 = J/L/I/K/pad1. */
@@ -882,20 +1132,32 @@ export class AdventureRunScene extends Phaser.Scene {
 
   private applyBoostPads(rider: RiderState) {
     if (rider.mode !== 'ground' || rider.trackId !== 'MAIN') return;
-    const { boostS, boost2S } = this.kit;
-    const push = (lo: number, hi: number) => {
-      if (rider.s >= lo && rider.s <= hi && rider.gsp < 620) {
-        rider.gsp = Math.max(620, Math.abs(rider.gsp)) * (rider.facing || 1);
+    const { boostS, boost2S, boost3S, slowS, slow2S } = this.kit;
+    const push = (lo: number, hi: number, minSpeed: number) => {
+      if (rider.s >= lo && rider.s <= hi && Math.abs(rider.gsp) < minSpeed) {
+        rider.gsp = Math.max(minSpeed, Math.abs(rider.gsp)) * (rider.facing || 1);
         if (Math.abs(rider.s - this.lastBoostS) > 40) {
           this.lastBoostS = rider.s;
           this.audio.boost();
-          this.cameras.main.flash(90, 255, 225, 74);
-          this.dust.emitParticleAt(rider.x, rider.y, 12);
+          this.dust.emitParticleAt(rider.x, rider.y, 10);
         }
       }
     };
-    push(boostS.lo, boostS.hi);
-    push(boost2S.lo, boost2S.hi);
+    push(boostS.lo, boostS.hi, 480);
+    push(boost2S.lo, boost2S.hi, 500);
+    push(boost3S.lo, boost3S.hi, 460);
+
+    // Slow zones (tunnel sludge / uphill mud) — drag speed down
+    const drag = (lo: number, hi: number, cap: number) => {
+      if (rider.s >= lo && rider.s <= hi && Math.abs(rider.gsp) > cap) {
+        rider.gsp *= 0.92;
+        if (Math.abs(rider.gsp) > cap) {
+          rider.gsp = Math.sign(rider.gsp) * cap;
+        }
+      }
+    };
+    drag(slowS.lo, slowS.hi, 280);
+    drag(slow2S.lo, slow2S.hi, 240);
   }
 
   private syncSprite(sprite: Phaser.GameObjects.Sprite, rider: RiderState, who: CharacterId) {
@@ -903,16 +1165,17 @@ export class AdventureRunScene extends Phaser.Scene {
     sprite.setAngle(Phaser.Math.RadToDeg(rider.angle));
     sprite.setFlipX(rider.facing < 0);
 
-    const rolling = Math.abs(rider.gsp) > 420;
+    const rolling = rider.physState === 'ROLLING_SLIDE';
+    const skidding = rider.physState === 'SKID';
     const charging = rider.spindashCharge > 0;
     const prefix = who === 'Wideass' ? 'wideass' : 'tats';
     const hasJump = this.anims.exists(`${prefix}-jump`);
     const anim =
       charging
         ? `${prefix}-crouch`
-        : rolling
+        : rolling || skidding
           ? `${prefix}-roll`
-          : rider.mode === 'air'
+          : rider.physState === 'IN_AIR' || rider.mode === 'air'
             ? hasJump
               ? `${prefix}-jump`
               : `${prefix}-roll`
@@ -928,10 +1191,11 @@ export class AdventureRunScene extends Phaser.Scene {
     }
 
     const base = who === 'Wideass' ? 1.35 : 1.28;
+    const radiusScale = rolling ? 0.88 : 1;
     if (charging) {
       sprite.setScale(base * 1.05, base * (0.68 + Math.min(0.22, rider.spindashCharge / 4500)));
     } else {
-      sprite.setScale(base);
+      sprite.setScale(base * radiusScale);
     }
   }
 
@@ -945,7 +1209,7 @@ export class AdventureRunScene extends Phaser.Scene {
     followerSprite.setAngle(Phaser.Math.RadToDeg(lead.angle));
     followerSprite.setFlipX(lead.facing < 0);
     const prefix = followerSprite.getData('char') === 'Wideass' ? 'wideass' : 'tats';
-    const rolling = Math.abs(lead.gsp) > 420 || lead.mode === 'air';
+    const rolling = lead.physState === 'ROLLING_SLIDE' || lead.mode === 'air';
     const anim = rolling
       ? `${prefix}-roll`
       : Math.abs(lead.gsp) > 40
@@ -963,8 +1227,8 @@ export class AdventureRunScene extends Phaser.Scene {
   private updateCamera() {
     const lead = this.progressLead();
     // Classic Sonic look-ahead — always framed on the furthest teammate
-    const boostMul = this.time.now < this.pepperBoostUntil ? 1.35 : 1;
-    const leadOffset = Phaser.Math.Clamp(lead.gsp * 0.38 * boostMul, -120, 380);
+    const boostMul = this.time.now < this.pepperBoostUntil ? 1.12 : 1;
+    const leadOffset = Phaser.Math.Clamp(lead.gsp * 0.38 * boostMul, -120, 340);
     const targetScrollX = Phaser.Math.Clamp(
       lead.x - 380 + leadOffset,
       0,
@@ -977,32 +1241,34 @@ export class AdventureRunScene extends Phaser.Scene {
 
   private checkTriggers(x: number) {
     const lead = this.progressLead();
-    for (const t of this.initData.level.triggers) {
-      if (this.firedTriggers.has(t.id)) continue;
-      if (x >= t.atX) {
-        // Gate on furthest teammate — partner on a branch shouldn't soft-lock keeps
-        const onBranch =
-          lead.trackId === 'GRIND' || lead.trackId === 'HIGH' || lead.trackId === 'LOW';
-        if (onBranch) continue;
+    // Side games only while planted on MAIN — spring/boost flings can't yank you in mid-air.
+    // If you sailed past while airborne, entry waits until you land and keep running.
+    const canTrigger =
+      lead.mode === 'ground' && lead.trackId === 'MAIN' && Math.abs(lead.vy ?? 0) < 80;
+
+    if (canTrigger) {
+      for (const t of this.initData.level.triggers) {
+        if (this.firedTriggers.has(t.id)) continue;
+        if (x < t.atX) continue;
         this.firedTriggers.add(t.id);
-        // Flush HUD/score/pickups before Phaser tears down
         this.reportProgress(x);
         this.initData.onTrigger(t);
+        break; // one detour at a time
       }
     }
+    this.lastLeadX = x;
   }
 
   private reportProgress(x: number) {
-    const finished =
-      !this.finished &&
-      ((this.riderW.trackId === this.kit.finishTrackId && this.riderW.s >= this.kit.finishMinS) ||
-        (this.riderT.trackId === this.kit.finishTrackId && this.riderT.s >= this.kit.finishMinS) ||
-        x >= this.initData.level.finishX);
+    const keepsCleared = this.initData.level.triggers.every((t) => this.clearedKeeps.has(t.id));
+    const atGoal =
+      (this.riderW.trackId === this.kit.finishTrackId && this.riderW.s >= this.kit.finishMinS) ||
+      (this.riderT.trackId === this.kit.finishTrackId && this.riderT.s >= this.kit.finishMinS) ||
+      x >= this.initData.level.finishX;
+    const finished = !this.finished && !this.dead && keepsCleared && atGoal;
     if (finished && !this.finished) {
       this.finished = true;
       this.audio.clear();
-      this.cameras.main.flash(280, 255, 225, 74);
-      this.cameras.main.shake(200, 0.004);
     }
     this.initData.onProgress({
       x,
@@ -1012,6 +1278,9 @@ export class AdventureRunScene extends Phaser.Scene {
       timeSec: this.elapsed,
       takenIds: [...this.takenIds],
       killedGhostIds: [...this.killedGhostIds],
+      lives: this.lives,
+      dead: this.dead,
+      checkpointX: this.checkpointX,
     });
   }
 
@@ -1033,13 +1302,10 @@ export class AdventureRunScene extends Phaser.Scene {
   private bobCollectibles() {
     for (const c of this.collectibles) {
       if (!c.img.active) continue;
-      c.img.y = c.y + Math.sin(this.elapsed * 5 + c.x * 0.02) * 5;
-      const base = c.kind === 'pepper' ? 2.35 : 2.7;
-      c.img.setScale(base + Math.sin(this.elapsed * 8 + c.x) * 0.12);
-      // Rings sparkle; brand items pulse
-      if (c.kind === 'pepper') {
-        c.img.setAlpha(0.85 + Math.sin(this.elapsed * 10 + c.x) * 0.15);
-      }
+      c.img.y = c.y + Math.sin(this.elapsed * 3.2 + c.x * 0.015) * 3;
+      const base = c.kind === 'pepper' ? 2.0 : c.kind === 'duck' ? 1.5 : 1.6;
+      c.img.setScale(base);
+      c.img.setAlpha(1);
     }
   }
 
@@ -1053,10 +1319,16 @@ export class AdventureRunScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
-    if (this.paused) {
+    if (this.paused || this.keepSuspended || this.dead) {
       // Drop edge-pressed jump so pause can't queue a phantom leap on resume
       this.jumpPressedW = false;
       this.jumpPressedT = false;
+      return;
+    }
+    if (this.dying) {
+      this.jumpPressedW = false;
+      this.jumpPressedT = false;
+      this.elapsed += delta / 1000;
       return;
     }
     this.elapsed += delta / 1000;
@@ -1080,8 +1352,12 @@ export class AdventureRunScene extends Phaser.Scene {
       this.checkSprings(this.riderW);
       this.checkGhostHits(this.riderW);
       this.checkHazardHits(this.riderW);
+      this.checkSpikeHits(this.riderW);
+      this.updateButtons(this.riderW);
       this.syncSprite(this.wideass, this.riderW, 'Wideass');
-      this.wideass.setAlpha(now < this.invulnUntil.Wideass ? 0.45 : 1);
+      this.wideass.setAlpha(
+        now < this.invulnUntil.Wideass || this.riderW.invincibleFrames > 0 ? 0.45 : 1,
+      );
     }
     if (!solo || primary === 'Tats') {
       // inputFor() already maps P1 keys onto Tats when primary === 'Tats' — never feed empty inW
@@ -1092,8 +1368,12 @@ export class AdventureRunScene extends Phaser.Scene {
       this.checkSprings(this.riderT);
       this.checkGhostHits(this.riderT);
       this.checkHazardHits(this.riderT);
+      this.checkSpikeHits(this.riderT);
+      this.updateButtons(this.riderT);
       this.syncSprite(this.tats, this.riderT, 'Tats');
-      this.tats.setAlpha(now < this.invulnUntil.Tats ? 0.45 : 1);
+      this.tats.setAlpha(
+        now < this.invulnUntil.Tats || this.riderT.invincibleFrames > 0 ? 0.45 : 1,
+      );
     }
 
     this.jumpPressedW = false;
@@ -1115,18 +1395,20 @@ export class AdventureRunScene extends Phaser.Scene {
     if (this.debugText.visible) {
       const moving = inW.left || inW.right || inT.left || inT.right;
       this.debugText.setText(
-        `SPEED ${Math.abs(lead.gsp).toFixed(0)}  ·  ${lead.mode.toUpperCase()}${moving ? '  ·  GO!' : ''}`,
+        `SPEED ${Math.abs(lead.gsp).toFixed(0)}  ·  ${lead.physState}  ·  grip ${lead.gripMode}°${moving ? '  ·  GO!' : ''}  ·  ♥${this.lives}`,
       );
     }
 
     this.soloFollow();
     this.updateGhosts(dt);
+    this.updateFlyingRings(dt);
     this.updateCamera();
     this.updateSpeedFx(lead);
     this.bobCollectibles();
     this.pulseKeepBeacons(lead.x);
 
     const leadX = lead.x;
+    this.updateCheckpoint(leadX);
     this.checkTriggers(leadX);
 
     this.hudAcc += dt;
@@ -1144,21 +1426,20 @@ export class AdventureRunScene extends Phaser.Scene {
     }
     this.mountains.tilePositionX = this.cameras.main.scrollX * 0.35;
 
+    // Bottomless death — fall through gaps or off the world
     for (const rider of [this.riderW, this.riderT]) {
-      if (rider.y > 900) {
-        const s = this.kit.tracks.MAIN.path.project(Math.max(120, leadX - 200), 620).s;
-        const sample = this.kit.tracks.MAIN.path.sample(s);
-        rider.mode = 'ground';
-        rider.trackId = 'MAIN';
-        rider.s = s;
-        rider.x = sample.x;
-        rider.y = sample.y;
-        rider.angle = sample.angle;
-        rider.gsp = 0;
-        rider.vx = 0;
-        rider.vy = 0;
-        rider.attachedTrackHint = 'MAIN';
-        this.audio.hurt();
+      const soloSkip =
+        solo &&
+        ((primary === 'Wideass' && rider === this.riderT) ||
+          (primary === 'Tats' && rider === this.riderW));
+      if (soloSkip) continue;
+
+      const inDeathGap = this.kit.deathGaps.some(
+        (g) => rider.x > g.xMin + 8 && rider.x < g.xMax - 8 && rider.y > 560,
+      );
+      if (rider.y > 820 || inDeathGap) {
+        this.loseLife(rider);
+        break;
       }
     }
   }
@@ -1168,11 +1449,15 @@ export class AdventureRunScene extends Phaser.Scene {
       if (ev.type === 'jump') this.audio.jump();
       else if (ev.type === 'spindashRelease') {
         this.audio.spindashRelease();
-        this.cameras.main.shake(50, 0.0025);
       } else if (ev.type === 'detachInverted') this.audio.hurt();
-      else if (ev.type === 'land' && Math.abs(rider.gsp) > 480) this.audio.loopEnter();
+      else if (ev.type === 'land' && Math.abs(rider.gsp) > 360) this.audio.loopEnter();
+      else if (ev.type === 'skid') this.dust.emitParticleAt(rider.x, rider.y + 10, 6);
+      else if (ev.type === 'rollEnter') this.dust.emitParticleAt(rider.x, rider.y, 4);
     }
     if (rider.spindashCharge > 40 && Math.random() < 0.08) this.audio.spindash();
+    if (rider.physState === 'SKID' && Math.random() < 0.25) {
+      this.dust.emitParticleAt(rider.x - rider.facing * 8, rider.y + 12, 2);
+    }
   }
 
   private pollGamepad() {

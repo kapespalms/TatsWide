@@ -40,6 +40,7 @@ interface Enemy {
   y: number;
   z: number;
   hp: number;
+  speedMul: number;
   kind: 'trex' | 'raptor' | 'alien' | 'crate' | 'heart' | 'bossHeart' | 'bossTrex' | 'bossAlien';
 }
 
@@ -85,7 +86,8 @@ export function ShooterPhase(props: ShooterPhaseProps) {
     Wideass: { x: 0.35, y: 0.5 },
     Tats: { x: 0.65, y: 0.5 }
   });
-  const input = useShooterInput(true, playerCount, primaryCharacter);
+  const [paused, setPaused] = useState(false);
+  const input = useShooterInput(!paused, playerCount, primaryCharacter);
   const finished = useRef(false);
   const scoresRef = useRef(scores);
   const jeepHpRef = useRef(jeepHp);
@@ -100,6 +102,10 @@ export function ShooterPhase(props: ShooterPhaseProps) {
       if (e.code === 'KeyM') {
         sfx.current?.toggleMute();
       }
+      if (e.code === 'Escape' || e.code === 'KeyP') {
+        e.preventDefault();
+        setPaused((p) => !p);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => {
@@ -107,6 +113,11 @@ export function ShooterPhase(props: ShooterPhaseProps) {
       sfx.current?.dispose();
     };
   }, []);
+
+  useEffect(() => {
+    if (paused) sfx.current?.stopMusic();
+    else if (!AdventureAudio.readSessionMuted()) sfx.current?.startMusic();
+  }, [paused]);
 
   useEffect(() => {
     let raf = 0;
@@ -219,6 +230,7 @@ export function ShooterPhase(props: ShooterPhaseProps) {
               kind={kind}
               intensity={intensity}
               boss={!!boss}
+              paused={paused}
               input={input}
               onKill={handleKill}
               onMissPass={handleMissPass}
@@ -251,6 +263,14 @@ export function ShooterPhase(props: ShooterPhaseProps) {
         p2Hp={p2Hp}
         boss={boss}
       />
+      {paused ? (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70">
+          <div className="border-2 border-[#ffe14a] bg-black/90 px-10 py-6 text-center shadow-[0_8px_0_#101018]">
+            <p className="wa-display text-2xl tracking-[0.2em] text-[#ffe14a]">PAUSED</p>
+            <p className="mt-2 text-xs font-black tracking-wide text-white/85">ESC / P RESUME · M MUTE</p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -259,6 +279,7 @@ const ShooterWorld = memo(function ShooterWorld({
   kind,
   intensity,
   boss,
+  paused = false,
   input,
   onKill,
   onMissPass,
@@ -273,6 +294,7 @@ const ShooterWorld = memo(function ShooterWorld({
   kind: ShooterKind;
   intensity: number;
   boss?: boolean;
+  paused?: boolean;
   input: ReturnType<typeof useShooterInput>;
   onKill: (who: CharacterId, points: number, countsForQuota: boolean) => void;
   onMissPass: (damage: number) => void;
@@ -290,6 +312,10 @@ const ShooterWorld = memo(function ShooterWorld({
   const idRef = useRef(0);
   const spawnTimer = useRef(0);
   const timerAcc = useRef(0);
+  const bossAlive = useRef(false);
+  const bossSeeded = useRef(false);
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
   // Owned only by the frame loop — never overwritten by React re-renders
   const timeRef = useRef(durationSec);
   const completed = useRef(false);
@@ -329,7 +355,7 @@ const ShooterWorld = memo(function ShooterWorld({
   }, []);
 
   useFrame((state, delta) => {
-    if (completed.current) return;
+    if (completed.current || pausedRef.current) return;
     const dt = Math.min(delta, 0.05);
     const camBase = CAM_BASE[kind];
 
@@ -370,40 +396,49 @@ const ShooterWorld = memo(function ShooterWorld({
       0.85,
       (kind === 'jeep' ? 1.35 : kind === 'cupid' ? 1.15 : 1.5) - intensity * 0.12,
     );
-    if (spawnTimer.current >= spawnEvery && enemies.current.length < maxLive) {
+    bossAlive.current = enemies.current.some(
+      (e) => e.kind === 'bossTrex' || e.kind === 'bossAlien' || e.kind === 'bossHeart',
+    );
+    const forceBoss = !!(boss && !bossSeeded.current);
+    const canSpawn =
+      forceBoss || (spawnTimer.current >= spawnEvery && enemies.current.length < maxLive);
+    if (canSpawn && enemies.current.length < maxLive + (forceBoss ? 1 : 0)) {
       spawnTimer.current = 0;
       const roll = Math.random();
       let ekind: Enemy['kind'] =
         kind === 'cupid' ? 'heart' : kind === 'space' ? 'alien' : 'trex';
-      if (kind === 'jeep') {
-        if (boss && roll < 0.2) ekind = 'bossTrex';
-        else if (roll < 0.14) ekind = 'crate';
+      if (forceBoss || (boss && !bossAlive.current && roll < 0.28)) {
+        ekind = kind === 'jeep' ? 'bossTrex' : kind === 'space' ? 'bossAlien' : 'bossHeart';
+        bossSeeded.current = true;
+        bossAlive.current = true;
+      } else if (kind === 'jeep') {
+        if (roll < 0.14) ekind = 'crate';
         else if (roll < 0.42) ekind = 'raptor';
         else ekind = 'trex';
       } else if (kind === 'space') {
-        ekind = boss && roll < 0.22 ? 'bossAlien' : 'alien';
-      } else if (kind === 'cupid') {
-        ekind = boss && roll < 0.22 ? 'bossHeart' : 'heart';
+        ekind = 'alien';
+      } else {
+        ekind = 'heart';
       }
       // Lane-locked spawns so silhouettes don't stack into mush
       const lanes =
         kind === 'jeep' ? [-2.8, -1.1, 1.1, 2.8] : [-2.4, -0.8, 0.8, 2.4];
-      const laneX = lanes[Math.floor(Math.random() * lanes.length)];
+      const laneX = forceBoss ? 0 : lanes[Math.floor(Math.random() * lanes.length)];
       enemies.current.push({
         id: idRef.current++,
-        x: laneX + (Math.random() - 0.5) * 0.35,
+        x: laneX + (forceBoss ? 0 : (Math.random() - 0.5) * 0.35),
         y:
           ekind === 'crate'
             ? -0.85
             : kind === 'jeep'
-              ? -0.15 + (ekind === 'trex' ? 0 : 0.2)
+              ? -0.15 + (ekind === 'trex' || ekind === 'bossTrex' ? 0 : 0.15)
               : (Math.random() - 0.5) * 1.8,
-        z: -42 - Math.random() * 10,
+        z: forceBoss ? -42 : -48 - Math.random() * 14,
         hp:
           ekind === 'bossTrex'
-            ? 8
+            ? 14
             : ekind === 'bossAlien'
-              ? 6
+              ? 12
               : ekind === 'trex'
                 ? 3
                 : ekind === 'raptor'
@@ -411,21 +446,32 @@ const ShooterWorld = memo(function ShooterWorld({
                   : ekind === 'crate'
                     ? 1
                     : ekind === 'bossHeart'
-                      ? 4
+                      ? 10
                       : ekind === 'heart'
                         ? 1
                         : 2,
+        // Charge at readable, varied pace — raptors sprint, T-Rex stomp
+        speedMul:
+          ekind === 'raptor'
+            ? 1.35 + Math.random() * 0.45
+            : ekind === 'trex'
+              ? 0.72 + Math.random() * 0.35
+              : ekind === 'bossTrex'
+                ? 0.55 + Math.random() * 0.2
+                : ekind === 'crate'
+                  ? 0.9
+                  : 0.95 + Math.random() * 0.35,
         kind: ekind
       });
     }
 
-    const speed =
-      (kind === 'space' ? 5.5 : kind === 'cupid' ? 5.8 : 4.6) + intensity * 0.9;
+    const baseSpeed =
+      (kind === 'space' ? 5.5 : kind === 'cupid' ? 5.8 : 5.2) + intensity * 0.75;
     const survivors: Enemy[] = [];
     for (const e of enemies.current) {
-      e.z += speed * dt;
+      e.z += baseSpeed * e.speedMul * dt;
       // Mild side sway so motion feels alive without losing the silhouette
-      e.x += Math.sin(state.clock.elapsedTime * 1.4 + e.id) * dt * (kind === 'cupid' ? 0.55 : 0.35);
+      e.x += Math.sin(state.clock.elapsedTime * 1.4 + e.id) * dt * (kind === 'cupid' ? 0.55 : 0.25);
       if (e.z >= 5.2) {
         if (e.kind !== 'crate') {
           onMissPass(
@@ -476,14 +522,14 @@ const ShooterWorld = memo(function ShooterWorld({
       g.visible = true;
       g.position.set(e.x, e.y, e.z);
       // Keep targets large and readable from spawn to impact
-      const near = Math.min(1, Math.max(0, -e.z / 42));
+      const near = Math.min(1, Math.max(0, -e.z / 50));
       const scale =
         e.kind === 'bossTrex'
-          ? 3.4 + (1 - near) * 1.4
+          ? 3.6 + (1 - near) * 1.5
           : e.kind === 'trex'
-            ? 2.6 + (1 - near) * 1.1
+            ? 2.85 + (1 - near) * 1.25
             : e.kind === 'raptor'
-              ? 1.7 + (1 - near) * 0.7
+              ? 1.85 + (1 - near) * 0.8
               : e.kind === 'bossAlien'
                 ? 2.3 + (1 - near) * 1.1
                 : e.kind === 'alien'
@@ -494,12 +540,16 @@ const ShooterWorld = memo(function ShooterWorld({
                       ? 1.35 + (1 - near) * 0.75
                       : 1.15;
       g.scale.setScalar(scale);
-      g.rotation.y = Math.sin(state.clock.elapsedTime * 1.2 + e.id) * 0.2;
       if (e.kind === 'trex' || e.kind === 'bossTrex' || e.kind === 'raptor') {
-        g.rotation.x = Math.sin(state.clock.elapsedTime * 3 + e.id) * 0.04;
-      }
-      if (e.kind === 'heart' || e.kind === 'bossHeart') {
+        // Face the camera (charge toward jeep) + stomp bob
+        g.rotation.y = Math.PI + Math.sin(state.clock.elapsedTime * 2.4 + e.id) * 0.06;
+        g.position.y = e.y + Math.abs(Math.sin(state.clock.elapsedTime * (4 + e.speedMul * 2) + e.id)) * 0.12;
+        g.rotation.x = Math.sin(state.clock.elapsedTime * 5 + e.id) * 0.05;
+      } else if (e.kind === 'heart' || e.kind === 'bossHeart') {
+        g.rotation.y = Math.sin(state.clock.elapsedTime * 1.2 + e.id) * 0.2;
         g.rotation.z = Math.sin(state.clock.elapsedTime * 2.2 + e.id) * 0.18;
+      } else {
+        g.rotation.y = Math.sin(state.clock.elapsedTime * 1.2 + e.id) * 0.2;
       }
     });
 
@@ -619,13 +669,14 @@ const ShooterWorld = memo(function ShooterWorld({
     muzzle.current.Wideass = Math.max(0, muzzle.current.Wideass - dt * 6);
     muzzle.current.Tats = Math.max(0, muzzle.current.Tats - dt * 6);
 
-    lasers.current = lasers.current
-      .map((l) => ({ ...l, life: l.life - dt }))
-      .filter((l) => l.life > 0);
-
-    hitSparks.current = hitSparks.current
-      .map((s) => ({ ...s, life: s.life - dt }))
-      .filter((s) => s.life > 0);
+    for (let i = lasers.current.length - 1; i >= 0; i -= 1) {
+      lasers.current[i].life -= dt;
+      if (lasers.current[i].life <= 0) lasers.current.splice(i, 1);
+    }
+    for (let i = hitSparks.current.length - 1; i >= 0; i -= 1) {
+      hitSparks.current[i].life -= dt;
+      if (hitSparks.current[i].life <= 0) hitSparks.current.splice(i, 1);
+    }
 
     // GPU sparks updated in-place — no React re-render storm
     while (sparkMeshes.current.length > hitSparks.current.length) {
@@ -706,14 +757,14 @@ const ShooterWorld = memo(function ShooterWorld({
     <>
       <color
         attach="background"
-        args={[kind === 'cupid' ? '#2a1028' : kind === 'space' ? '#1a1428' : '#0a1220']}
+        args={[kind === 'jeep' ? '#87b8e8' : kind === 'cupid' ? '#2a1028' : '#1a1428']}
       />
       <fog
         attach="fog"
         args={[
-          kind === 'cupid' ? '#3a1838' : kind === 'space' ? '#241830' : '#152030',
-          42,
-          kind === 'jeep' ? 95 : 88,
+          kind === 'jeep' ? '#c8e0a8' : kind === 'cupid' ? '#3a1838' : '#241830',
+          kind === 'jeep' ? 28 : 42,
+          kind === 'jeep' ? 110 : 88,
         ]}
       />
       {kind === 'cupid' ? (
@@ -725,14 +776,16 @@ const ShooterWorld = memo(function ShooterWorld({
       )}
       <group ref={root} />
       <VehicleInterior kind={kind} muzzle={muzzle} />
-      <EffectComposer multisampling={0}>
-        <Bloom
-          intensity={kind === 'cupid' ? 0.55 : kind === 'space' ? 0.45 : 0.3}
-          luminanceThreshold={0.55}
-          luminanceSmoothing={0.5}
-          mipmapBlur={false}
-        />
-      </EffectComposer>
+      {kind !== 'jeep' ? (
+        <EffectComposer multisampling={0}>
+          <Bloom
+            intensity={kind === 'cupid' ? 0.5 : 0.4}
+            luminanceThreshold={0.58}
+            luminanceSmoothing={0.5}
+            mipmapBlur={false}
+          />
+        </EffectComposer>
+      ) : null}
     </>
   );
 });
@@ -776,30 +829,30 @@ const MAT = {
     metalness: 0.08
   }),
   trexEye: new THREE.MeshStandardMaterial({
-    color: '#ffff66',
-    emissive: '#ff9900',
-    emissiveIntensity: 3.2,
-    roughness: 0.12,
-    metalness: 0.1
+    color: '#ffffaa',
+    emissive: '#cc7700',
+    emissiveIntensity: 0.85,
+    roughness: 0.25,
+    metalness: 0.05
   }),
   raptor: new THREE.MeshStandardMaterial({
-    color: '#4e7a32',
-    roughness: 0.5,
-    metalness: 0.06
+    color: '#5a8a38',
+    roughness: 0.55,
+    metalness: 0.04
   }),
   raptorAccent: new THREE.MeshStandardMaterial({
-    color: '#c04028',
-    emissive: '#aa1810',
-    emissiveIntensity: 0.55,
-    roughness: 0.4,
-    metalness: 0.15
+    color: '#8a4028',
+    emissive: '#401808',
+    emissiveIntensity: 0.15,
+    roughness: 0.5,
+    metalness: 0.08
   }),
   raptorEye: new THREE.MeshStandardMaterial({
-    color: '#ff2200',
-    emissive: '#ff2200',
-    emissiveIntensity: 2.6,
-    roughness: 0.15,
-    metalness: 0.1
+    color: '#ffcc44',
+    emissive: '#aa4400',
+    emissiveIntensity: 0.7,
+    roughness: 0.25,
+    metalness: 0.05
   }),
   crate: new THREE.MeshStandardMaterial({
     color: '#6a6e72',
@@ -814,8 +867,8 @@ const MAT = {
     metalness: 0.7
   }),
   alienHalo: new THREE.MeshBasicMaterial({ color: '#ff4422', transparent: true, opacity: 0.14, depthWrite: false }),
-  trexRim: new THREE.MeshBasicMaterial({ color: '#88ff66', transparent: true, opacity: 0.08, depthWrite: false }),
-  raptorRim: new THREE.MeshBasicMaterial({ color: '#ff8844', transparent: true, opacity: 0.1, depthWrite: false }),
+  trexRim: new THREE.MeshBasicMaterial({ color: '#88ff66', transparent: true, opacity: 0.0, depthWrite: false }),
+  raptorRim: new THREE.MeshBasicMaterial({ color: '#ff8844', transparent: true, opacity: 0.0, depthWrite: false }),
   heartBody: new THREE.MeshStandardMaterial({
     color: '#ff3366',
     emissive: '#ff1166',
@@ -841,6 +894,58 @@ function disposeGroup(g: THREE.Group) {
   });
 }
 
+function makeWordHeartTexture(word: 'WIDEASS' | 'TATS') {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, 256, 128);
+  ctx.fillStyle = word === 'WIDEASS' ? '#d03040' : '#2090b8';
+  ctx.beginPath();
+  ctx.moveTo(128, 110);
+  ctx.bezierCurveTo(40, 60, 40, 20, 128, 45);
+  ctx.bezierCurveTo(216, 20, 216, 60, 128, 110);
+  ctx.fill();
+  // 3×5 pixel glyphs — never canvas AA text
+  const GLYPHS: Record<string, number[]> = {
+    A: [0b010, 0b101, 0b111, 0b101, 0b101],
+    D: [0b110, 0b101, 0b101, 0b101, 0b110],
+    E: [0b111, 0b100, 0b110, 0b100, 0b111],
+    I: [0b111, 0b010, 0b010, 0b010, 0b111],
+    S: [0b011, 0b100, 0b010, 0b001, 0b110],
+    T: [0b111, 0b010, 0b010, 0b010, 0b010],
+    W: [0b101, 0b101, 0b101, 0b111, 0b101],
+  };
+  const scale = 4;
+  const glyphW = 4 * scale;
+  const total = word.length * glyphW;
+  let x = Math.floor((256 - total) / 2);
+  const oy = 42;
+  for (const ch of word) {
+    const g = GLYPHS[ch] ?? [0, 0, 0, 0, 0];
+    for (let row = 0; row < 5; row += 1) {
+      for (let col = 0; col < 3; col += 1) {
+        if (g[row] & (1 << (2 - col))) {
+          ctx.fillStyle = '#101018';
+          ctx.fillRect(x + col * scale + 1, oy + row * scale + 1, scale, scale);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(x + col * scale, oy + row * scale, scale, scale);
+        }
+      }
+    }
+    x += glyphW;
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+const WORD_HEART_TEX = {
+  WIDEASS: makeWordHeartTexture('WIDEASS'),
+  TATS: makeWordHeartTexture('TATS'),
+};
+
 function buildHeartMesh(boss = false) {
   const g = new THREE.Group();
   const mat = boss ? MAT.bossHeartBody : MAT.heartBody;
@@ -856,7 +961,19 @@ function buildHeartMesh(boss = false) {
   tip.castShadow = true;
   const glow = new THREE.Mesh(new THREE.SphereGeometry(boss ? 1.55 : 1.15, 14, 14), MAT.heartGlow);
   glow.position.y = 0.05;
-  g.add(left, right, tip, glow);
+  // Word badge — WIDEASS on boss hearts, TATS on regular
+  const word = boss ? 'WIDEASS' : 'TATS';
+  const badge = new THREE.Mesh(
+    new THREE.PlaneGeometry(boss ? 1.8 : 1.35, boss ? 0.9 : 0.65),
+    new THREE.MeshBasicMaterial({
+      map: WORD_HEART_TEX[word],
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  badge.position.set(0, 0.15, 0.55);
+  g.add(left, right, tip, glow, badge);
   return g;
 }
 
@@ -1014,8 +1131,8 @@ function CupidEnvironment() {
       <pointLight position={[-3, 2, 4]} intensity={1.5} color="#ff66aa" />
       <pointLight position={[3, 1.5, 2]} intensity={1.0} color="#ffe14a" />
       <hemisphereLight args={['#ff99cc', '#2a1020', 0.45]} />
-      <Stars radius={90} depth={50} count={380} factor={3.2} saturation={0.6} fade speed={0.55} />
-      <Sparkles count={16} scale={[18, 10, 28]} size={3.2} speed={0.5} color="#ff99cc" opacity={0.38} />
+      <Stars radius={90} depth={50} count={140} factor={3.2} saturation={0.6} fade speed={0.55} />
+      <Sparkles count={10} scale={[18, 10, 28]} size={3.2} speed={0.5} color="#ff99cc" opacity={0.38} />
       <mesh position={[0, 2.2, -18]}>
         <torusGeometry args={[3.2, 0.08, 8, 48]} />
         <meshBasicMaterial color="#ff66aa" transparent opacity={0.35} />
@@ -1045,7 +1162,7 @@ function SpaceEnvironment() {
       <pointLight position={[-6, 2, -12]} intensity={1.5} color="#ff6644" />
       <spotLight position={[4, 8, 2]} angle={0.4} penumbra={0.6} intensity={1.1} color="#ffcc88" />
 
-      <Stars radius={90} depth={60} count={420} factor={3.2} saturation={0.3} fade speed={0.55} />
+      <Stars radius={90} depth={60} count={160} factor={3.2} saturation={0.3} fade speed={0.55} />
 
       <mesh position={[-11, 3.5, -38]} castShadow>
         <boxGeometry args={[7, 14, 4]} />
@@ -1083,137 +1200,163 @@ function SpaceEnvironment() {
 }
 
 function JeepEnvironment({ scroll }: { scroll: MutableRefObject<number> }) {
-  const trees = useRef<THREE.Group>(null);
+  const canopy = useRef<THREE.Group>(null);
   const stripes = useRef<THREE.Mesh>(null);
-  const rocks = useRef<THREE.Group>(null);
+  const ferns = useRef<THREE.Group>(null);
 
   useFrame(() => {
     const s = scroll.current;
-    if (trees.current) {
-      trees.current.children.forEach((c, i) => {
-        const base = -6 - (i % 6) * 7.5;
-        c.position.z = ((base + s) % 48) - 42;
+    if (canopy.current) {
+      canopy.current.children.forEach((c, i) => {
+        const base = -4 - (i % 10) * 6.5;
+        c.position.z = ((base + s * 0.85) % 68) - 52;
       });
     }
-    if (rocks.current) {
-      rocks.current.children.forEach((c, i) => {
-        const base = -8 - i * 5;
-        c.position.z = ((base + s) % 50) - 45;
+    if (ferns.current) {
+      ferns.current.children.forEach((c, i) => {
+        const base = -3 - i * 4.2;
+        c.position.z = ((base + s) % 55) - 48;
       });
     }
     if (stripes.current) {
-      stripes.current.position.z = -8 + (s % 6);
+      stripes.current.position.z = -8 + (s % 5);
     }
   });
 
   return (
     <>
-      {/* Local lights only — cabinet / offline safe */}
-      <ambientLight intensity={0.35} color="#a8b8d8" />
-      <hemisphereLight args={['#c8d8ff', '#1a1008', 0.4]} />
+      {/* Daylight jungle safari — readable greens, sun, NO neon mush */}
+      <ambientLight intensity={0.95} color="#fff4e0" />
+      <hemisphereLight args={['#9ec8ff', '#4a7a28', 0.85]} />
       <directionalLight
-        position={[-6, 16, -4]}
-        intensity={0.75}
-        color="#d0e0ff"
+        position={[12, 22, 6]}
+        intensity={2.4}
+        color="#fff2c8"
         castShadow
-        shadow-mapSize={[512, 512]}
+        shadow-mapSize={[1024, 1024]}
+        shadow-camera-far={80}
+        shadow-camera-left={-20}
+        shadow-camera-right={20}
+        shadow-camera-top={20}
+        shadow-camera-bottom={-20}
       />
-      <pointLight position={[8, 12, -30]} intensity={1.8} color="#fff6d0" distance={80} />
-      <pointLight position={[-18, 6, -28]} intensity={3.2} color="#ff5522" distance={50} />
-      <pointLight position={[0, 5, -2]} intensity={0.9} color="#c8d8ff" />
-      <spotLight position={[0, 7, 5]} angle={0.5} penumbra={0.55} intensity={1.6} color="#ffe8b0" />
-      <pointLight position={[7.5, 2.5, -10]} intensity={1.4} color="#ff44aa" />
-      <pointLight position={[-7.5, 2.5, -10]} intensity={1.2} color="#8844ff" />
+      <directionalLight position={[-10, 8, -8]} intensity={0.55} color="#88b868" />
+      <pointLight position={[0, 6, 2]} intensity={0.6} color="#ffe8c0" />
 
-      {/* Moon */}
-      <mesh position={[10, 14, -42]}>
-        <sphereGeometry args={[4.4, 20, 20]} />
-        <meshStandardMaterial
-          color="#fff8e0"
-          emissive="#ffe8b0"
-          emissiveIntensity={0.85}
-          roughness={0.9}
-          metalness={0}
-        />
+      {/* Soft sun disc */}
+      <mesh position={[14, 18, -55]}>
+        <sphereGeometry args={[3.2, 16, 16]} />
+        <meshBasicMaterial color="#ffe8a0" />
       </mesh>
-      <mesh position={[10, 14, -42]}>
-        <sphereGeometry args={[5.4, 24, 24]} />
-        <meshBasicMaterial color="#ddeeff" transparent opacity={0.16} depthWrite={false} />
+      <mesh position={[14, 18, -55]}>
+        <sphereGeometry args={[5.5, 16, 16]} />
+        <meshBasicMaterial color="#ffd070" transparent opacity={0.22} depthWrite={false} />
       </mesh>
 
-      {/* Volcano */}
-      <mesh position={[-18, 2, -34]} castShadow>
-        <coneGeometry args={[5, 12, 16]} />
-        <meshStandardMaterial color="#1a1008" emissive="#ff3300" emissiveIntensity={0.65} roughness={0.85} />
+      {/* Distant green hills */}
+      <mesh position={[-16, 1, -48]} castShadow>
+        <sphereGeometry args={[11, 12, 10]} />
+        <meshStandardMaterial color="#3d6b28" roughness={0.92} flatShading />
       </mesh>
-      <mesh position={[-18, 8.5, -34]}>
-        <sphereGeometry args={[2.3, 16, 16]} />
-        <meshStandardMaterial
-          color="#ff8800"
-          emissive="#ff4400"
-          emissiveIntensity={1.8}
-          transparent
-          opacity={0.8}
-          roughness={0.4}
-        />
+      <mesh position={[18, 0.5, -52]} castShadow>
+        <sphereGeometry args={[13, 12, 10]} />
+        <meshStandardMaterial color="#2f5820" roughness={0.9} flatShading />
+      </mesh>
+      <mesh position={[0, -1, -60]} castShadow>
+        <sphereGeometry args={[16, 12, 10]} />
+        <meshStandardMaterial color="#456e30" roughness={0.95} flatShading />
       </mesh>
 
-      {/* Neon facility rails */}
-      <mesh position={[7.5, 1.5, -18]}>
-        <boxGeometry args={[0.22, 3.2, 40]} />
-        <meshStandardMaterial color="#220022" emissive="#ff44aa" emissiveIntensity={1.5} metalness={0.4} roughness={0.3} />
-      </mesh>
-      <mesh position={[-7.5, 1.5, -18]}>
-        <boxGeometry args={[0.22, 3.2, 40]} />
-        <meshStandardMaterial color="#220022" emissive="#8844ff" emissiveIntensity={1.3} metalness={0.4} roughness={0.3} />
-      </mesh>
-
-      <group ref={trees}>
-        {Array.from({ length: 12 }, (_, i) => {
+      {/* Dense scrolling canopy */}
+      <group ref={canopy}>
+        {Array.from({ length: 20 }, (_, i) => {
           const side = i % 2 === 0 ? -1 : 1;
-          const z = -6 - (i % 6) * 7.5;
-          const x = side * (5.8 + (i % 3) * 1.1);
+          const z = -4 - (i % 10) * 6.5;
+          const x = side * (6.2 + (i % 4) * 1.35);
+          const tall = 3.2 + (i % 5) * 0.45;
+          const palm = i % 3 === 0;
           return (
             <group key={`tree-${i}`} position={[x, 0, z]}>
-              <mesh position={[0, 1.8, 0]} castShadow>
-                <cylinderGeometry args={[0.22, 0.38, 3.6, 8]} />
-                <meshStandardMaterial color="#1a1208" roughness={0.85} />
+              <mesh position={[0, tall * 0.45, 0]}>
+                <cylinderGeometry args={[palm ? 0.18 : 0.28, palm ? 0.32 : 0.48, tall, 7]} />
+                <meshStandardMaterial color="#5a3a1a" roughness={0.9} />
               </mesh>
-              <mesh position={[0, 4.1, 0]} castShadow>
-                <sphereGeometry args={[1.55, 10, 10]} />
-                <meshStandardMaterial color="#0e3824" roughness={0.6} />
-              </mesh>
+              {palm ? (
+                <>
+                  {[0, 1, 2, 3, 4].map((p) => (
+                    <mesh
+                      key={p}
+                      position={[
+                        Math.cos((p / 5) * Math.PI * 2) * 0.9,
+                        tall * 0.85,
+                        Math.sin((p / 5) * Math.PI * 2) * 0.9,
+                      ]}
+                      rotation={[0.55, (p / 5) * Math.PI * 2, 0]}
+                     
+                    >
+                      <boxGeometry args={[0.15, 0.08, 2.4]} />
+                      <meshStandardMaterial color="#2a8a38" roughness={0.7} />
+                    </mesh>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <mesh position={[0, tall * 0.95, 0]}>
+                    <coneGeometry args={[1.6, 2.4, 7]} />
+                    <meshStandardMaterial color="#1f6a2e" roughness={0.75} />
+                  </mesh>
+                  <mesh position={[0, tall * 0.95 + 1.1, 0]}>
+                    <coneGeometry args={[1.15, 1.8, 7]} />
+                    <meshStandardMaterial color="#2d8a3c" roughness={0.7} />
+                  </mesh>
+                  <mesh position={[0, tall * 0.95 + 2.0, 0]}>
+                    <coneGeometry args={[0.7, 1.2, 7]} />
+                    <meshStandardMaterial color="#3caa48" roughness={0.65} />
+                  </mesh>
+                </>
+              )}
             </group>
           );
         })}
       </group>
 
-      {/* Soft road deck — standard materials for mid-tier GPU headroom */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.35, -8]} receiveShadow>
-        <planeGeometry args={[18, 100]} />
-        <meshStandardMaterial color="#2a1c10" roughness={0.88} metalness={0.22} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.325, -8]} receiveShadow>
-        <planeGeometry args={[5.8, 100]} />
-        <meshStandardMaterial color="#3a2818" roughness={0.75} metalness={0.3} />
-      </mesh>
-      <mesh ref={stripes} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.3, -8]}>
-        <planeGeometry args={[0.4, 100]} />
-        <meshStandardMaterial color="#c9a227" emissive="#886600" emissiveIntensity={0.55} metalness={0.4} roughness={0.4} />
-      </mesh>
-
-      <group ref={rocks}>
-        {Array.from({ length: 10 }, (_, i) => (
+      <group ref={ferns}>
+        {Array.from({ length: 14 }, (_, i) => (
           <mesh
-            key={`rock-${i}`}
-            castShadow
-            position={[(i % 2 === 0 ? -1 : 1) * (3.2 + (i % 3) * 0.4), -0.7, -8 - i * 5]}
+            key={`fern-${i}`}
+           
+            position={[(i % 2 === 0 ? -1 : 1) * (3.6 + (i % 3) * 0.5), -0.2, -3 - i * 4.2]}
+            rotation={[0, i * 0.7, 0.15]}
           >
-            <dodecahedronGeometry args={[0.55 + (i % 3) * 0.15, 0]} />
-            <meshStandardMaterial color="#2a2420" roughness={0.8} metalness={0.1} />
+            <coneGeometry args={[0.55, 1.1, 5]} />
+            <meshStandardMaterial color="#3d9a40" roughness={0.8} />
           </mesh>
         ))}
       </group>
+
+      {/* Grass field + dirt jeep track */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.35, -8]} receiveShadow>
+        <planeGeometry args={[48, 120]} />
+        <meshStandardMaterial color="#3d7a28" roughness={0.95} metalness={0.02} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.32, -8]} receiveShadow>
+        <planeGeometry args={[7.2, 120]} />
+        <meshStandardMaterial color="#8a6a3a" roughness={0.88} metalness={0.05} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.31, -8]} receiveShadow>
+        <planeGeometry args={[5.6, 120]} />
+        <meshStandardMaterial color="#6e5430" roughness={0.85} metalness={0.04} />
+      </mesh>
+      <mesh ref={stripes} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.29, -8]}>
+        <planeGeometry args={[0.28, 120]} />
+        <meshStandardMaterial color="#e8d050" roughness={0.55} metalness={0.1} />
+      </mesh>
+
+      {/* Jeep dash brow — soft wood tone instead of neon rails */}
+      <mesh position={[0, -0.05, 2.6]}>
+        <boxGeometry args={[7.2, 0.08, 1.2]} />
+        <meshStandardMaterial color="#3a2a18" roughness={0.7} metalness={0.15} />
+      </mesh>
     </>
   );
 }

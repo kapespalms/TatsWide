@@ -1,9 +1,7 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import { AdventureGame, type CharacterId } from './adventure/AdventureGame';
 import type { ShooterKind } from './adventure/types';
 import { GameOrchestrator } from './game3d/GameOrchestrator';
-
-const DISPLAY_NAME_KEY = 'wa-display-name';
 
 function readLaunchParams() {
   const params = new URLSearchParams(window.location.search);
@@ -22,56 +20,35 @@ function readLaunchParams() {
   return { embed, autostart, character, level, players: players as 1 | 2, room, forcePhase, mode };
 }
 
+type FloaterKind = 'duck' | 'heart' | 'dino' | 'rat';
+
+const FLOATERS: Array<{
+  kind: FloaterKind;
+  left: string;
+  top: string;
+  delay: string;
+  dur: string;
+}> = [
+  { kind: 'duck', left: '7%', top: '16%', delay: '0s', dur: '2.8s' },
+  { kind: 'duck', left: '82%', top: '68%', delay: '0.9s', dur: '3.1s' },
+  { kind: 'heart', left: '14%', top: '74%', delay: '0.4s', dur: '2.5s' },
+  { kind: 'heart', left: '88%', top: '18%', delay: '1.2s', dur: '3.3s' },
+  { kind: 'dino', left: '4%', top: '46%', delay: '0.6s', dur: '2.9s' },
+  { kind: 'dino', left: '70%', top: '10%', delay: '1.5s', dur: '2.6s' },
+  { kind: 'rat', left: '90%', top: '44%', delay: '0.2s', dur: '3s' },
+  { kind: 'rat', left: '26%', top: '8%', delay: '1.7s', dur: '2.7s' },
+];
+
 function App() {
   const launch = useMemo(() => readLaunchParams(), []);
   const [character, setCharacter] = useState<CharacterId>(launch.character);
   const [level, setLevel] = useState(launch.level);
   const [playerCount, setPlayerCount] = useState<1 | 2>(launch.players);
-  const [forcePhase, setForcePhase] = useState<ShooterKind | undefined>(launch.forcePhase);
-  const [started, setStarted] = useState(launch.embed && launch.autostart);
-  const [controllers, setControllers] = useState<string[]>([]);
-  const [displayName, setDisplayName] = useState(() => {
-    try {
-      return localStorage.getItem(DISPLAY_NAME_KEY)?.trim() || '';
-    } catch {
-      return '';
-    }
-  });
-  const nameInputRef = useRef<HTMLInputElement>(null);
+  const forcePhase = launch.forcePhase;
+  const [started, setStarted] = useState(!!(launch.embed && launch.autostart));
 
-  useEffect(() => {
-    const updateGamepads = () => {
-      const pads = navigator.getGamepads?.() ?? [];
-      setControllers(pads.filter(Boolean).map((pad) => pad!.id));
-    };
-    window.addEventListener('gamepadconnected', updateGamepads);
-    window.addEventListener('gamepaddisconnected', updateGamepads);
-    const interval = window.setInterval(updateGamepads, 1_000);
-    updateGamepads();
-    return () => {
-      window.removeEventListener('gamepadconnected', updateGamepads);
-      window.removeEventListener('gamepaddisconnected', updateGamepads);
-      window.clearInterval(interval);
-    };
-  }, []);
-
-  const persistName = (name: string) => {
-    const trimmed = name.trim().slice(0, 24);
-    setDisplayName(trimmed);
-    try {
-      if (trimmed) localStorage.setItem(DISPLAY_NAME_KEY, trimmed);
-      else localStorage.removeItem(DISPLAY_NAME_KEY);
-    } catch {
-      /* ignore quota / private mode */
-    }
-  };
-
-  const startAdventure = (phase?: ShooterKind) => {
-    const name = displayName.trim() || nameInputRef.current?.value.trim() || '';
-    if (name) persistName(name);
-    // 2P always seat-locks Wideass on P1 sticks — clear leftover solo Tats selection
+  const startAdventure = () => {
     if (playerCount === 2) setCharacter('Wideass');
-    setForcePhase(phase);
     setStarted(true);
   };
 
@@ -103,119 +80,68 @@ function App() {
   }
 
   return (
-    <main className="wa-title-screen flex flex-col items-center justify-center gap-8 px-6 py-12 text-white">
-      <div className="wa-bob relative z-10 max-w-3xl text-center">
-        <p className="mb-2 text-xs font-bold tracking-[0.45em] text-white/80">
-          20 ZONES · SAME-SCREEN CO-OP
-        </p>
-        <h1 className="wa-display text-5xl leading-none text-[#ffe14a] drop-shadow-[4px_4px_0_#101018] sm:text-6xl md:text-7xl">
-          WIDEASS
-          <span className="block text-3xl text-white sm:text-4xl">&amp;</span>
-          TATS
-        </h1>
-        <p className="mx-auto mt-4 max-w-md text-sm font-bold leading-relaxed text-white/95">
-          Sector Escape — sonic runs, jeep dinos, starship aliens, and cupid hearts. Two players on one
-          keyboard or gamepads.
-        </p>
-      </div>
-
-      <div className="relative z-10 grid w-full max-w-2xl grid-cols-2 gap-3 text-center text-[10px] font-bold sm:grid-cols-4">
-        <ModeCard
-          title="RUN"
-          copy="Loops · spindash · routes"
-          accent="border-emerald-300/70 text-emerald-100 hover:bg-emerald-400/15"
-          onClick={() => startAdventure()}
-        />
-        <ModeCard
-          title="JEEP"
-          copy="Dual guns · T-Rex"
-          accent="border-amber-300/70 text-amber-100 hover:bg-amber-400/15"
-          onClick={() => {
-            setLevel(1);
-            startAdventure('jeep');
-          }}
-        />
-        <ModeCard
-          title="SPACE"
-          copy="Rail dogfights"
-          accent="border-cyan-300/70 text-cyan-100 hover:bg-cyan-400/15"
-          onClick={() => {
-            setLevel(1);
-            startAdventure('space');
-          }}
-        />
-        <ModeCard
-          title="CUPID"
-          copy="Hearts · dual arrows"
-          accent="border-pink-300/70 text-pink-100 hover:bg-pink-400/15"
-          onClick={() => {
-            setLevel(12);
-            startAdventure('cupid');
-          }}
-        />
-      </div>
-
-      <div className="relative z-10 flex items-center gap-2 rounded-full bg-black/40 px-4 py-2 text-[11px] font-bold tracking-wide">
+    <main className="wa-title-screen flex flex-col items-center justify-center gap-8 px-6 py-12">
+      {FLOATERS.map((f, i) => (
         <span
-          className={`h-2 w-2 rounded-full ${controllers.length ? 'animate-ping bg-emerald-400' : 'bg-zinc-500'}`}
-        />
-        {controllers.length ? `${controllers.length} GAMEPAD READY` : 'KEYBOARD READY'}
-      </div>
+          key={`${f.kind}-${i}`}
+          className="wa-floater"
+          style={{
+            left: f.left,
+            top: f.top,
+            animationDelay: f.delay,
+            animationDuration: f.dur,
+          }}
+          aria-hidden
+        >
+          <FloaterGlyph kind={f.kind} />
+        </span>
+      ))}
+
+      <header className="wa-title-hero relative z-20 flex flex-col items-center gap-4">
+        <div className="wa-cloud wa-cloud-bob" style={{ animationDelay: '0s' }}>
+          <span className="wa-cloud-text wa-cloud-text-wideass">WIDEASS</span>
+        </div>
+        <div className="wa-cloud-amp wa-cloud-bob" style={{ animationDelay: '0.35s' }}>
+          &amp;
+        </div>
+        <div className="wa-cloud wa-cloud-bob" style={{ animationDelay: '0.7s' }}>
+          <span className="wa-cloud-text wa-cloud-text-tats">TATS</span>
+        </div>
+      </header>
 
       <form
-        className="wa-panel relative z-10 flex w-full max-w-sm flex-col gap-5 p-6"
+        className="wa-panel relative z-20 flex w-full max-w-sm flex-col gap-5 p-6"
         onSubmit={(e) => {
           e.preventDefault();
           startAdventure();
         }}
       >
-        <label className="block text-[10px] font-bold tracking-[0.2em] text-[#ffe14a]">
-          DISPLAY NAME
-          <input
-            ref={nameInputRef}
-            type="text"
-            maxLength={24}
-            placeholder="Guest"
-            className="mt-2 w-full border-2 border-white/20 bg-black/70 p-3 text-center text-lg font-bold text-white outline-none focus:border-[#ffe14a]"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            onBlur={() => persistName(displayName)}
-          />
-        </label>
-
         {launch.room ? (
-          <p className="border border-white/15 bg-black/40 px-3 py-2 text-center text-[11px] font-bold tracking-wide text-white/80">
-            ONLINE ROOM · <span className="text-[#ffe14a]">{launch.room}</span>
-            <span className="mt-1 block text-[10px] font-bold text-white/55">
-              use ?mode=neon for networked neon battler · this adventure is same-screen
-            </span>
+          <p className="wa-panel-note">
+            ONLINE ROOM · <span className="wa-panel-accent">{launch.room}</span>
           </p>
         ) : null}
 
-        <label className="block text-[10px] font-bold tracking-[0.2em] text-[#ffe14a]">
+        <label className="wa-panel-label">
           START ZONE
           <input
             type="number"
             min={1}
             max={20}
-            className="wa-display mt-2 w-full border-2 border-white/20 bg-black/70 p-3 text-center text-3xl text-[#ffe14a] outline-none focus:border-[#ffe14a]"
+            className="wa-panel-input wa-display"
             value={level}
             onChange={(e) => setLevel(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
           />
         </label>
 
         <div>
-          <p className="mb-2 text-[10px] font-bold tracking-[0.2em] text-white/70">PLAYERS</p>
+          <p className="wa-panel-label-plain">PLAYERS</p>
           <div className="flex gap-2">
             {([1, 2] as const).map((n) => (
               <button
                 key={n}
                 type="button"
-                className={`flex-1 py-3 text-xs font-black tracking-wider ${
-                  playerCount === n
-                    ? 'bg-[#ffe14a] text-black'
-                    : 'bg-black/50 text-white/60 hover:text-white'
-                }`}
+                className={playerCount === n ? 'wa-chip wa-chip-on' : 'wa-chip'}
                 onClick={() => setPlayerCount(n)}
               >
                 {n}P
@@ -226,22 +152,18 @@ function App() {
 
         {playerCount === 1 ? (
           <div>
-            <p className="mb-2 text-[10px] font-bold tracking-[0.2em] text-white/70">SOLO CHARACTER</p>
+            <p className="wa-panel-label-plain">SOLO CHARACTER</p>
             <div className="flex gap-2">
               <button
                 type="button"
-                className={`flex-1 py-3 text-xs font-black tracking-wider ${
-                  character === 'Wideass' ? 'bg-[#ff3a4a] text-white' : 'bg-black/50 text-white/60'
-                }`}
+                className={character === 'Wideass' ? 'wa-chip wa-chip-wideass' : 'wa-chip'}
                 onClick={() => setCharacter('Wideass')}
               >
                 WIDEASS
               </button>
               <button
                 type="button"
-                className={`flex-1 py-3 text-xs font-black tracking-wider ${
-                  character === 'Tats' ? 'bg-[#00d8ff] text-black' : 'bg-black/50 text-white/60'
-                }`}
+                className={character === 'Tats' ? 'wa-chip wa-chip-tats' : 'wa-chip'}
                 onClick={() => setCharacter('Tats')}
               >
                 TATS
@@ -249,19 +171,12 @@ function App() {
             </div>
           </div>
         ) : (
-          <p className="border border-white/15 bg-black/40 px-3 py-2 text-center text-[11px] font-bold text-white/80">
+          <p className="wa-panel-note">
             2P SEATS · Wideass ←→/WASD + SPACE/F · Tats J/L/I/K + ENTER/G · pads 0 / 1
           </p>
         )}
 
-        <p className="text-center text-[10px] font-bold text-white/55">
-          Same-screen co-op · 20 zones · jeep · space · cupid · M mute
-        </p>
-
-        <button
-          type="submit"
-          className="wa-cta wa-display w-full bg-[#ffe14a] py-4 text-lg text-black shadow-[0_6px_0_#b89a10]"
-        >
+        <button type="submit" className="wa-cta wa-display">
           START ZONE {level}
         </button>
       </form>
@@ -269,26 +184,51 @@ function App() {
   );
 }
 
-function ModeCard({
-  title,
-  copy,
-  accent,
-  onClick,
-}: {
-  title: string;
-  copy: string;
-  accent: string;
-  onClick: () => void;
-}) {
+function FloaterGlyph({ kind }: { kind: FloaterKind }) {
+  if (kind === 'duck') {
+    return (
+      <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden>
+        <ellipse cx="10" cy="14" rx="7" ry="5" fill="#f0c040" />
+        <circle cx="16" cy="10" r="4.5" fill="#f0c040" />
+        <circle cx="18" cy="9" r="1.2" fill="#101018" />
+        <path d="M20 10h4l-2 2z" fill="#ff8800" />
+        <ellipse cx="7" cy="18" rx="2" ry="1.2" fill="#e09020" />
+      </svg>
+    );
+  }
+  if (kind === 'heart') {
+    return (
+      <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden>
+        <path
+          d="M12 21C12 21 3 14.5 3 8.5A4.5 4.5 0 0 1 12 6.2A4.5 4.5 0 0 1 21 8.5C21 14.5 12 21 12 21Z"
+          fill="#ff4a7a"
+        />
+        <path d="M8 8.5c0-1.2.9-2 2-2" stroke="#ffe0ea" strokeWidth="1.4" fill="none" />
+      </svg>
+    );
+  }
+  if (kind === 'dino') {
+    return (
+      <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden>
+        <ellipse cx="11" cy="14" rx="7" ry="5" fill="#ff8ab8" />
+        <circle cx="16" cy="10" r="4" fill="#ff8ab8" />
+        <circle cx="17.5" cy="9" r="1.1" fill="#101018" />
+        <rect x="18.5" y="10" width="4" height="1.5" rx="0.5" fill="#ff6688" />
+        <path d="M6 10l2 3 2-4 2 4 2-3" fill="#ff6688" />
+        <rect x="7" y="18" width="2.2" height="3" fill="#e070a0" />
+        <rect x="12" y="18" width="2.2" height="3" fill="#e070a0" />
+      </svg>
+    );
+  }
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`border-2 bg-black/35 px-2 py-3 transition ${accent}`}
-    >
-      <p className="wa-display text-sm">{title}</p>
-      <p className="mt-1 text-white/75">{copy}</p>
-    </button>
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden>
+      <ellipse cx="12" cy="14" rx="6.5" ry="4.5" fill="#f6f6f8" stroke="#c8c8d0" strokeWidth="0.8" />
+      <circle cx="16" cy="11" r="3.8" fill="#f6f6f8" stroke="#c8c8d0" strokeWidth="0.8" />
+      <circle cx="17.2" cy="10.2" r="1" fill="#101018" />
+      <ellipse cx="18.5" cy="12" rx="1.4" ry="0.7" fill="#ffb0c0" />
+      <path d="M8 12c-2-1-3 0-3.5 1.5" stroke="#c8c8d0" strokeWidth="1.2" fill="none" />
+      <ellipse cx="9" cy="18" rx="1.6" ry="1" fill="#e8e8ee" />
+    </svg>
   );
 }
 

@@ -1,43 +1,43 @@
 import Phaser from 'phaser';
 
-/** Modern 16-bit palette — saturated arcade hilltop vibe */
+/** Classic Mega Drive act palette — restrained, not candy neon */
 export const PAL = {
-  skyTop: '#3d8bff',
-  skyBot: '#9ad0ff',
-  cloud: '#ffffff',
-  cloudShade: '#d4e8ff',
-  farRock: '#e07848',
-  farRockDeep: '#b04a28',
-  farGreen: '#3caa55',
-  pine: '#1f7a32',
-  pineDark: '#0f4a1c',
-  pineTrunk: '#6b3a1a',
-  grass: '#48c03a',
-  grassLight: '#7af05a',
-  grassDark: '#2a8a28',
-  dirt: '#c47838',
-  dirtDark: '#8a4a18',
-  dirtDeep: '#5c3010',
-  stone: '#4a78d8',
-  stoneLight: '#78a8f8',
-  stoneDark: '#284898',
+  skyTop: '#3880d8',
+  skyBot: '#88c8f0',
+  cloud: '#f0f4f8',
+  cloudShade: '#c0d8e8',
+  farRock: '#c86838',
+  farRockDeep: '#884828',
+  farGreen: '#289048',
+  pine: '#186830',
+  pineDark: '#0c4820',
+  pineTrunk: '#684028',
+  grass: '#38a038',
+  grassLight: '#58c048',
+  grassDark: '#207828',
+  dirt: '#b07038',
+  dirtDark: '#785028',
+  dirtDeep: '#503018',
+  stone: '#5878a8',
+  stoneLight: '#7898c8',
+  stoneDark: '#384868',
   checkerA: '#101018',
-  checkerB: '#f0f0f8',
-  flowerP: '#ff66aa',
-  flowerY: '#ffe14a',
-  wideass: '#ff3a4a',
-  wideassDark: '#b01828',
-  wideassAccent: '#ff8866',
-  tats: '#00d8ff',
-  tatsDark: '#007a99',
-  tatsAccent: '#a8f0ff',
-  ghost: '#d8c8ff',
-  ghostEye: '#402060',
-  pepper: '#7a1f3d',
-  duck: '#ffd84a',
-  hat: '#5a1a8a',
-  gold: '#ffd020',
-  white: '#ffffff',
+  checkerB: '#e8e8f0',
+  flowerP: '#c05070',
+  flowerY: '#d8b040',
+  wideass: '#d03040',
+  wideassDark: '#801020',
+  wideassAccent: '#e07058',
+  tats: '#2090b8',
+  tatsDark: '#105868',
+  tatsAccent: '#80c8d8',
+  ghost: '#a090c0',
+  ghostEye: '#302040',
+  pepper: '#681828',
+  duck: '#d8b030',
+  hat: '#503070',
+  gold: '#e8b820',
+  white: '#f0f0f0',
   black: '#101018',
 } as const;
 
@@ -283,69 +283,65 @@ function drawPausePanel() {
 function drawFarMountains() {
   const c = canvas(384, 140);
   const ctx = ctxOf(c);
-  // distant haze ridge
-  rect(ctx, 0, 110, 384, 30, '#6aaa78');
-  const farPeaks = [
-    [0, 70],
-    [48, 90],
-    [96, 60],
-    [150, 95],
-    [210, 55],
-    [260, 85],
-    [310, 65],
-    [350, 80],
+  rect(ctx, 0, 100, 384, 40, '#68a878');
+  // Soft Green Hill–style hills (no cartoony peppermint stripes)
+  const hills = [
+    [0, 55],
+    [50, 70],
+    [110, 48],
+    [170, 78],
+    [230, 52],
+    [290, 68],
+    [340, 50],
   ];
-  for (const [x, h] of farPeaks) {
-    rect(ctx, x, 140 - h, 44, h, '#c86838');
-    rect(ctx, x + 6, 140 - h, 18, h, '#e88850');
-    rect(ctx, x + 10, 140 - h + 4, 8, 10, '#fff8e0');
+  for (const [x, h] of hills) {
+    rect(ctx, x, 140 - h, 70, h, '#2a7840');
+    rect(ctx, x + 8, 140 - h + 6, 28, Math.max(8, h - 18), '#389848');
   }
-  // mid green foothills
-  for (let x = 0; x < 384; x += 36) {
-    const h = 28 + ((x * 3) % 18);
-    rect(ctx, x, 140 - h, 40, h, PAL.farGreen);
-    rect(ctx, x + 4, 140 - h, 12, h, '#58c068');
+  for (let x = 20; x < 360; x += 64) {
+    rect(ctx, x, 118, 20, 22, '#a07040');
+    rect(ctx, x + 4, 112, 12, 8, '#c09058');
   }
-  // near dirt band
-  rect(ctx, 0, 128, 384, 12, '#8a6038');
+  rect(ctx, 0, 130, 384, 10, '#785828');
   return c;
 }
 
+/** Green Hill palm — not christmas tree candy */
 function drawPine() {
   const c = canvas(48, 80);
   const ctx = ctxOf(c);
-  rect(ctx, 20, 54, 8, 26, PAL.pineTrunk);
-  rect(ctx, 18, 54, 2, 26, '#4a2810');
-  const layers = [
-    [24, 8, 20],
-    [24, 22, 24],
-    [24, 38, 28],
+  rect(ctx, 21, 28, 6, 52, '#6a4828');
+  rect(ctx, 19, 28, 2, 52, '#4a3018');
+  const fronds = [
+    [8, 22, 18],
+    [24, 14, 16],
+    [14, 30, 20],
+    [28, 26, 14],
+    [10, 36, 16],
   ];
-  for (const [cx, top, w] of layers) {
-    for (let i = 0; i < 14; i += 1) {
-      const t = i / 14;
-      const hw = Math.floor(w * t);
-      rect(ctx, cx - hw, top + i * 2, hw * 2, 2, i % 2 === 0 ? PAL.pine : PAL.pineDark);
-    }
+  for (const [x, y, w] of fronds) {
+    rect(ctx, x, y, w, 5, PAL.pine);
+    rect(ctx, x + 2, y + 1, w - 4, 2, PAL.pineDark);
   }
+  rect(ctx, 18, 18, 12, 10, PAL.pineDark);
   return c;
 }
 
 function drawGrassTile() {
   const c = canvas(32, 32);
   const ctx = ctxOf(c);
-  rect(ctx, 0, 0, 32, 10, PAL.grassLight);
-  rect(ctx, 0, 4, 32, 8, PAL.grass);
-  rect(ctx, 0, 10, 32, 4, PAL.grassDark);
-  rect(ctx, 0, 14, 32, 18, PAL.dirt);
-  rect(ctx, 0, 22, 32, 10, PAL.dirtDark);
-  // dither / pebbles
-  for (let i = 0; i < 10; i += 1) {
-    px(ctx, (i * 7) % 32, 16 + ((i * 3) % 10), PAL.dirtDeep);
+  // Sonic 1 checkered bank + dirt undercroft
+  for (let y = 0; y < 12; y += 4) {
+    for (let x = 0; x < 32; x += 8) {
+      const on = ((x / 8) + (y / 4)) % 2 === 0;
+      rect(ctx, x, y, 8, 4, on ? PAL.grassLight : PAL.grass);
+    }
   }
-  // grass blades
-  for (let x = 2; x < 32; x += 5) {
-    rect(ctx, x, 0, 2, 5, PAL.grassLight);
+  rect(ctx, 0, 12, 32, 4, PAL.grassDark);
+  rect(ctx, 0, 16, 32, 10, PAL.dirt);
+  rect(ctx, 0, 24, 32, 8, PAL.dirtDark);
+  for (let i = 0; i < 8; i += 1) {
+    px(ctx, (i * 9) % 32, 18 + (i % 5), PAL.dirtDeep);
   }
   return c;
 }
@@ -509,46 +505,63 @@ function drawGhostFrame(frame: number) {
   return c;
 }
 
-/** Gold ring — primary Sonic collectible (kept as `pepper` kind for score plumbing) */
-function drawPepper() {
-  const c = canvas(24, 24);
-  const ctx = ctxOf(c);
-  // outer ring
-  rect(ctx, 4, 2, 16, 20, '#ffe14a');
-  rect(ctx, 2, 4, 20, 16, '#ffd020');
-  rect(ctx, 3, 3, 18, 18, '#ffee88');
-  // hole
-  rect(ctx, 8, 7, 8, 10, PAL.skyTop);
-  rect(ctx, 9, 8, 6, 8, '#3d8bff');
-  // shine
-  rect(ctx, 6, 5, 3, 3, '#fff8c8');
-  rect(ctx, 15, 14, 2, 3, '#c09000');
-  return c;
-}
-
-function drawDuck() {
-  const c = canvas(28, 24);
-  const ctx = ctxOf(c);
-  rect(ctx, 4, 8, 14, 12, PAL.duck);
-  rect(ctx, 14, 4, 10, 10, PAL.duck);
-  rect(ctx, 22, 8, 6, 4, '#ff8800');
-  rect(ctx, 18, 6, 3, 3, PAL.black);
-  rect(ctx, 6, 18, 4, 4, '#e0a020');
-  rect(ctx, 14, 18, 4, 4, '#e0a020');
-  return c;
-}
-
-function drawHat() {
-  const c = canvas(28, 24);
-  const ctx = ctxOf(c);
-  // brim
-  rect(ctx, 2, 16, 24, 6, '#3a0a5a');
-  // cone
-  for (let i = 0; i < 12; i += 1) {
-    const w = 2 + i * 2;
-    rect(ctx, 14 - w / 2, 4 + i, w, 1, PAL.hat);
+/** Classic pixel heart fill centered at (cx,cy). size ≈ half-width of lobes. */
+function fillHeart(ctx: Ctx, cx: number, cy: number, size: number, fill: string, ink = PAL.black) {
+  const s = Math.max(3, Math.floor(size));
+  // outline then fill — lobe + V tip
+  for (let pass = 0; pass < 2; pass += 1) {
+    const col = pass === 0 ? ink : fill;
+    const o = pass === 0 ? 1 : 0;
+    // left lobe
+    rect(ctx, cx - s - o, cy - s + 2 - o, s + o, s + o, col);
+    // right lobe
+    rect(ctx, cx + o, cy - s + 2 - o, s + o, s + o, col);
+    // center bridge
+    rect(ctx, cx - Math.floor(s * 0.35) - o, cy - Math.floor(s * 0.55) - o, Math.floor(s * 0.7) + o * 2, s, col);
+    // tip V
+    for (let i = 0; i < s + 2; i += 1) {
+      const w = Math.max(2, (s + 2 - i) * 2);
+      rect(ctx, cx - w / 2 - o, cy + s - 2 + i - o, w + o * 2, 1 + o, col);
+    }
   }
-  rect(ctx, 12, 10, 4, 4, PAL.gold);
+  // highlight gloss
+  rect(ctx, cx - s + 2, cy - s + 4, Math.max(2, Math.floor(s / 3)), Math.max(2, Math.floor(s / 3)), '#ffe8f0');
+}
+
+/** Small heart pickup (replaces gold rings) */
+function drawPepper() {
+  const c = canvas(28, 28);
+  const ctx = ctxOf(c);
+  fillHeart(ctx, 14, 12, 8, '#ff4a7a');
+  fillHeart(ctx, 14, 12, 6, '#ff6a9a');
+  // tiny W mark
+  rect(ctx, 10, 11, 2, 5, PAL.white);
+  rect(ctx, 12, 13, 2, 3, PAL.white);
+  rect(ctx, 14, 11, 2, 5, PAL.white);
+  rect(ctx, 16, 13, 2, 3, PAL.white);
+  rect(ctx, 18, 11, 2, 5, PAL.white);
+  return c;
+}
+
+/** WIDEASS word-heart — big branded bonus */
+function drawDuck() {
+  const c = canvas(72, 48);
+  const ctx = ctxOf(c);
+  fillHeart(ctx, 36, 22, 18, '#c02040');
+  fillHeart(ctx, 36, 22, 15, PAL.wideass);
+  fillHeart(ctx, 36, 22, 12, '#e85870');
+  drawPixelWord(ctx, 'WIDEASS', 10, 18, '#fff0f4', PAL.black, 2);
+  return c;
+}
+
+/** TATS word-heart — big branded bonus */
+function drawHat() {
+  const c = canvas(56, 48);
+  const ctx = ctxOf(c);
+  fillHeart(ctx, 28, 22, 16, '#0a5070');
+  fillHeart(ctx, 28, 22, 13, PAL.tats);
+  fillHeart(ctx, 28, 22, 10, '#40b0d0');
+  drawPixelWord(ctx, 'TATS', 14, 18, '#e8f8ff', PAL.black, 2);
   return c;
 }
 
@@ -560,6 +573,7 @@ function inkOutline(ctx: Ctx, x: number, y: number, w: number, h: number) {
 /**
  * Frame indices:
  * 0 idle · 1–4 run cycle · 5 crouch/charge · 6–7 roll ball spin
+ * Wideass = wide hips, heart quills, red · Tats = lean cyan runner with ink stripes
  */
 function drawCharacterFrame(who: 'Wideass' | 'Tats', f: number) {
   const c = canvas(64, 64);
@@ -572,145 +586,181 @@ function drawCharacterFrame(who: 'Wideass' | 'Tats', f: number) {
   const crouch = f === 5;
   const ball = f >= 6;
   const runPhase = f - 1;
-  const legCycle = [-5, -2, 5, 2];
+  const legCycle = [-6, -2, 6, 2];
   const leg = run ? legCycle[runPhase] ?? 0 : 0;
+  const skin = '#ffe0c8';
+  const skinShade = '#f0b898';
 
-  // soft contact shadow
-  rect(ctx, 18, 58, 28, 4, 'rgba(0,0,0,0.32)');
+  rect(ctx, 16, 58, 32, 4, 'rgba(0,0,0,0.35)');
 
   if (ball) {
     const spin = f === 7 ? 1 : 0;
-    inkOutline(ctx, 16, 16, 32, 32);
-    rect(ctx, 16, 16, 32, 32, primary);
-    rect(ctx, 18, 18 + spin, 28, 8, accent);
-    rect(ctx, 20, 28, 24, 14, dark);
+    // Spin dash = heart-shaped bounce ball with brand quills
+    fillHeart(ctx, 32, 30 + spin, 16, dark);
+    fillHeart(ctx, 32, 30 + spin, 13, primary);
+    fillHeart(ctx, 32, 30 + spin, 9, accent);
     const spikes: [number, number, number, number][] = spin
       ? [
-          [12, 14, 8, 6],
-          [44, 18, 8, 6],
-          [12, 40, 8, 6],
-          [44, 38, 8, 6],
-          [26, 8, 8, 6],
-          [26, 50, 8, 6],
+          [8, 12, 10, 8],
+          [46, 14, 10, 8],
+          [10, 40, 10, 8],
+          [44, 38, 10, 8],
+          [26, 4, 12, 8],
+          [24, 48, 14, 8],
         ]
       : [
-          [10, 22, 8, 6],
-          [46, 24, 8, 6],
-          [14, 42, 8, 6],
-          [42, 42, 8, 6],
-          [28, 10, 8, 6],
-          [28, 48, 8, 6],
+          [6, 20, 10, 8],
+          [48, 22, 10, 8],
+          [12, 42, 10, 8],
+          [42, 42, 10, 8],
+          [26, 6, 12, 8],
+          [26, 48, 12, 8],
         ];
     for (const [sx, sy, sw, sh] of spikes) {
       inkOutline(ctx, sx, sy, sw, sh);
       rect(ctx, sx, sy, sw, sh, dark);
+      rect(ctx, sx + 2, sy + 2, 3, sh - 4, accent);
     }
-    rect(ctx, 26, 24 + spin, 6, 6, PAL.white);
-    rect(ctx, 36, 26 + spin, 4, 3, PAL.black);
-    rect(ctx, 22, 34, 20, 3, accent);
+    rect(ctx, 24, 24 + spin, 7, 7, PAL.white);
+    rect(ctx, 35, 26 + spin, 5, 4, PAL.black);
+    drawPixelWord(ctx, wide ? 'W' : 'T', 28, 34 + spin, PAL.white, dark, 2);
     return c;
   }
 
   if (crouch) {
-    const by = 36;
-    const bw = wide ? 30 : 22;
-    const bh = 14;
+    const by = 38;
+    const bw = wide ? 34 : 22;
+    const bh = 12;
     const bx = 32 - bw / 2;
-    inkOutline(ctx, bx + 2, by + bh, 8, 8);
-    inkOutline(ctx, bx + bw - 10, by + bh, 8, 8);
-    rect(ctx, bx + 2, by + bh, 8, 8, dark);
-    rect(ctx, bx + bw - 10, by + bh, 8, 8, dark);
+    inkOutline(ctx, bx + 2, by + bh, 9, 8);
+    inkOutline(ctx, bx + bw - 11, by + bh, 9, 8);
+    rect(ctx, bx + 2, by + bh, 9, 8, dark);
+    rect(ctx, bx + bw - 11, by + bh, 9, 8, dark);
     inkOutline(ctx, bx, by, bw, bh);
     rect(ctx, bx, by, bw, bh, primary);
-    rect(ctx, bx, by, bw, 4, accent);
-    rect(ctx, bx + 3, by + 5, bw - 6, 5, '#ffe8d0');
+    rect(ctx, bx, by, bw, 3, accent);
+    rect(ctx, bx + 4, by + 4, bw - 8, 5, skin);
     const hx = 20;
-    const hy = by - 14;
-    inkOutline(ctx, hx, hy, 24, 16);
-    rect(ctx, hx, hy, 24, 16, primary);
+    const hy = by - 16;
+    inkOutline(ctx, hx, hy, 24, 18);
+    rect(ctx, hx, hy, 24, 18, primary);
     rect(ctx, hx + 2, hy + 2, 20, 5, accent);
-    rect(ctx, hx + 5, hy + 7, 6, 5, PAL.white);
-    rect(ctx, hx + 14, hy + 7, 6, 5, PAL.white);
-    rect(ctx, hx + 7, hy + 9, 3, 3, PAL.black);
-    rect(ctx, hx + 16, hy + 9, 3, 3, PAL.black);
+    rect(ctx, hx + 5, hy + 8, 6, 5, PAL.white);
+    rect(ctx, hx + 14, hy + 8, 6, 5, PAL.white);
+    rect(ctx, hx + 7, hy + 10, 3, 3, PAL.black);
+    rect(ctx, hx + 16, hy + 10, 3, 3, PAL.black);
     if (wide) {
-      rect(ctx, hx - 4, hy, 6, 8, dark);
-      rect(ctx, hx + 20, hy - 2, 6, 6, dark);
+      // heart-ear quills
+      fillHeart(ctx, hx - 2, hy + 4, 5, dark);
+      fillHeart(ctx, hx + 26, hy + 2, 5, dark);
     } else {
-      rect(ctx, hx + 20, hy - 2, 10, 5, accent);
+      inkOutline(ctx, hx + 20, hy - 4, 12, 6);
+      rect(ctx, hx + 20, hy - 4, 12, 6, accent);
+      // arm ink bars
+      rect(ctx, hx + 22, hy + 10, 8, 2, dark);
+      rect(ctx, hx + 22, hy + 14, 8, 2, dark);
     }
     return c;
   }
 
-  const by = run ? 26 + (runPhase % 2 === 0 ? -1 : 1) : 28;
-  const bw = wide ? 28 : 20;
-  const bh = wide ? 20 : 18;
+  const by = run ? 24 + (runPhase % 2 === 0 ? -1 : 1) : 26;
+  const bw = wide ? 32 : 18;
+  const bh = wide ? 18 : 20;
   const bx = 32 - bw / 2;
 
-  // legs + shoes
-  inkOutline(ctx, bx + 3, by + bh - 2, 7, 12 + leg);
-  inkOutline(ctx, bx + bw - 10, by + bh - 2, 7, 12 - leg);
-  rect(ctx, bx + 3, by + bh - 2, 7, 12 + leg, dark);
-  rect(ctx, bx + bw - 10, by + bh - 2, 7, 12 - leg, dark);
-  rect(ctx, bx + 2, by + bh + 9 + leg, 9, 4, PAL.black);
-  rect(ctx, bx + bw - 11, by + bh + 9 - leg, 9, 4, PAL.black);
-  rect(ctx, bx + 3, by + bh + 9 + leg, 7, 2, accent);
+  // hips / legs — Wideass gets exaggerated hip flare
+  const hipW = wide ? bw + 6 : bw;
+  const hipX = 32 - hipW / 2;
+  inkOutline(ctx, bx + 2, by + bh - 2, 8, 14 + leg);
+  inkOutline(ctx, bx + bw - 10, by + bh - 2, 8, 14 - leg);
+  rect(ctx, bx + 2, by + bh - 2, 8, 14 + leg, dark);
+  rect(ctx, bx + bw - 10, by + bh - 2, 8, 14 - leg, dark);
+  rect(ctx, bx + 1, by + bh + 11 + leg, 10, 4, PAL.black);
+  rect(ctx, bx + bw - 11, by + bh + 11 - leg, 10, 4, PAL.black);
+  rect(ctx, bx + 2, by + bh + 11 + leg, 8, 2, accent);
 
   // torso
+  inkOutline(ctx, hipX, by + bh - 6, hipW, 8);
+  rect(ctx, hipX, by + bh - 6, hipW, 8, dark);
   inkOutline(ctx, bx, by, bw, bh);
   rect(ctx, bx, by, bw, bh, primary);
-  rect(ctx, bx, by, bw, 5, accent);
-  rect(ctx, bx + 3, by + 6, bw - 6, 8, '#ffe8d0');
-  rect(ctx, bx + 4, by + 8, bw - 8, 2, '#ffd0b0');
-  rect(ctx, bx, by + bh - 5, bw, 5, dark);
-  // belt buckle
-  rect(ctx, bx + bw / 2 - 3, by + bh - 6, 6, 4, PAL.gold);
+  rect(ctx, bx, by, bw, 4, accent);
+  rect(ctx, bx + 3, by + 5, bw - 6, 8, skin);
+  rect(ctx, bx + 4, by + 7, bw - 8, 2, skinShade);
+  // chest brand mark
+  if (wide) {
+    fillHeart(ctx, 32, by + 9, 4, '#ff88aa');
+  } else {
+    rect(ctx, 30, by + 6, 2, 8, dark);
+    rect(ctx, 28, by + 6, 6, 2, dark);
+  }
+  rect(ctx, bx + bw / 2 - 3, by + bh - 5, 6, 4, PAL.gold);
 
   // arms
-  const armY = by + 5 + (run ? Math.sign(leg) * 2 : 0);
-  inkOutline(ctx, bx - 7, armY, 7, 12);
-  inkOutline(ctx, bx + bw, armY, 7, 12);
-  rect(ctx, bx - 7, armY, 7, 12, primary);
-  rect(ctx, bx + bw, armY, 7, 12, primary);
-  rect(ctx, bx - 7, armY + 9, 7, 3, accent);
-  rect(ctx, bx + bw, armY + 9, 7, 3, accent);
+  const armY = by + 4 + (run ? Math.sign(leg) * 3 : 0);
+  inkOutline(ctx, bx - 8, armY, 8, 14);
+  inkOutline(ctx, bx + bw, armY, 8, 14);
+  rect(ctx, bx - 8, armY, 8, 14, primary);
+  rect(ctx, bx + bw, armY, 8, 14, primary);
+  rect(ctx, bx - 8, armY + 11, 8, 3, accent);
+  rect(ctx, bx + bw, armY + 11, 8, 3, accent);
+  if (!wide) {
+    // Tats ink sleeves
+    rect(ctx, bx - 7, armY + 3, 6, 2, dark);
+    rect(ctx, bx - 7, armY + 7, 6, 2, dark);
+    rect(ctx, bx + bw + 1, armY + 3, 6, 2, dark);
+    rect(ctx, bx + bw + 1, armY + 7, 6, 2, dark);
+  }
 
   // head
-  const hx = 20;
-  const hy = by - 18;
-  inkOutline(ctx, hx, hy, 24, 20);
-  rect(ctx, hx, hy, 24, 20, primary);
-  rect(ctx, hx + 2, hy + 2, 20, 6, accent);
+  const hx = 19;
+  const hy = by - 20;
+  const hw = 26;
+  const hh = 20;
+  inkOutline(ctx, hx, hy, hw, hh);
+  rect(ctx, hx, hy, hw, hh, primary);
+  rect(ctx, hx + 2, hy + 2, hw - 4, 5, accent);
+  // snout / muzzle
+  rect(ctx, hx + 6, hy + 10, hw - 12, 8, skin);
+  rect(ctx, hx + 8, hy + 12, hw - 16, 2, skinShade);
+
   if (wide) {
-    // Wideass quills
-    const qs: [number, number, number, number][] = [
-      [hx - 6, hy + 2, 7, 10],
-      [hx - 4, hy - 6, 8, 8],
-      [hx + 18, hy - 5, 8, 7],
-      [hx + 22, hy + 4, 6, 8],
+    // Wideass heart quills
+    const qs: [number, number][] = [
+      [hx - 4, hy + 2],
+      [hx - 2, hy - 6],
+      [hx + hw - 4, hy - 5],
+      [hx + hw + 2, hy + 4],
+      [hx + 8, hy - 8],
     ];
-    for (const [qx, qy, qw, qh] of qs) {
-      inkOutline(ctx, qx, qy, qw, qh);
-      rect(ctx, qx, qy, qw, qh, dark);
-      rect(ctx, qx + 1, qy + 1, 2, qh - 2, accent);
+    for (const [qx, qy] of qs) {
+      fillHeart(ctx, qx + 4, qy + 4, 5, dark);
+      fillHeart(ctx, qx + 4, qy + 4, 3, accent);
     }
   } else {
-    // Tats sleek crest
-    inkOutline(ctx, hx + 18, hy - 4, 12, 6);
-    rect(ctx, hx + 18, hy - 4, 12, 6, accent);
-    inkOutline(ctx, hx + 22, hy + 2, 8, 12);
-    rect(ctx, hx + 22, hy + 2, 8, 12, dark);
-    rect(ctx, hx + 24, hy + 4, 3, 8, accent);
+    // Tats swept crest + ear fin
+    inkOutline(ctx, hx + hw - 4, hy - 6, 14, 7);
+    rect(ctx, hx + hw - 4, hy - 6, 14, 7, accent);
+    inkOutline(ctx, hx + hw, hy + 2, 10, 14);
+    rect(ctx, hx + hw, hy + 2, 10, 14, dark);
+    rect(ctx, hx + hw + 2, hy + 4, 3, 10, accent);
+    // jawline tattoo
+    rect(ctx, hx + 2, hy + 14, 4, 2, dark);
+    rect(ctx, hx + hw - 6, hy + 14, 4, 2, dark);
   }
-  // eyes
-  rect(ctx, hx + 5, hy + 8, 6, 6, PAL.white);
-  rect(ctx, hx + 14, hy + 8, 6, 6, PAL.white);
-  rect(ctx, hx + 7, hy + 10, 3, 3, PAL.black);
-  rect(ctx, hx + 16, hy + 10, 3, 3, PAL.black);
-  rect(ctx, hx + 5, hy + 8, 6, 2, 'rgba(255,255,255,0.55)');
+
+  // eyes — big anime whites
+  rect(ctx, hx + 5, hy + 7, 7, 7, PAL.white);
+  rect(ctx, hx + 15, hy + 7, 7, 7, PAL.white);
+  rect(ctx, hx + 7, hy + 9, 4, 4, PAL.black);
+  rect(ctx, hx + 17, hy + 9, 4, 4, PAL.black);
+  rect(ctx, hx + 5, hy + 7, 7, 2, 'rgba(255,255,255,0.65)');
+  // blush
+  rect(ctx, hx + 3, hy + 14, 4, 2, '#ff90a0');
+  rect(ctx, hx + hw - 7, hy + 14, 4, 2, '#ff90a0');
   // smile
-  rect(ctx, hx + 9, hy + 15, 8, 2, dark);
-  rect(ctx, hx + 10, hy + 16, 6, 1, accent);
+  rect(ctx, hx + 10, hy + 16, 8, 2, dark);
+  rect(ctx, hx + 11, hy + 17, 6, 1, accent);
 
   return c;
 }
@@ -730,10 +780,8 @@ function drawCharacterSheet(who: 'Wideass' | 'Tats') {
 function drawRingHudIcon() {
   const c = canvas(16, 16);
   const ctx = ctxOf(c);
-  rect(ctx, 3, 1, 10, 14, '#ffe14a');
-  rect(ctx, 1, 3, 14, 10, '#ffd020');
-  rect(ctx, 5, 5, 6, 6, '#3d8bff');
-  rect(ctx, 4, 3, 2, 2, '#fff8c8');
+  fillHeart(ctx, 8, 7, 5, '#ff4a7a');
+  fillHeart(ctx, 8, 7, 3, '#ff8ab0');
   return c;
 }
 
@@ -759,6 +807,33 @@ function drawHazardOrb() {
     rect(ctx, sx, sy, sw, sh, '#b01028');
     rect(ctx, sx + 1, sy + 1, Math.max(1, sw - 2), Math.max(1, sh - 2), '#ff3344');
   }
+  return c;
+}
+
+/** Classic floor spike strip — grey base, sharp tips */
+function drawGroundSpikes() {
+  const c = canvas(48, 24);
+  const ctx = ctxOf(c);
+  rect(ctx, 0, 16, 48, 8, '#2a2830');
+  rect(ctx, 0, 16, 48, 3, '#4a4858');
+  for (let i = 0; i < 6; i += 1) {
+    const x = 2 + i * 8;
+    rect(ctx, x + 2, 10, 4, 6, '#c0c0d0');
+    rect(ctx, x + 3, 4, 2, 8, '#e8e8f0');
+    rect(ctx, x + 3, 0, 2, 4, '#ff3050');
+    rect(ctx, x + 2, 8, 4, 2, '#ff6688');
+  }
+  return c;
+}
+
+/** Heavy pressure switch — depresses 4px while stood on. */
+function drawButton() {
+  const c = canvas(32, 16);
+  const ctx = ctxOf(c);
+  rect(ctx, 2, 8, 28, 6, '#2a2830');
+  rect(ctx, 4, 4, 24, 8, '#c8a040');
+  rect(ctx, 4, 4, 24, 3, '#ffe14a');
+  rect(ctx, 6, 6, 20, 4, '#e07020');
   return c;
 }
 
@@ -835,6 +910,8 @@ export function createModern16BitAtlas(
   }
   register(scene, 'px_ring_icon', drawRingHudIcon());
   register(scene, 'px_hazard', drawHazardOrb());
+  register(scene, 'px_spikes', drawGroundSpikes());
+  register(scene, 'px_button', drawButton());
   register(scene, 'px_keep', drawKeepPillar());
   register(scene, 'px_keep_lintel', drawKeepLintel('#ffe14a'));
   register(scene, 'px_keep_lintel_orange', drawKeepLintel('#ff8844'));

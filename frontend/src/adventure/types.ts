@@ -9,7 +9,7 @@ export interface AdventureLaunch {
   playerCount: 1 | 2;
   primaryCharacter: CharacterId;
   embed?: boolean;
-  /** Skip run and jump straight into a shooter demo (title ModeCards). */
+  /** Skip run and jump straight into a shooter (URL ?phase= jeep|space|cupid). */
   forcePhase?: ShooterKind;
 }
 
@@ -59,6 +59,17 @@ export interface SpringDef {
   x: number;
   y: number;
   power: number;
+  /** Horizontal launch override (px/s). Default 0 = vertical spring. */
+  vx?: number;
+}
+
+export interface ButtonDef {
+  x: number;
+  y: number;
+  w?: number;
+  h?: number;
+  /** Optional keep / door id this button unlocks while held. */
+  eventId?: string;
 }
 
 export interface SeesawDef {
@@ -71,6 +82,13 @@ export interface GrindRailDef {
   x: number;
   y: number;
   length: number;
+}
+
+export interface SpikeStripDef {
+  x: number;
+  y: number;
+  /** Strip width in px — default ~56 */
+  width?: number;
 }
 
 export interface CollectibleSpawn {
@@ -100,6 +118,10 @@ export interface LevelAuthoring {
   springs: SpringDef[];
   seesaws: SeesawDef[];
   grindRails: GrindRailDef[];
+  /** Classic Sonic floor spikes — drain hearts; die if empty */
+  spikes: SpikeStripDef[];
+  /** Heavy pressure switches (lower 4px while stood on). */
+  buttons?: ButtonDef[];
   collectibles: CollectibleSpawn[];
   ghosts: GhostSpawn[];
   /** Safe authored vehicle events (order = appearance order) */
