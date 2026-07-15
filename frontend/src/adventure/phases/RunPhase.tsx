@@ -117,11 +117,12 @@ export function RunPhase({
         </p>
         <p className="mt-2 text-[10px] font-black tracking-wide text-[#ff8844]">50% · JEEP KEEP</p>
         <p className="text-[10px] font-black tracking-wide text-[#66ccff]">75% · STAR KEEP</p>
+        <p className="text-[10px] font-black tracking-wide text-[#ff66aa]">88% · CUPID KEEP</p>
       </div>
 
       <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 w-[94%] -translate-x-1/2 text-center">
         <p className="wa-hud-shadow text-[10px] font-bold text-white/90 sm:text-[11px]">
-          Collect gold rings · grab ducks/hats for bonus · avoid red spike orbs (spin or stomp to smash) · ←→ run · SPACE jump · ↓+SPACE spindash · ESC pause
+          Rings · ducks/hats · smash red orbs (spin/stomp) · ←→ run · SPACE jump · ↓+SPACE spindash · ESC pause · M mute
         </p>
       </div>
     </div>

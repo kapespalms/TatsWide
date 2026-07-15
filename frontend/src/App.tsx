@@ -103,14 +103,17 @@ function App() {
   return (
     <main className="wa-title-screen flex flex-col items-center justify-center gap-8 px-6 py-12 text-white">
       <div className="wa-bob relative z-10 max-w-3xl text-center">
-        <p className="mb-2 text-xs font-bold tracking-[0.45em] text-white/80">20 ZONES · CO-OP ADVENTURE</p>
+        <p className="mb-2 text-xs font-bold tracking-[0.45em] text-white/80">
+          20 ZONES · SAME-SCREEN CO-OP
+        </p>
         <h1 className="wa-display text-5xl leading-none text-[#ffe14a] drop-shadow-[4px_4px_0_#101018] sm:text-6xl md:text-7xl">
           WIDEASS
           <span className="block text-3xl text-white sm:text-4xl">&amp;</span>
           TATS
         </h1>
         <p className="mx-auto mt-4 max-w-md text-sm font-bold leading-relaxed text-white/95">
-          Sector Escape — sonic runs, jeep dinos, starship aliens, and cupid hearts.
+          Sector Escape — sonic runs, jeep dinos, starship aliens, and cupid hearts. Two players on one
+          keyboard or gamepads.
         </p>
       </div>
 
@@ -180,7 +183,10 @@ function App() {
 
         {launch.room ? (
           <p className="border border-white/15 bg-black/40 px-3 py-2 text-center text-[11px] font-bold tracking-wide text-white/80">
-            ROOM · <span className="text-[#ffe14a]">{launch.room}</span>
+            ONLINE ROOM · <span className="text-[#ffe14a]">{launch.room}</span>
+            <span className="mt-1 block text-[10px] font-bold text-white/55">
+              use ?mode=neon for networked neon battler · this adventure is same-screen
+            </span>
           </p>
         ) : null}
 

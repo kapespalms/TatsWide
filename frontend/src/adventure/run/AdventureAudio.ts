@@ -8,6 +8,21 @@ export class AdventureAudio {
   private pendingTimers: number[] = [];
   private disposed = false;
 
+  isMuted() {
+    return this.muted;
+  }
+
+  setMuted(next: boolean) {
+    this.muted = next;
+    if (next) this.stopMusic();
+    else if (!this.disposed) this.startMusic();
+  }
+
+  toggleMute() {
+    this.setMuted(!this.muted);
+    return this.muted;
+  }
+
   private ensure() {
     if (this.muted || this.disposed) return null;
     if (!this.ctx) {

@@ -1,6 +1,6 @@
 import type { LevelAuthoring } from './types';
 import { GROUND_Y, getTrackKitForLevel } from './run/levelTracks';
-import { getZoneStory, isBossZone } from './zoneStory';
+import { getZoneStory } from './zoneStory';
 
 function authorLevel(level: number): LevelAuthoring {
   const kit = getTrackKitForLevel(level);
@@ -10,7 +10,6 @@ function authorLevel(level: number): LevelAuthoring {
   const grind = kit.tracks.GRIND?.path;
   const hard = 1 + (level - 1) * 0.08;
   const story = getZoneStory(level);
-  const boss = isBossZone(level);
 
   const onMain = (x: number, dy = -40) => {
     const p = main.project(x, GROUND_Y);
@@ -73,9 +72,9 @@ function authorLevel(level: number): LevelAuthoring {
   const jeepQuota = Math.min(18, Math.floor(7 + level * 0.55 * hard));
   const spaceQuota = Math.min(20, Math.floor(8 + level * 0.6 * hard));
   const cupidQuota = Math.min(18, Math.floor(6 + level * 0.5 * hard));
-  const jeepBoss = boss && level === 5;
-  const spaceBoss = boss && level === 10;
-  const cupidBoss = boss && level === 15;
+  const jeepBoss = level === 5;
+  const spaceBoss = level === 10 || level === 20;
+  const cupidBoss = level === 15;
 
   return {
     level,

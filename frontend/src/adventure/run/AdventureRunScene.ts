@@ -98,6 +98,7 @@ export class AdventureRunScene extends Phaser.Scene {
     coolUntil: number;
   }[] = [];
   private ghosts: GhostState[] = [];
+  private hazards: { x: number; y: number; r: number; ball: Phaser.GameObjects.Arc }[] = [];
   private clouds!: Phaser.GameObjects.TileSprite;
   private brandClouds!: Phaser.GameObjects.TileSprite;
   private mountains!: Phaser.GameObjects.TileSprite;
@@ -139,6 +140,7 @@ export class AdventureRunScene extends Phaser.Scene {
     this.finished = false;
     this.paused = false;
     this.ghosts = [];
+    this.hazards = [];
     this.collectibles = [];
     this.springs = [];
     this.needSpeed = 0;
@@ -532,18 +534,11 @@ export class AdventureRunScene extends Phaser.Scene {
   private buildSeesaws(level: LevelAuthoring) {
     for (const s of level.seesaws) {
       this.add.image(s.x, s.y, 'px_seesaw').setDepth(5).setScale(2.2);
-      // Hazard ball on the tip — readable like Sonic 3
-      this.add.circle(s.x + s.width * 0.35, s.y - 28, 14, 0xff2244).setDepth(6).setStrokeStyle(3, 0x101018);
-      this.add
-        .text(s.x, s.y - 56, 'SEESAW', {
-          fontFamily: 'monospace',
-          fontSize: '11px',
-          color: '#78a8ff',
-          stroke: '#000',
-          strokeThickness: 3,
-        })
-        .setOrigin(0.5)
-        .setDepth(6);
+      // Live hazard orb — contact hurts like ghosts (spin / invuln clears)
+      const hx = s.x + s.width * 0.35;
+      const hy = s.y - 28;
+      const ball = this.add.circle(hx, hy, 14, 0xff2244).setDepth(6).setStrokeStyle(3, 0x101018);
+      this.hazards.push({ x: hx, y: hy, r: 22, ball });
     }
   }
 
@@ -591,16 +586,6 @@ export class AdventureRunScene extends Phaser.Scene {
       const sprite = this.add.sprite(g.x, g.y, 'px_ghost_0');
       sprite.setDepth(9).setScale(2.4);
       if (this.anims.exists('ghost-float')) sprite.play('ghost-float');
-      this.add
-        .text(g.x, g.y - 42, 'AVOID', {
-          fontFamily: 'monospace',
-          fontSize: '11px',
-          color: '#ff4466',
-          stroke: '#000',
-          strokeThickness: 3,
-        })
-        .setOrigin(0.5)
-        .setDepth(10);
       this.ghosts.push({ id: g.id, sprite, homeX: g.x, homeY: g.y, patrol: g.patrol, dir: 1 });
     }
   }
@@ -734,6 +719,12 @@ export class AdventureRunScene extends Phaser.Scene {
             this.paused = !this.paused;
             this.pauseText.setVisible(this.paused);
             this.physics.world.isPaused = this.paused;
+          }
+          break;
+        case 'KeyM':
+          if (down) {
+            this.audio.toggleMute();
+            this.cameras.main.flash(70, 40, 40, 70);
           }
           break;
         default:
@@ -905,6 +896,54 @@ export class AdventureRunScene extends Phaser.Scene {
     this.audio.hurt();
   }
 
+  private checkHazardHits(rider: RiderState) {
+    for (const h of this.hazards) {
+      if (Math.hypot(rider.x - h.x, rider.y - h.y) < h.r + 18) {
+        // Air roll / spindash smash clears the orb
+        if (rider.mode === 'air' || Math.abs(rider.gsp) > 420) {
+          h.ball.destroy();
+          this.hazards.splice(this.hazards.indexOf(h), 1);
+          this.score += 100;
+          this.audio.kill();
+          this.dust.emitParticleAt(h.x, h.y, 8);
+          return;
+        }
+        this.hitGhost(rider);
+        return;
+      }
+    }
+  }
+
+  /** Furthest active rider — drives camera, keeps, and soft leash. */
+  private progressLead(): RiderState {
+    const solo = this.initData.playerCount === 1;
+    if (solo) {
+      return this.initData.primaryCharacter === 'Tats' ? this.riderT : this.riderW;
+    }
+    return this.riderW.x >= this.riderT.x ? this.riderW : this.riderT;
+  }
+
+  private softLeashPartners() {
+    if (this.initData.playerCount !== 2) return;
+    const lead = this.progressLead();
+    const lag = lead === this.riderW ? this.riderT : this.riderW;
+    if (lead.x - lag.x < 820) return;
+    // Snap lagging teammate onto MAIN under the camera so 2P never soft-locks off-screen
+    const s = this.kit.tracks.MAIN.path.project(Math.max(120, lead.x - 280), 620).s;
+    const sample = this.kit.tracks.MAIN.path.sample(s);
+    lag.mode = 'ground';
+    lag.trackId = 'MAIN';
+    lag.s = s;
+    lag.x = sample.x;
+    lag.y = sample.y;
+    lag.angle = sample.angle;
+    lag.gsp = Math.max(220, Math.abs(lead.gsp) * 0.55) * (lead.facing || 1);
+    lag.vx = 0;
+    lag.vy = 0;
+    lag.facing = lead.facing || 1;
+    lag.attachedTrackHint = 'MAIN';
+  }
+
   /** P1 (primaryCharacter) = arrows/WASD/pad0. P2 = J/L/I/K/pad1. */
   private inputFor(who: CharacterId): RiderInput {
     const solo = this.initData.playerCount === 1;
@@ -958,14 +997,19 @@ export class AdventureRunScene extends Phaser.Scene {
     const rolling = Math.abs(rider.gsp) > 420;
     const charging = rider.spindashCharge > 0;
     const prefix = who === 'Wideass' ? 'wideass' : 'tats';
+    const hasJump = this.anims.exists(`${prefix}-jump`);
     const anim =
       charging
         ? `${prefix}-crouch`
-        : rider.mode === 'air' || rolling
+        : rolling
           ? `${prefix}-roll`
-          : Math.abs(rider.gsp) > 40
-            ? `${prefix}-run`
-            : `${prefix}-idle`;
+          : rider.mode === 'air'
+            ? hasJump
+              ? `${prefix}-jump`
+              : `${prefix}-roll`
+            : Math.abs(rider.gsp) > 40
+              ? `${prefix}-run`
+              : `${prefix}-idle`;
     if (this.anims.exists(anim)) {
       try {
         sprite.play(anim, true);
@@ -1008,34 +1052,26 @@ export class AdventureRunScene extends Phaser.Scene {
   }
 
   private updateCamera() {
-    const solo = this.initData.playerCount === 1;
-    const lead =
-      solo && this.initData.primaryCharacter === 'Tats' ? this.riderT : this.riderW;
-    const partner = lead === this.riderW ? this.riderT : this.riderW;
-    const midX = solo ? lead.x : (lead.x + partner.x) / 2;
-    const midY = solo ? lead.y : (lead.y + partner.y) / 2;
-    // Classic Sonic look-ahead: camera leads hard when speeding into the act
+    const lead = this.progressLead();
+    // Classic Sonic look-ahead — always framed on the furthest teammate
     const boostMul = this.time.now < this.pepperBoostUntil ? 1.35 : 1;
     const leadOffset = Phaser.Math.Clamp(lead.gsp * 0.38 * boostMul, -120, 380);
     const targetScrollX = Phaser.Math.Clamp(
-      midX - 380 + leadOffset,
+      lead.x - 380 + leadOffset,
       0,
       this.initData.level.worldWidth - 1280,
     );
-    const targetScrollY = Phaser.Math.Clamp(midY - 360, -260, 100);
+    const targetScrollY = Phaser.Math.Clamp(lead.y - 360, -260, 100);
     this.cameras.main.scrollX = Phaser.Math.Linear(this.cameras.main.scrollX, targetScrollX, 0.22);
     this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, targetScrollY, 0.2);
   }
 
   private checkTriggers(x: number) {
+    const lead = this.progressLead();
     for (const t of this.initData.level.triggers) {
       if (this.firedTriggers.has(t.id)) continue;
       if (x >= t.atX) {
-        // Only gate on the lead rider — partner on a rail shouldn't soft-lock co-op
-        const lead =
-          this.initData.playerCount === 1 && this.initData.primaryCharacter === 'Tats'
-            ? this.riderT
-            : this.riderW;
+        // Gate on furthest teammate — partner on a branch shouldn't soft-lock keeps
         const onBranch =
           lead.trackId === 'GRIND' || lead.trackId === 'HIGH' || lead.trackId === 'LOW';
         if (onBranch) continue;
@@ -1142,6 +1178,7 @@ export class AdventureRunScene extends Phaser.Scene {
       this.pickupAt(this.riderW);
       this.checkSprings(this.riderW);
       this.checkGhostHits(this.riderW);
+      this.checkHazardHits(this.riderW);
       this.syncSprite(this.wideass, this.riderW, 'Wideass');
       this.wideass.setAlpha(now < this.invulnUntil.Wideass ? 0.45 : 1);
     }
@@ -1153,6 +1190,7 @@ export class AdventureRunScene extends Phaser.Scene {
       this.pickupAt(this.riderT);
       this.checkSprings(this.riderT);
       this.checkGhostHits(this.riderT);
+      this.checkHazardHits(this.riderT);
       this.syncSprite(this.tats, this.riderT, 'Tats');
       this.tats.setAlpha(now < this.invulnUntil.Tats ? 0.45 : 1);
     }
@@ -1160,7 +1198,8 @@ export class AdventureRunScene extends Phaser.Scene {
     this.jumpPressedW = false;
     this.jumpPressedT = false;
 
-    const lead = solo && primary === 'Tats' ? this.riderT : this.riderW;
+    this.softLeashPartners();
+    const lead = this.progressLead();
     const ok = checkApproachSpeed(lead, this.kit.tracks, 80);
     if (!ok) {
       this.needSpeed = 1;

@@ -17,6 +17,7 @@ interface ShooterHUDProps {
   p1Hp?: number;
   p2Hp?: number;
   boss?: boolean;
+  primaryCharacter?: CharacterId;
 }
 
 export function ShooterHUD({
@@ -35,6 +36,7 @@ export function ShooterHUD({
   p1Hp = 100,
   p2Hp = 100,
   boss = false,
+  primaryCharacter = 'Wideass',
 }: ShooterHUDProps) {
   const isJeep = kind === 'jeep';
   const isCupid = kind === 'cupid';
@@ -70,27 +72,44 @@ export function ShooterHUD({
         <p className="mt-1 text-center text-[11px] font-bold text-[#ffee88]">{tip}</p>
       </div>
 
-      <div className="absolute left-4 top-16 w-48">
-        <p className="text-[10px] font-black tracking-widest text-yellow-300">P1 SCORE</p>
-        <p className="text-2xl font-black text-yellow-300 drop-shadow">{scores.Wideass.toLocaleString()}</p>
-        <p className="text-xs font-bold text-red-400">WIDEASS</p>
-        <Meter label="HP" value={p1Hp} color="#ff3344" />
-        {streaks.Wideass > 1 && (
-          <p className="mt-1 text-xs font-black text-red-400">STREAK ×{streaks.Wideass}</p>
-        )}
-      </div>
-
-      <div className="absolute right-4 top-16 w-48 text-right">
-        <p className="text-[10px] font-black tracking-widest text-yellow-300">P2 SCORE</p>
-        <p className="text-2xl font-black text-yellow-300 drop-shadow">{scores.Tats.toLocaleString()}</p>
-        <p className="text-xs font-bold text-cyan-300">TATS{playerCount === 1 ? ' (LINKED)' : ''}</p>
-        <div className="ml-auto w-full">
-          <Meter label="HP" value={p2Hp} color="#00ffff" align="right" />
+      {(playerCount === 2 || primaryCharacter === 'Wideass') && (
+        <div className="absolute left-4 top-16 w-48">
+          <p className="text-[10px] font-black tracking-widest text-yellow-300">
+            {playerCount === 1 ? 'SCORE' : 'P1 SCORE'}
+          </p>
+          <p className="text-2xl font-black text-yellow-300 drop-shadow">{scores.Wideass.toLocaleString()}</p>
+          <p className="text-xs font-bold text-red-400">WIDEASS</p>
+          <Meter label="HP" value={p1Hp} color="#ff3344" />
+          {streaks.Wideass > 1 && (
+            <p className="mt-1 text-xs font-black text-red-400">STREAK ×{streaks.Wideass}</p>
+          )}
         </div>
-        {streaks.Tats > 1 && (
-          <p className="mt-1 text-xs font-black text-cyan-300">STREAK ×{streaks.Tats}</p>
-        )}
-      </div>
+      )}
+
+      {(playerCount === 2 || primaryCharacter === 'Tats') && (
+        <div
+          className={`absolute top-16 w-48 ${
+            playerCount === 1 && primaryCharacter === 'Tats' ? 'left-4' : 'right-4 text-right'
+          }`}
+        >
+          <p className="text-[10px] font-black tracking-widest text-yellow-300">
+            {playerCount === 1 ? 'SCORE' : 'P2 SCORE'}
+          </p>
+          <p className="text-2xl font-black text-yellow-300 drop-shadow">{scores.Tats.toLocaleString()}</p>
+          <p className="text-xs font-bold text-cyan-300">TATS</p>
+          <div className={playerCount === 1 && primaryCharacter === 'Tats' ? '' : 'ml-auto w-full'}>
+            <Meter
+              label="HP"
+              value={playerCount === 1 ? p1Hp : p2Hp}
+              color="#00ffff"
+              align={playerCount === 1 && primaryCharacter === 'Tats' ? 'left' : 'right'}
+            />
+          </div>
+          {streaks.Tats > 1 && (
+            <p className="mt-1 text-xs font-black text-cyan-300">STREAK ×{streaks.Tats}</p>
+          )}
+        </div>
+      )}
 
       {isJeep ? (
         <>
@@ -124,45 +143,74 @@ export function ShooterHUD({
         </div>
       )}
 
-      <Reticle
-        who="Wideass"
-        color={isCupid ? '#ff6699' : '#ff3344'}
-        pos={reticles.Wideass}
-        flash={flash === 'Wideass'}
-        laser
-      />
-      <Reticle
-        who="Tats"
-        color={isCupid ? '#ffd0e8' : '#00ccff'}
-        pos={reticles.Tats}
-        flash={flash === 'Tats'}
-        laser
-      />
+      {(playerCount === 2 || primaryCharacter === 'Wideass') && (
+        <Reticle
+          who="Wideass"
+          color={isCupid ? '#ff6699' : '#ff3344'}
+          pos={reticles.Wideass}
+          flash={flash === 'Wideass'}
+          laser
+        />
+      )}
+      {(playerCount === 2 || primaryCharacter === 'Tats') && (
+        <Reticle
+          who="Tats"
+          color={isCupid ? '#ffd0e8' : '#00ccff'}
+          pos={reticles.Tats}
+          flash={flash === 'Tats'}
+          laser
+        />
+      )}
 
-      <div
-        className={`absolute bottom-3 left-6 h-20 w-32 rounded-t-xl border-2 bg-gradient-to-t shadow-lg ${
-          isCupid
-            ? 'border-pink-500/50 from-pink-950/90 to-zinc-700/60 shadow-pink-500/30'
-            : 'border-red-500/50 from-red-950/90 to-zinc-700/60 shadow-red-500/30'
-        }`}
-      >
-        <p className={`pt-3 text-center text-[10px] font-black ${isCupid ? 'text-pink-200' : 'text-red-200'}`}>
-          P1 {isCupid ? 'ARROW' : 'CANNON'}
-        </p>
-        <p className={`text-center text-[9px] ${isCupid ? 'text-pink-100/70' : 'text-red-100/70'}`}>AIM · FIRE</p>
-      </div>
-      <div
-        className={`absolute bottom-3 right-6 h-20 w-32 rounded-t-xl border-2 bg-gradient-to-t shadow-lg ${
-          isCupid
-            ? 'border-yellow-400/50 from-fuchsia-950/90 to-zinc-700/60 shadow-yellow-400/20'
-            : 'border-cyan-500/50 from-cyan-950/90 to-zinc-700/60 shadow-cyan-500/30'
-        }`}
-      >
-        <p className={`pt-3 text-center text-[10px] font-black ${isCupid ? 'text-yellow-200' : 'text-cyan-200'}`}>
-          P2 {isCupid ? 'ARROW' : 'ENERGY'}
-        </p>
-        <p className={`text-center text-[9px] ${isCupid ? 'text-yellow-100/70' : 'text-cyan-100/70'}`}>AIM · FIRE</p>
-      </div>
+      {(playerCount === 2 || primaryCharacter === 'Wideass') && (
+        <div
+          className={`absolute bottom-3 left-6 h-20 w-32 rounded-t-xl border-2 bg-gradient-to-t shadow-lg ${
+            isCupid
+              ? 'border-pink-500/50 from-pink-950/90 to-zinc-700/60 shadow-pink-500/30'
+              : 'border-red-500/50 from-red-950/90 to-zinc-700/60 shadow-red-500/30'
+          }`}
+        >
+          <p className={`pt-3 text-center text-[10px] font-black ${isCupid ? 'text-pink-200' : 'text-red-200'}`}>
+            {playerCount === 1 ? '' : 'P1 '}
+            {isCupid ? 'ARROW' : 'CANNON'}
+          </p>
+          <p className={`text-center text-[9px] ${isCupid ? 'text-pink-100/70' : 'text-red-100/70'}`}>
+            AIM · FIRE
+          </p>
+        </div>
+      )}
+      {playerCount === 2 && (
+        <div
+          className={`absolute bottom-3 right-6 h-20 w-32 rounded-t-xl border-2 bg-gradient-to-t shadow-lg ${
+            isCupid
+              ? 'border-yellow-400/50 from-fuchsia-950/90 to-zinc-700/60 shadow-yellow-400/20'
+              : 'border-cyan-500/50 from-cyan-950/90 to-zinc-700/60 shadow-cyan-500/30'
+          }`}
+        >
+          <p className={`pt-3 text-center text-[10px] font-black ${isCupid ? 'text-yellow-200' : 'text-cyan-200'}`}>
+            P2 {isCupid ? 'ARROW' : 'ENERGY'}
+          </p>
+          <p className={`text-center text-[9px] ${isCupid ? 'text-yellow-100/70' : 'text-cyan-100/70'}`}>
+            AIM · FIRE
+          </p>
+        </div>
+      )}
+      {playerCount === 1 && primaryCharacter === 'Tats' && (
+        <div
+          className={`absolute bottom-3 left-6 h-20 w-32 rounded-t-xl border-2 bg-gradient-to-t shadow-lg ${
+            isCupid
+              ? 'border-yellow-400/50 from-fuchsia-950/90 to-zinc-700/60 shadow-yellow-400/20'
+              : 'border-cyan-500/50 from-cyan-950/90 to-zinc-700/60 shadow-cyan-500/30'
+          }`}
+        >
+          <p className={`pt-3 text-center text-[10px] font-black ${isCupid ? 'text-yellow-200' : 'text-cyan-200'}`}>
+            {isCupid ? 'ARROW' : 'ENERGY'}
+          </p>
+          <p className={`text-center text-[9px] ${isCupid ? 'text-yellow-100/70' : 'text-cyan-100/70'}`}>
+            AIM · FIRE
+          </p>
+        </div>
+      )}
     </div>
   );
 }
