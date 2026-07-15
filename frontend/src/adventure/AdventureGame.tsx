@@ -169,10 +169,18 @@ export function AdventureGame({
 
   const retryFromFail = () => {
     setFailReason('');
-    setActiveTrigger(null);
     runKey.current += 1;
     setTakenTick((t) => t + 1);
     playWipe();
+    // Title demos re-open the keep — never dump a demo fail onto the run mid-act
+    if (forcePhase && demoTrigger) {
+      setActiveTrigger(demoTrigger);
+      phaseRef.current = demoTrigger.kind;
+      setPhase(demoTrigger.kind);
+      setBanner(demoBanner(demoTrigger.kind));
+      return;
+    }
+    setActiveTrigger(null);
     phaseRef.current = 'run';
     setPhase('run');
     setBanner('CONTINUE — BACK ON THE TRACK!');
@@ -183,8 +191,11 @@ export function AdventureGame({
       if (!activeTrigger) return;
       if (!result.won) {
         setFailReason(result.reason);
-        setResumeX(Math.max(120, activeTrigger.atX - 120));
-        setActiveTrigger(null);
+        // Keep trigger alive for demo retry; campaign resumes before the gate
+        if (!forcePhase) {
+          setResumeX(Math.max(120, activeTrigger.atX - 120));
+          setActiveTrigger(null);
+        }
         phaseRef.current = 'failed';
         setPhase('failed');
         return;
@@ -194,6 +205,19 @@ export function AdventureGame({
       zoneScoreRef.current = nextZone;
       setZoneScore(nextZone);
       setCounts(countsRef.current);
+      // Demo clears drop into a clean run — don't resume mid-corridor after a title keep
+      if (forcePhase) {
+        setDoneTriggers(new Set());
+        setResumeX(120);
+        setActiveTrigger(null);
+        setBanner('DEMO CLEAR — FULL ZONE RUN!');
+        runKey.current += 1;
+        setTakenTick((t) => t + 1);
+        playWipe();
+        phaseRef.current = 'run';
+        setPhase('run');
+        return;
+      }
       setDoneTriggers((prev) => new Set([...prev, activeTrigger.id]));
       setResumeX(activeTrigger.resumeX);
       setActiveTrigger(null);
@@ -204,7 +228,7 @@ export function AdventureGame({
       phaseRef.current = 'run';
       setPhase('run');
     },
-    [activeTrigger, authoring.name, zoneScore, playWipe],
+    [activeTrigger, authoring.name, zoneScore, playWipe, forcePhase],
   );
 
   const resetCampaign = () => {
@@ -269,9 +293,13 @@ export function AdventureGame({
     return (
       <EndScreen
         title={failReason || 'MISSION FAILED'}
-        subtitle="Quota or vehicle integrity collapsed. Continue from the checkpoint — pickups stay collected."
+        subtitle={
+          forcePhase
+            ? 'Demo keep failed. Continue retries the same keep — or refresh for the title screen.'
+            : 'Quota or vehicle integrity collapsed. Continue from the checkpoint — pickups stay collected.'
+        }
         embed={embed}
-        buttonLabel="CONTINUE"
+        buttonLabel={forcePhase ? 'RETRY KEEP' : 'CONTINUE'}
         onAction={retryFromFail}
       />
     );
@@ -303,6 +331,7 @@ export function AdventureGame({
         {banner && <Banner text={banner} accent={authoring.story.accent} />}
         {storyCard && <StoryBanner {...storyCard} />}
         <ShooterPhase
+          key={`shoot-${phase}-${runKey.current}-${activeTrigger.id}`}
           kind={phase}
           segment={{
             id: activeTrigger.id.length,

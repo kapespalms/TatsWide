@@ -222,32 +222,38 @@ function App() {
           </div>
         </div>
 
-        <div>
-          <p className="mb-2 text-[10px] font-bold tracking-[0.2em] text-white/70">P1 CHARACTER</p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className={`flex-1 py-3 text-xs font-black tracking-wider ${
-                character === 'Wideass' ? 'bg-[#ff3a4a] text-white' : 'bg-black/50 text-white/60'
-              }`}
-              onClick={() => setCharacter('Wideass')}
-            >
-              WIDEASS
-            </button>
-            <button
-              type="button"
-              className={`flex-1 py-3 text-xs font-black tracking-wider ${
-                character === 'Tats' ? 'bg-[#00d8ff] text-black' : 'bg-black/50 text-white/60'
-              }`}
-              onClick={() => setCharacter('Tats')}
-            >
-              TATS
-            </button>
+        {playerCount === 1 ? (
+          <div>
+            <p className="mb-2 text-[10px] font-bold tracking-[0.2em] text-white/70">SOLO CHARACTER</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className={`flex-1 py-3 text-xs font-black tracking-wider ${
+                  character === 'Wideass' ? 'bg-[#ff3a4a] text-white' : 'bg-black/50 text-white/60'
+                }`}
+                onClick={() => setCharacter('Wideass')}
+              >
+                WIDEASS
+              </button>
+              <button
+                type="button"
+                className={`flex-1 py-3 text-xs font-black tracking-wider ${
+                  character === 'Tats' ? 'bg-[#00d8ff] text-black' : 'bg-black/50 text-white/60'
+                }`}
+                onClick={() => setCharacter('Tats')}
+              >
+                TATS
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <p className="border border-white/15 bg-black/40 px-3 py-2 text-center text-[11px] font-bold text-white/80">
+            2P SEATS · Wideass = ←→/WASD · Tats = J/L/I/K · pads 0 / 1
+          </p>
+        )}
 
         <p className="text-center text-[10px] font-bold text-white/55">
-          Cabinet grade · 20 zones · jeep · space · cupid
+          Same-screen co-op · 20 zones · jeep · space · cupid · M mute
         </p>
 
         <button

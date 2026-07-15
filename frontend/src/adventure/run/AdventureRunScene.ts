@@ -98,7 +98,7 @@ export class AdventureRunScene extends Phaser.Scene {
     coolUntil: number;
   }[] = [];
   private ghosts: GhostState[] = [];
-  private hazards: { x: number; y: number; r: number; ball: Phaser.GameObjects.Arc }[] = [];
+  private hazards: { x: number; y: number; r: number; ball: Phaser.GameObjects.Image }[] = [];
   private clouds!: Phaser.GameObjects.TileSprite;
   private brandClouds!: Phaser.GameObjects.TileSprite;
   private mountains!: Phaser.GameObjects.TileSprite;
@@ -537,7 +537,7 @@ export class AdventureRunScene extends Phaser.Scene {
       // Live hazard orb — contact hurts like ghosts (spin / invuln clears)
       const hx = s.x + s.width * 0.35;
       const hy = s.y - 28;
-      const ball = this.add.circle(hx, hy, 14, 0xff2244).setDepth(6).setStrokeStyle(3, 0x101018);
+      const ball = this.add.image(hx, hy, 'px_hazard').setDepth(6).setScale(2.2);
       this.hazards.push({ x: hx, y: hy, r: 22, ball });
     }
   }
@@ -968,7 +968,8 @@ export class AdventureRunScene extends Phaser.Scene {
     };
 
     if (solo) return p1;
-    return who === primary ? p1 : p2;
+    // Seat-fixed 2P (matches shooter): Wideass = arrows/WASD, Tats = J/L/I/K
+    return who === 'Wideass' ? p1 : p2;
   }
 
   private applyBoostPads(rider: RiderState) {

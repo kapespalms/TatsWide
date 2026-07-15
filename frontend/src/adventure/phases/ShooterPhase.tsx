@@ -1,8 +1,6 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import {
   ContactShadows,
-  Environment,
-  Float,
   Sparkles,
   Stars,
 } from '@react-three/drei';
@@ -98,7 +96,16 @@ export function ShooterPhase(props: ShooterPhaseProps) {
 
   useEffect(() => {
     sfx.current?.unlock();
-    return () => sfx.current?.dispose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === 'KeyM') {
+        sfx.current?.toggleMute();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      sfx.current?.dispose();
+    };
   }, []);
 
   useEffect(() => {
@@ -190,7 +197,14 @@ export function ShooterPhase(props: ShooterPhaseProps) {
     <div className={embed ? 'relative h-full w-full bg-black' : 'relative min-h-screen bg-black'}>
       <div className="absolute inset-0">
         <Canvas shadows camera={cam} gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}>
-          <Suspense fallback={null}>
+          <Suspense
+            fallback={
+              <mesh>
+                <boxGeometry args={[0.4, 0.4, 0.4]} />
+                <meshBasicMaterial color="#ffe14a" />
+              </mesh>
+            }
+          >
             <ShooterWorld
               kind={kind}
               intensity={intensity}
@@ -1006,31 +1020,30 @@ function buildCrateMesh() {
 function CupidEnvironment() {
   return (
     <>
-      <Environment preset="sunset" environmentIntensity={0.65} />
-      <ambientLight intensity={0.55} />
+      {/* Local lights only — no CDN HDR Environment (cabinet / offline safe) */}
+      <ambientLight intensity={0.7} color="#ffd0e8" />
       <directionalLight
         position={[4, 8, 2]}
-        intensity={1.15}
+        intensity={1.35}
         color="#ffb0d0"
         castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
+        shadow-mapSize-width={512}
+        shadow-mapSize-height={512}
       />
-      <pointLight position={[-3, 2, 4]} intensity={1.4} color="#ff66aa" />
-      <pointLight position={[3, 1.5, 2]} intensity={0.9} color="#ffe14a" />
-      <Stars radius={90} depth={50} count={900} factor={3.2} saturation={0.6} fade speed={0.6} />
-      <Sparkles count={40} scale={[18, 10, 28]} size={3.5} speed={0.55} color="#ff99cc" opacity={0.45} />
-      <Float speed={1.2} rotationIntensity={0.2} floatIntensity={0.4}>
-        <mesh position={[0, 2.2, -18]}>
-          <torusGeometry args={[3.2, 0.08, 8, 48]} />
-          <meshBasicMaterial color="#ff66aa" transparent opacity={0.35} />
-        </mesh>
-      </Float>
+      <pointLight position={[-3, 2, 4]} intensity={1.5} color="#ff66aa" />
+      <pointLight position={[3, 1.5, 2]} intensity={1.0} color="#ffe14a" />
+      <hemisphereLight args={['#ff99cc', '#2a1020', 0.45]} />
+      <Stars radius={90} depth={50} count={700} factor={3.2} saturation={0.6} fade speed={0.6} />
+      <Sparkles count={28} scale={[18, 10, 28]} size={3.5} speed={0.55} color="#ff99cc" opacity={0.4} />
+      <mesh position={[0, 2.2, -18]}>
+        <torusGeometry args={[3.2, 0.08, 8, 48]} />
+        <meshBasicMaterial color="#ff66aa" transparent opacity={0.35} />
+      </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.4, -8]} receiveShadow>
         <planeGeometry args={[40, 60]} />
         <meshStandardMaterial color="#2a1430" roughness={0.72} metalness={0.28} />
       </mesh>
-      <ContactShadows position={[0, -1.38, -4]} opacity={0.45} scale={20} blur={2.4} far={14} color="#1a0818" />
+      <ContactShadows position={[0, -1.38, -4]} opacity={0.4} scale={20} blur={2.2} far={14} color="#1a0818" />
     </>
   );
 }
@@ -1038,61 +1051,55 @@ function CupidEnvironment() {
 function SpaceEnvironment() {
   return (
     <>
-      <Environment preset="city" environmentIntensity={0.55} />
-      {/* Golden hour key + cool fill + rim */}
-      <ambientLight intensity={0.35} color="#ffd8a8" />
+      <ambientLight intensity={0.5} color="#ffd8a8" />
+      <hemisphereLight args={['#88aaff', '#120818', 0.55]} />
       <directionalLight
         position={[8, 10, 4]}
         intensity={1.55}
         color="#ffb070"
         castShadow
-        shadow-mapSize={[1024, 1024]}
+        shadow-mapSize={[512, 512]}
       />
-      <directionalLight position={[-7, 4, -6]} intensity={0.7} color="#88aaff" />
-      <pointLight position={[0, 4, 3]} intensity={1.2} color="#a8d8ff" />
-      <pointLight position={[-6, 2, -12]} intensity={1.4} color="#ff6644" />
+      <directionalLight position={[-7, 4, -6]} intensity={0.85} color="#88aaff" />
+      <pointLight position={[0, 4, 3]} intensity={1.3} color="#a8d8ff" />
+      <pointLight position={[-6, 2, -12]} intensity={1.5} color="#ff6644" />
       <spotLight position={[4, 8, 2]} angle={0.4} penumbra={0.6} intensity={1.1} color="#ffcc88" />
 
-      <Stars radius={90} depth={60} count={1100} factor={3.2} saturation={0.3} fade speed={0.6} />
+      <Stars radius={90} depth={60} count={800} factor={3.2} saturation={0.3} fade speed={0.6} />
 
-      <Float speed={0.6} rotationIntensity={0.08} floatIntensity={0.15}>
-        <mesh position={[-11, 3.5, -38]} castShadow>
-          <boxGeometry args={[7, 14, 4]} />
-          <meshPhysicalMaterial color="#4a5568" metalness={0.55} roughness={0.4} clearcoat={0.5} />
-        </mesh>
-      </Float>
-      <Float speed={0.45} rotationIntensity={0.05} floatIntensity={0.1}>
-        <mesh position={[1, 6, -42]} castShadow>
-          <boxGeometry args={[5, 18, 5]} />
-          <meshPhysicalMaterial
-            color="#3a4455"
-            metalness={0.6}
-            roughness={0.35}
-            clearcoat={0.6}
-            emissive="#224466"
-            emissiveIntensity={0.3}
-          />
-        </mesh>
-      </Float>
+      <mesh position={[-11, 3.5, -38]} castShadow>
+        <boxGeometry args={[7, 14, 4]} />
+        <meshStandardMaterial color="#4a5568" metalness={0.55} roughness={0.4} />
+      </mesh>
+      <mesh position={[1, 6, -42]} castShadow>
+        <boxGeometry args={[5, 18, 5]} />
+        <meshStandardMaterial
+          color="#3a4455"
+          metalness={0.6}
+          roughness={0.35}
+          emissive="#224466"
+          emissiveIntensity={0.3}
+        />
+      </mesh>
       <mesh position={[12, 4, -36]} castShadow>
         <boxGeometry args={[7, 12, 4]} />
-        <meshPhysicalMaterial color="#556070" metalness={0.5} roughness={0.45} clearcoat={0.4} />
+        <meshStandardMaterial color="#556070" metalness={0.5} roughness={0.45} />
       </mesh>
       <mesh position={[-10, 9.5, -35.5]}>
         <boxGeometry args={[3.2, 0.55, 0.2]} />
-        <meshPhysicalMaterial color="#111" emissive="#ffe14a" emissiveIntensity={1.1} metalness={0.4} roughness={0.3} />
+        <meshStandardMaterial color="#111" emissive="#ffe14a" emissiveIntensity={1.1} metalness={0.4} roughness={0.3} />
       </mesh>
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.5, -6]} receiveShadow>
         <planeGeometry args={[28, 90]} />
-        <meshPhysicalMaterial color="#3a4555" metalness={0.65} roughness={0.35} clearcoat={0.4} />
+        <meshStandardMaterial color="#3a4555" metalness={0.55} roughness={0.4} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.48, -6]} receiveShadow>
         <planeGeometry args={[9, 90]} />
-        <meshPhysicalMaterial color="#5a6678" metalness={0.5} roughness={0.4} clearcoat={0.5} />
+        <meshStandardMaterial color="#5a6678" metalness={0.45} roughness={0.45} />
       </mesh>
 
-      <ContactShadows position={[0, -1.48, -4]} opacity={0.45} scale={28} blur={2.4} far={18} color="#0a0812" />
+      <ContactShadows position={[0, -1.48, -4]} opacity={0.4} scale={28} blur={2.2} far={18} color="#0a0812" />
     </>
   );
 }
@@ -1106,8 +1113,8 @@ function JeepEnvironment({ scroll }: { scroll: MutableRefObject<number> }) {
     const s = scroll.current;
     if (trees.current) {
       trees.current.children.forEach((c, i) => {
-        const base = -6 - (i % 14) * 4.2;
-        c.position.z = ((base + s) % 58) - 52;
+        const base = -6 - (i % 6) * 7.5;
+        c.position.z = ((base + s) % 48) - 42;
       });
     }
     if (rocks.current) {
@@ -1123,15 +1130,15 @@ function JeepEnvironment({ scroll }: { scroll: MutableRefObject<number> }) {
 
   return (
     <>
-      <Environment preset="night" environmentIntensity={0.4} />
-      {/* Moon key, volcano fill, neon rims */}
-      <ambientLight intensity={0.22} color="#a8b8d8" />
+      {/* Local lights only — cabinet / offline safe */}
+      <ambientLight intensity={0.35} color="#a8b8d8" />
+      <hemisphereLight args={['#c8d8ff', '#1a1008', 0.4]} />
       <directionalLight
         position={[-6, 16, -4]}
-        intensity={0.65}
+        intensity={0.75}
         color="#d0e0ff"
         castShadow
-        shadow-mapSize={[1024, 1024]}
+        shadow-mapSize={[512, 512]}
       />
       <pointLight position={[8, 12, -30]} intensity={1.8} color="#fff6d0" distance={80} />
       <pointLight position={[-18, 6, -28]} intensity={3.2} color="#ff5522" distance={50} />
@@ -1184,29 +1191,21 @@ function JeepEnvironment({ scroll }: { scroll: MutableRefObject<number> }) {
       </mesh>
 
       <group ref={trees}>
-        {Array.from({ length: 28 }, (_, i) => {
+        {Array.from({ length: 12 }, (_, i) => {
           const side = i % 2 === 0 ? -1 : 1;
-          const z = -6 - (i % 14) * 4.2;
-          const x = side * (5.8 + (i % 5) * 1.1);
+          const z = -6 - (i % 6) * 7.5;
+          const x = side * (5.8 + (i % 3) * 1.1);
           return (
-            <Float key={`tree-${i}`} speed={0.4 + (i % 5) * 0.05} floatIntensity={0.08} rotationIntensity={0.04}>
-              <group position={[x, 0, z]}>
-                <mesh position={[0, 1.8, 0]} castShadow>
-                  <cylinderGeometry args={[0.22, 0.38, 3.6, 10]} />
-                  <meshPhysicalMaterial color="#1a1208" roughness={0.85} clearcoat={0.15} />
-                </mesh>
-                <mesh position={[0, 4.1, 0]} castShadow>
-                  <sphereGeometry args={[1.55, 14, 14]} />
-                  <meshPhysicalMaterial
-                    color="#0e3824"
-                    roughness={0.55}
-                    clearcoat={0.3}
-                    sheen={0.4}
-                    sheenColor="#2a6040"
-                  />
-                </mesh>
-              </group>
-            </Float>
+            <group key={`tree-${i}`} position={[x, 0, z]}>
+              <mesh position={[0, 1.8, 0]} castShadow>
+                <cylinderGeometry args={[0.22, 0.38, 3.6, 8]} />
+                <meshStandardMaterial color="#1a1208" roughness={0.85} />
+              </mesh>
+              <mesh position={[0, 4.1, 0]} castShadow>
+                <sphereGeometry args={[1.55, 10, 10]} />
+                <meshStandardMaterial color="#0e3824" roughness={0.6} />
+              </mesh>
+            </group>
           );
         })}
       </group>
@@ -1280,6 +1279,14 @@ function VehicleInterior({
         <mesh position={[1.2, 0.5, 0.8]}>
           <boxGeometry args={[0.5, 0.4, 1.2]} />
           <meshPhysicalMaterial color="#555555" emissive="#ff4444" emissiveIntensity={0.45} metalness={0.6} roughness={0.3} clearcoat={0.5} />
+        </mesh>
+        <mesh position={[-1.55, 0.85, 0.15]} ref={leftFlash}>
+          <sphereGeometry args={[0.2, 10, 10]} />
+          <meshBasicMaterial color="#66eeff" transparent opacity={0} />
+        </mesh>
+        <mesh position={[1.55, 0.85, 0.15]} ref={rightFlash}>
+          <sphereGeometry args={[0.2, 10, 10]} />
+          <meshBasicMaterial color="#ff6644" transparent opacity={0} />
         </mesh>
       </group>
     );

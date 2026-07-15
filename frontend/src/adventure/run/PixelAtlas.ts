@@ -632,6 +632,31 @@ function drawRingHudIcon() {
   return c;
 }
 
+function drawHazardOrb() {
+  const c = canvas(32, 32);
+  const ctx = ctxOf(c);
+  // Spiked hazard ball — matches ring / ghost ink style
+  rect(ctx, 6, 6, 20, 20, '#101018');
+  rect(ctx, 8, 8, 16, 16, '#ff2244');
+  rect(ctx, 10, 10, 12, 12, '#ff5566');
+  rect(ctx, 12, 12, 4, 4, '#ffe8e8');
+  const spikes: [number, number, number, number][] = [
+    [13, 0, 6, 8],
+    [13, 24, 6, 8],
+    [0, 13, 8, 6],
+    [24, 13, 8, 6],
+    [3, 3, 6, 6],
+    [23, 3, 6, 6],
+    [3, 23, 6, 6],
+    [23, 23, 6, 6],
+  ];
+  for (const [sx, sy, sw, sh] of spikes) {
+    rect(ctx, sx, sy, sw, sh, '#b01028');
+    rect(ctx, sx + 1, sy + 1, Math.max(1, sw - 2), Math.max(1, sh - 2), '#ff3344');
+  }
+  return c;
+}
+
 function drawKeepPillar() {
   const c = canvas(48, 96);
   const ctx = ctxOf(c);
@@ -704,6 +729,7 @@ export function createModern16BitAtlas(
     register(scene, `px_tats_${i}`, drawCharacterFrame('Tats', i));
   }
   register(scene, 'px_ring_icon', drawRingHudIcon());
+  register(scene, 'px_hazard', drawHazardOrb());
   register(scene, 'px_keep', drawKeepPillar());
   register(scene, 'px_rail', drawGrindRail());
   register(scene, 'px_loop', drawLoopSegment());
