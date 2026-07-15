@@ -122,7 +122,9 @@ export function RunPhase({
 
       <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 w-[94%] -translate-x-1/2 text-center">
         <p className="wa-hud-shadow text-[10px] font-bold text-white/90 sm:text-[11px]">
-          Rings · ducks/hats · smash red orbs (spin/stomp) · ←→ run · SPACE jump · ↓+SPACE spindash · ESC pause · M mute
+          {playerCount === 2
+            ? 'Wideass ←→/WASD · Tats J/L/I/K · SPACE/ENTER jump · ↓+jump spindash · ESC pause · M mute'
+            : 'Rings · ducks/hats · smash red orbs (spin/stomp) · ←→ run · SPACE jump · ↓+SPACE spindash · ESC pause · M mute'}
         </p>
       </div>
     </div>

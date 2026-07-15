@@ -49,27 +49,33 @@ export function AdventureGame({
   forcePhase,
 }: AdventureGameProps) {
   const startAuthoring = useMemo(() => getLevelAuthoring(startLevel), [startLevel]);
-  const demoTrigger = useMemo(() => {
-    if (!forcePhase) return null;
-    return startAuthoring.triggers.find((t) => t.kind === forcePhase) ?? null;
-  }, [startAuthoring.triggers, forcePhase]);
+  // Title ModeCard demos are one-shot — sticky forcePhase must not poison the full campaign
+  const demoSeedRef = useRef<LevelTrigger | null>(
+    forcePhase
+      ? (startAuthoring.triggers.find((t) => t.kind === forcePhase) ?? null)
+      : null,
+  );
+  const [demoArmed, setDemoArmed] = useState(() => !!demoSeedRef.current);
+  const demoTrigger = demoArmed ? demoSeedRef.current : null;
 
   const [level, setLevel] = useState(startLevel);
-  const [phase, setPhase] = useState<GamePhase>(() => (demoTrigger ? demoTrigger.kind : 'run'));
+  const [phase, setPhase] = useState<GamePhase>(() =>
+    demoSeedRef.current ? demoSeedRef.current.kind : 'run',
+  );
   const [resumeX, setResumeX] = useState(120);
   const [score, setScore] = useState(0);
   const [zoneScore, setZoneScore] = useState(0);
   const [counts, setCounts] = useState<CollectibleCounts>({ ...EMPTY_COUNTS });
-  const [activeTrigger, setActiveTrigger] = useState<LevelTrigger | null>(() => demoTrigger);
+  const [activeTrigger, setActiveTrigger] = useState<LevelTrigger | null>(() => demoSeedRef.current);
   const [doneTriggers, setDoneTriggers] = useState<Set<string>>(() => new Set());
   const [timeSec, setTimeSec] = useState(0);
   const [banner, setBanner] = useState(() =>
-    demoTrigger
-      ? demoBanner(demoTrigger.kind)
+    demoSeedRef.current
+      ? demoBanner(demoSeedRef.current.kind)
       : zoneEnterBanner(startAuthoring.name, startAuthoring.story.sectorLabel, startAuthoring.story.bossZone),
   );
   const [storyCard, setStoryCard] = useState(() =>
-    demoTrigger
+    demoSeedRef.current
       ? null
       : {
           title: startAuthoring.story.title,
@@ -173,11 +179,12 @@ export function AdventureGame({
     setTakenTick((t) => t + 1);
     playWipe();
     // Title demos re-open the keep — never dump a demo fail onto the run mid-act
-    if (forcePhase && demoTrigger) {
-      setActiveTrigger(demoTrigger);
-      phaseRef.current = demoTrigger.kind;
-      setPhase(demoTrigger.kind);
-      setBanner(demoBanner(demoTrigger.kind));
+    if (demoArmed && demoSeedRef.current) {
+      const demo = demoSeedRef.current;
+      setActiveTrigger(demo);
+      phaseRef.current = demo.kind;
+      setPhase(demo.kind);
+      setBanner(demoBanner(demo.kind));
       return;
     }
     setActiveTrigger(null);
@@ -192,7 +199,7 @@ export function AdventureGame({
       if (!result.won) {
         setFailReason(result.reason);
         // Keep trigger alive for demo retry; campaign resumes before the gate
-        if (!forcePhase) {
+        if (!demoArmed) {
           setResumeX(Math.max(120, activeTrigger.atX - 120));
           setActiveTrigger(null);
         }
@@ -205,8 +212,10 @@ export function AdventureGame({
       zoneScoreRef.current = nextZone;
       setZoneScore(nextZone);
       setCounts(countsRef.current);
-      // Demo clears drop into a clean run — don't resume mid-corridor after a title keep
-      if (forcePhase) {
+      // One-shot demo: clear the arm so later keeps use real campaign fail/win paths
+      if (demoArmed) {
+        setDemoArmed(false);
+        demoSeedRef.current = null;
         setDoneTriggers(new Set());
         setResumeX(120);
         setActiveTrigger(null);
@@ -228,7 +237,7 @@ export function AdventureGame({
       phaseRef.current = 'run';
       setPhase('run');
     },
-    [activeTrigger, authoring.name, zoneScore, playWipe, forcePhase],
+    [activeTrigger, authoring.name, zoneScore, playWipe, demoArmed],
   );
 
   const resetCampaign = () => {
@@ -236,6 +245,8 @@ export function AdventureGame({
     setScore(0);
     playWipe();
     const start = getLevelAuthoring(startLevel);
+    setDemoArmed(false);
+    demoSeedRef.current = null;
     setResumeX(120);
     setZoneScore(0);
     setCounts({ ...EMPTY_COUNTS });
@@ -294,12 +305,12 @@ export function AdventureGame({
       <EndScreen
         title={failReason || 'MISSION FAILED'}
         subtitle={
-          forcePhase
+          demoArmed
             ? 'Demo keep failed. Continue retries the same keep — or refresh for the title screen.'
             : 'Quota or vehicle integrity collapsed. Continue from the checkpoint — pickups stay collected.'
         }
         embed={embed}
-        buttonLabel={forcePhase ? 'RETRY KEEP' : 'CONTINUE'}
+        buttonLabel={demoArmed ? 'RETRY KEEP' : 'CONTINUE'}
         onAction={retryFromFail}
       />
     );

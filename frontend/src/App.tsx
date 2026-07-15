@@ -69,6 +69,8 @@ function App() {
   const startAdventure = (phase?: ShooterKind) => {
     const name = displayName.trim() || nameInputRef.current?.value.trim() || '';
     if (name) persistName(name);
+    // 2P always seat-locks Wideass on P1 sticks — clear leftover solo Tats selection
+    if (playerCount === 2) setCharacter('Wideass');
     setForcePhase(phase);
     setStarted(true);
   };

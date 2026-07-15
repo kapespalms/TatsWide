@@ -117,10 +117,11 @@ export function useShooterInput(
         p2.x += (p1.x + (soloWho === 'Wideass' ? 0.12 : -0.12) - p2.x) * 0.06;
         p2.y += (p1.y - 0.04 - p2.y) * 0.06;
       } else {
-        if (keys.has('a')) w.x -= speed;
-        if (keys.has('d')) w.x += speed;
-        if (keys.has('w')) w.y -= speed;
-        if (keys.has('s')) w.y += speed;
+        // Seat-fixed 2P (matches run + title): Wideass = arrows/WASD, Tats = J/L/I/K
+        if (keys.has('a') || keys.has('arrowleft')) w.x -= speed;
+        if (keys.has('d') || keys.has('arrowright')) w.x += speed;
+        if (keys.has('w') || keys.has('arrowup')) w.y -= speed;
+        if (keys.has('s') || keys.has('arrowdown')) w.y += speed;
         if (keys.has('j')) t.x -= speed;
         if (keys.has('l')) t.x += speed;
         if (keys.has('i')) t.y -= speed;
@@ -144,17 +145,16 @@ export function useShooterInput(
           else padFireT = fire;
         }
       } else {
-        const padW = soloWho === 'Wideass' ? pad0 : pad1;
-        const padT = soloWho === 'Tats' ? pad0 : pad1;
-        if (padW) {
-          w.x = clamp01(w.x + padW.axes[0] * speed * 1.5);
-          w.y = clamp01(w.y + padW.axes[1] * speed * 1.5);
-          padFireW = !!(padW.buttons[0]?.pressed || padW.buttons[7]?.pressed);
+        // Always pad0 → Wideass, pad1 → Tats (ignore primaryCharacter leftovers from solo)
+        if (pad0) {
+          w.x = clamp01(w.x + pad0.axes[0] * speed * 1.5);
+          w.y = clamp01(w.y + pad0.axes[1] * speed * 1.5);
+          padFireW = !!(pad0.buttons[0]?.pressed || pad0.buttons[7]?.pressed);
         }
-        if (padT) {
-          t.x = clamp01(t.x + padT.axes[0] * speed * 1.5);
-          t.y = clamp01(t.y + padT.axes[1] * speed * 1.5);
-          padFireT = !!(padT.buttons[0]?.pressed || padT.buttons[7]?.pressed);
+        if (pad1) {
+          t.x = clamp01(t.x + pad1.axes[0] * speed * 1.5);
+          t.y = clamp01(t.y + pad1.axes[1] * speed * 1.5);
+          padFireT = !!(pad1.buttons[0]?.pressed || pad1.buttons[7]?.pressed);
         }
       }
 
