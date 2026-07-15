@@ -99,7 +99,7 @@ export function RunPhase({
       <div className="pointer-events-none absolute left-3 top-3 z-10 wa-hud-shadow font-[family-name:var(--font-mono)]">
         <p className="text-[10px] font-black tracking-[0.28em] text-[#ffe14a]">SCORE</p>
         <p className="mb-2 wa-display text-2xl leading-none text-[#ffe14a]">
-          {(hud?.score ?? 0).toLocaleString().padStart(6, '0')}
+          {String(hud?.score ?? 0).padStart(6, '0')}
         </p>
         <p className="text-[10px] font-black tracking-[0.28em] text-[#ffe14a]">TIME</p>
         <p className="mb-2 wa-display text-xl leading-none text-[#ffe14a]">

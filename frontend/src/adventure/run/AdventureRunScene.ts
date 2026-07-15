@@ -109,11 +109,11 @@ export class AdventureRunScene extends Phaser.Scene {
   private finished = false;
   private elapsed = 0;
   private dust!: Phaser.GameObjects.Particles.ParticleEmitter;
-  private needSpeedText!: Phaser.GameObjects.Text;
+  private needSpeedText!: Phaser.GameObjects.Image;
   private debugText!: Phaser.GameObjects.Text;
   private audio = new AdventureAudio();
   private paused = false;
-  private pauseText!: Phaser.GameObjects.Text;
+  private pauseText!: Phaser.GameObjects.Image;
   private hudAcc = 0;
   private lastNeedSpeed = false;
   private gp = { left: false, right: false, down: false, jump: false };
@@ -198,16 +198,11 @@ export class AdventureRunScene extends Phaser.Scene {
     this.setupInput();
 
     this.needSpeedText = this.add
-      .text(640, 240, 'NEED SPEED', {
-        fontFamily: 'monospace',
-        fontSize: '48px',
-        color: '#ff3333',
-        stroke: '#000000',
-        strokeThickness: 8,
-      })
+      .image(640, 240, 'px_sign_need')
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(100)
+      .setScale(3.2)
       .setAlpha(0);
 
     this.debugText = this.add
@@ -224,17 +219,11 @@ export class AdventureRunScene extends Phaser.Scene {
       .setVisible(new URLSearchParams(window.location.search).has('debug'));
 
     this.pauseText = this.add
-      .text(640, 360, 'PAUSED\nESC to resume', {
-        fontFamily: 'monospace',
-        fontSize: '36px',
-        color: '#ffe14a',
-        align: 'center',
-        stroke: '#000',
-        strokeThickness: 8,
-      })
+      .image(640, 360, 'px_pause')
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(200)
+      .setScale(2.4)
       .setVisible(false);
 
     this.cameras.main.setBounds(0, 0, level.worldWidth, 780);
@@ -317,77 +306,19 @@ export class AdventureRunScene extends Phaser.Scene {
     }
 
     const boost = this.kit.tracks.MAIN.path.sample(this.kit.boostS.lo);
-    this.add
-      .text(boost.x, boost.y - 48, 'BOOST >>', {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#ffb400',
-        stroke: '#000',
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5)
-      .setDepth(6);
+    this.add.image(boost.x, boost.y - 48, 'px_sign_boost').setOrigin(0.5).setDepth(6).setScale(1.6);
 
     const duck = this.kit.tracks.MAIN.path.sample(this.kit.tunnelDuckS.lo);
-    this.add
-      .text(duck.x, duck.y - 48, 'HOLD ↓ : TUNNEL', {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#f0d9ad',
-        stroke: '#000',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setDepth(6);
+    this.add.image(duck.x, duck.y - 40, 'px_sign_boost').setOrigin(0.5).setDepth(6).setScale(1.2).setTint(0xf0d9ad);
 
     const loop2 = this.kit.tracks.MAIN.path.sample(this.kit.boost2S.lo);
-    this.add
-      .text(loop2.x, loop2.y - 48, 'BOOST >>', {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#ffb400',
-        stroke: '#000',
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5)
-      .setDepth(6);
+    this.add.image(loop2.x, loop2.y - 48, 'px_sign_boost').setOrigin(0.5).setDepth(6).setScale(1.6);
 
     const highJoin = this.kit.tracks.MAIN.path.sample(this.kit.highJoinS.lo);
-    this.add
-      .text(highJoin.x, highJoin.y - 56, 'JUMP → HIGH', {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#ffe14a',
-        stroke: '#000',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setDepth(6);
+    this.add.image(highJoin.x, highJoin.y - 56, 'px_sign_boost').setOrigin(0.5).setDepth(6).setScale(1.3).setTint(0xffe14a);
 
     const grindJoin = this.kit.tracks.MAIN.path.sample(this.kit.grindJoinS.lo);
-    this.add
-      .text(grindJoin.x, grindJoin.y - 56, 'JUMP → GRIND', {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#ffd020',
-        stroke: '#000',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setDepth(6);
-
-    // Tutorial legend near start
-    this.add
-      .text(280, 360, '★ GOLD RINGS = SCORE\n★ DUCK / HAT = BONUS\n✕ SPIKE ORB = HURT (spin or stomp)', {
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        color: '#fff8d0',
-        stroke: '#101018',
-        strokeThickness: 4,
-        align: 'left',
-        lineSpacing: 4,
-      })
-      .setDepth(12);
+    this.add.image(grindJoin.x, grindJoin.y - 56, 'px_sign_boost').setOrigin(0.5).setDepth(6).setScale(1.3).setTint(0xffd020);
   }
 
   /** Keep gates at ~50% jeep · ~75% space · ~88% cupid */
@@ -425,51 +356,21 @@ export class AdventureRunScene extends Phaser.Scene {
     this.drawFinish(level.finishX);
   }
 
-  private placeKeep(atX: number, x: number, title: string, subtitle: string, accent: number) {
+  private placeKeep(atX: number, x: number, _title: string, _subtitle: string, accent: number) {
     const gy = 620;
     const left = this.add.image(x - 90, gy - 40, 'px_keep').setDepth(4).setScale(2.2).setOrigin(0.5, 1);
     const right = this.add.image(x + 90, gy - 40, 'px_keep').setDepth(4).setScale(2.2).setOrigin(0.5, 1);
     this.keepBeacons.push({ atX, imgs: [left, right] });
-    // arch lintel
-    this.add.rectangle(x, gy - 210, 220, 28, 0x284898).setDepth(4);
-    this.add.rectangle(x, gy - 210, 200, 12, accent).setDepth(5);
-    for (let i = 0; i < 8; i += 1) {
-      const even = i % 2 === 0;
-      this.add
-        .rectangle(x - 100 + i * 28, gy - 248, 28, 40, even ? 0x101018 : 0xf0f0f8)
-        .setDepth(5);
-    }
-    this.add
-      .text(x, gy - 290, title, {
-        fontFamily: 'monospace',
-        fontSize: '22px',
-        color: '#ffe14a',
-        stroke: '#101018',
-        strokeThickness: 6,
-      })
-      .setOrigin(0.5)
-      .setDepth(12);
-    this.add
-      .text(x, gy - 262, subtitle, {
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        color: '#ffffff',
-        stroke: '#101018',
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5)
-      .setDepth(12);
-    // approach warning strip
-    this.add
-      .text(x - 420, gy - 72, '>>> KEEP AHEAD >>>', {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#ffee88',
-        stroke: '#000',
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5)
-      .setDepth(6);
+    const lintelKey =
+      accent === 0xff8844
+        ? 'px_keep_lintel_orange'
+        : accent === 0x66ccff
+          ? 'px_keep_lintel_cyan'
+          : accent === 0xff66aa
+            ? 'px_keep_lintel_pink'
+            : 'px_keep_lintel';
+    this.add.image(x, gy - 220, lintelKey).setDepth(5).setScale(2.4);
+    this.add.image(x - 420, gy - 72, 'px_sign_keep').setOrigin(0.5).setDepth(6).setScale(1.5);
   }
 
   /** Draw track as batched Graphics — thousands of Image sprites killed 60fps. */
@@ -903,12 +804,13 @@ export class AdventureRunScene extends Phaser.Scene {
   }
 
   private checkHazardHits(rider: RiderState) {
-    for (const h of this.hazards) {
+    for (let i = this.hazards.length - 1; i >= 0; i -= 1) {
+      const h = this.hazards[i];
       if (Math.hypot(rider.x - h.x, rider.y - h.y) < h.r + 18) {
         // Air roll / spindash smash clears the orb
         if (rider.mode === 'air' || Math.abs(rider.gsp) > 420) {
           h.ball.destroy();
-          this.hazards.splice(this.hazards.indexOf(h), 1);
+          this.hazards.splice(i, 1);
           this.score += 100;
           this.audio.kill();
           this.dust.emitParticleAt(h.x, h.y, 8);
@@ -1114,24 +1016,7 @@ export class AdventureRunScene extends Phaser.Scene {
   }
 
   private drawFinish(x: number) {
-    for (let y = 480; y < 640; y += 32) {
-      for (let col = 0; col < 4; col += 1) {
-        const even = ((y / 32) + col) % 2 === 0;
-        this.add
-          .rectangle(x + col * 16, y, 16, 32, even ? 0x101018 : 0xf0f0f8)
-          .setDepth(5);
-      }
-    }
-    this.add
-      .text(x + 32, 420, 'GOAL', {
-        fontFamily: 'monospace',
-        fontSize: '22px',
-        color: '#ffe14a',
-        stroke: '#101018',
-        strokeThickness: 5,
-      })
-      .setOrigin(0.5)
-      .setDepth(10);
+    this.add.image(x + 32, 560, 'px_finish').setDepth(5).setScale(2.2).setOrigin(0.5, 1);
   }
 
   private updateGhosts(dt: number) {

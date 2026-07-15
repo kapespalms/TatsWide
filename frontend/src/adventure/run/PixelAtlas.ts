@@ -142,7 +142,59 @@ function drawCloudStrip() {
   return c;
 }
 
-/** Parallax brand clouds spelling WIDEASS / TATS — 90s×2026 arcade sky. */
+/** 3×5 bitmap glyphs — no canvas text seams on NEAREST sprites */
+const GLYPHS: Record<string, number[]> = {
+  A: [0b010, 0b101, 0b111, 0b101, 0b101],
+  B: [0b110, 0b101, 0b110, 0b101, 0b110],
+  C: [0b011, 0b100, 0b100, 0b100, 0b011],
+  D: [0b110, 0b101, 0b101, 0b101, 0b110],
+  E: [0b111, 0b100, 0b110, 0b100, 0b111],
+  G: [0b011, 0b100, 0b101, 0b101, 0b011],
+  H: [0b101, 0b101, 0b111, 0b101, 0b101],
+  I: [0b111, 0b010, 0b010, 0b010, 0b111],
+  J: [0b001, 0b001, 0b001, 0b101, 0b010],
+  K: [0b101, 0b101, 0b110, 0b101, 0b101],
+  L: [0b100, 0b100, 0b100, 0b100, 0b111],
+  M: [0b101, 0b111, 0b111, 0b101, 0b101],
+  N: [0b101, 0b111, 0b111, 0b101, 0b101],
+  O: [0b010, 0b101, 0b101, 0b101, 0b010],
+  P: [0b110, 0b101, 0b110, 0b100, 0b100],
+  R: [0b110, 0b101, 0b110, 0b101, 0b101],
+  S: [0b011, 0b100, 0b010, 0b001, 0b110],
+  T: [0b111, 0b010, 0b010, 0b010, 0b010],
+  U: [0b101, 0b101, 0b101, 0b101, 0b010],
+  W: [0b101, 0b101, 0b101, 0b111, 0b101],
+  Y: [0b101, 0b101, 0b010, 0b010, 0b010],
+  '>': [0b100, 0b010, 0b001, 0b010, 0b100],
+  ':': [0b000, 0b010, 0b000, 0b010, 0b000],
+  ' ': [0, 0, 0, 0, 0],
+};
+
+function drawPixelWord(
+  ctx: Ctx,
+  word: string,
+  ox: number,
+  oy: number,
+  color: string,
+  ink = '#101018',
+  scale = 2,
+) {
+  let x = ox;
+  for (const ch of word) {
+    const g = GLYPHS[ch] ?? GLYPHS[' '];
+    for (let row = 0; row < 5; row += 1) {
+      for (let col = 0; col < 3; col += 1) {
+        if (g[row] & (1 << (2 - col))) {
+          rect(ctx, x + col * scale + 1, oy + row * scale + 1, scale, scale, ink);
+          rect(ctx, x + col * scale, oy + row * scale, scale, scale, color);
+        }
+      }
+    }
+    x += 4 * scale;
+  }
+}
+
+/** Parallax brand clouds spelling WIDEASS / TATS — block pixels, no AA text. */
 function drawBrandCloudStrip() {
   const c = canvas(512, 96);
   const ctx = ctxOf(c);
@@ -150,7 +202,6 @@ function drawBrandCloudStrip() {
     rect(ctx, x - r, y - r / 2, r * 2, r, PAL.cloudShade);
     rect(ctx, x - r + 2, y - r / 2 + 2, r * 2 - 4, r - 4, PAL.cloud);
   };
-  // Soft cloud pillows under each word
   for (const [x, y, r] of [
     [70, 48, 34],
     [110, 40, 40],
@@ -161,17 +212,71 @@ function drawBrandCloudStrip() {
   ] as const) {
     blob(x, y, r);
   }
-  ctx.fillStyle = '#101018';
-  ctx.font = 'bold 18px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('WIDEASS', 112, 46);
-  ctx.fillStyle = '#ff3a4a';
-  ctx.fillText('WIDEASS', 110, 44);
-  ctx.fillStyle = '#101018';
-  ctx.fillText('TATS', 358, 48);
-  ctx.fillStyle = '#00d8ff';
-  ctx.fillText('TATS', 356, 46);
+  drawPixelWord(ctx, 'WIDEASS', 56, 36, PAL.wideass);
+  drawPixelWord(ctx, 'TATS', 330, 38, PAL.tats);
+  return c;
+}
+
+function drawKeepLintel(accent: string) {
+  const c = canvas(128, 48);
+  const ctx = ctxOf(c);
+  rect(ctx, 0, 20, 128, 18, '#284898');
+  rect(ctx, 4, 22, 120, 14, '#4a78d8');
+  rect(ctx, 8, 24, 112, 6, accent);
+  for (let i = 0; i < 8; i += 1) {
+    rect(ctx, i * 16, 0, 16, 20, i % 2 === 0 ? '#101018' : '#f0f0f8');
+  }
+  return c;
+}
+
+function drawFinishFlag() {
+  const c = canvas(64, 160);
+  const ctx = ctxOf(c);
+  for (let y = 0; y < 160; y += 16) {
+    for (let col = 0; col < 4; col += 1) {
+      const even = (y / 16 + col) % 2 === 0;
+      rect(ctx, col * 16, y, 16, 16, even ? '#101018' : '#f0f0f8');
+    }
+  }
+  drawPixelWord(ctx, 'GOAL', 8, 8, PAL.gold);
+  return c;
+}
+
+function drawSignBoost() {
+  const c = canvas(96, 24);
+  const ctx = ctxOf(c);
+  rect(ctx, 0, 0, 96, 24, '#101018');
+  rect(ctx, 2, 2, 92, 20, '#3a2808');
+  drawPixelWord(ctx, 'BOOST', 8, 6, '#ffb400', '#101018', 2);
+  drawPixelWord(ctx, '>>>', 68, 6, '#ffe14a', '#101018', 2);
+  return c;
+}
+
+function drawSignKeep() {
+  const c = canvas(160, 24);
+  const ctx = ctxOf(c);
+  rect(ctx, 0, 0, 160, 24, '#101018');
+  rect(ctx, 2, 2, 156, 20, '#2a2010');
+  drawPixelWord(ctx, 'KEEP AHEAD >>>', 6, 6, '#ffee88', '#101018', 2);
+  return c;
+}
+
+function drawSignNeedSpeed() {
+  const c = canvas(160, 32);
+  const ctx = ctxOf(c);
+  rect(ctx, 0, 0, 160, 32, '#101018');
+  drawPixelWord(ctx, 'NEED SPEED', 12, 8, '#ff3333', '#101018', 3);
+  return c;
+}
+
+function drawPausePanel() {
+  const c = canvas(288, 96);
+  const ctx = ctxOf(c);
+  rect(ctx, 0, 0, 288, 96, '#101018');
+  rect(ctx, 4, 4, 280, 88, '#182848');
+  rect(ctx, 8, 8, 272, 80, '#101828');
+  drawPixelWord(ctx, 'PAUSED', 72, 22, '#ffe14a', '#101018', 4);
+  drawPixelWord(ctx, 'ESC TO RESUME', 40, 62, '#f0f0f8', '#101018', 2);
   return c;
 }
 
@@ -731,6 +836,15 @@ export function createModern16BitAtlas(
   register(scene, 'px_ring_icon', drawRingHudIcon());
   register(scene, 'px_hazard', drawHazardOrb());
   register(scene, 'px_keep', drawKeepPillar());
+  register(scene, 'px_keep_lintel', drawKeepLintel('#ffe14a'));
+  register(scene, 'px_keep_lintel_orange', drawKeepLintel('#ff8844'));
+  register(scene, 'px_keep_lintel_cyan', drawKeepLintel('#66ccff'));
+  register(scene, 'px_keep_lintel_pink', drawKeepLintel('#ff66aa'));
+  register(scene, 'px_finish', drawFinishFlag());
+  register(scene, 'px_sign_boost', drawSignBoost());
+  register(scene, 'px_sign_keep', drawSignKeep());
+  register(scene, 'px_sign_need', drawSignNeedSpeed());
+  register(scene, 'px_pause', drawPausePanel());
   register(scene, 'px_rail', drawGrindRail());
   register(scene, 'px_loop', drawLoopSegment());
 

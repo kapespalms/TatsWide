@@ -1,8 +1,7 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import {
-  ContactShadows,
   Sparkles,
-  Stars,
+  Stars
 } from '@react-three/drei';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import {
@@ -13,7 +12,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type MutableRefObject,
+  type MutableRefObject
 } from 'react';
 import * as THREE from 'three';
 import type { CharacterId, ShooterKind, ShooterScores } from '../types';
@@ -23,15 +22,16 @@ import { ShooterHUD } from '../shooter/ShooterHUD';
 import { AdventureAudio } from '../run/AdventureAudio';
 
 const LASER_GEO = new THREE.BoxGeometry(0.06, 0.06, 1);
+const SPARK_GEO = new THREE.SphereGeometry(0.18, 6, 6);
 const LASER_MAT_W = new THREE.MeshBasicMaterial({
   color: '#ff6644',
   transparent: true,
-  depthWrite: false,
+  depthWrite: false
 });
 const LASER_MAT_T = new THREE.MeshBasicMaterial({
   color: '#66eeff',
   transparent: true,
-  depthWrite: false,
+  depthWrite: false
 });
 
 interface Enemy {
@@ -67,7 +67,7 @@ const JEEP_HP_MAX = 100;
 const CAM_BASE = {
   jeep: { y: 1.42, z: 6.9, fov: 48 },
   space: { y: 1.52, z: 7.5, fov: 44 },
-  cupid: { y: 1.48, z: 7.15, fov: 46 },
+  cupid: { y: 1.48, z: 7.15, fov: 46 }
 } as const;
 
 export function ShooterPhase(props: ShooterPhaseProps) {
@@ -83,7 +83,7 @@ export function ShooterPhase(props: ShooterPhaseProps) {
   const [p2Hp, setP2Hp] = useState(100);
   const [reticles, setReticles] = useState({
     Wideass: { x: 0.35, y: 0.5 },
-    Tats: { x: 0.65, y: 0.5 },
+    Tats: { x: 0.65, y: 0.5 }
   });
   const input = useShooterInput(true, playerCount, primaryCharacter);
   const finished = useRef(false);
@@ -190,13 +190,23 @@ export function ShooterPhase(props: ShooterPhaseProps) {
   const base = CAM_BASE[kind];
   const cam = {
     position: [0, base.y, base.z] as [number, number, number],
-    fov: base.fov,
+    fov: base.fov
   };
 
   return (
     <div className={embed ? 'relative h-full w-full bg-black' : 'relative min-h-screen bg-black'}>
       <div className="absolute inset-0">
-        <Canvas shadows camera={cam} gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}>
+        <Canvas
+          shadows
+          dpr={[1, 1.5]}
+          camera={cam}
+          gl={{ antialias: false, powerPreference: 'high-performance', toneMapping: THREE.ACESFilmicToneMapping }}
+          onCreated={({ gl }) => {
+            gl.toneMappingExposure = 1.08;
+            gl.shadowMap.enabled = true;
+            gl.shadowMap.type = THREE.PCFSoftShadowMap;
+          }}
+        >
           <Suspense
             fallback={
               <mesh>
@@ -258,7 +268,7 @@ const ShooterWorld = memo(function ShooterWorld({
   setTimeLeft,
   jeepHpRef,
   onComplete,
-  onFire,
+  onFire
 }: {
   kind: ShooterKind;
   intensity: number;
@@ -405,7 +415,7 @@ const ShooterWorld = memo(function ShooterWorld({
                       : ekind === 'heart'
                         ? 1
                         : 2,
-        kind: ekind,
+        kind: ekind
       });
     }
 
@@ -523,7 +533,7 @@ const ShooterWorld = memo(function ShooterWorld({
         y1: ndc.y,
         z1: ndc.z,
         life: 0.12,
-        color,
+        color
       });
 
       for (let i = enemies.current.length - 1; i >= 0; i -= 1) {
@@ -621,7 +631,7 @@ const ShooterWorld = memo(function ShooterWorld({
     while (sparkMeshes.current.length > hitSparks.current.length) {
       const m = sparkMeshes.current.pop();
       if (m) {
-        m.visible = false;
+        (m.material as THREE.Material).dispose();
         root.current?.remove(m);
       }
     }
@@ -629,11 +639,11 @@ const ShooterWorld = memo(function ShooterWorld({
       let mesh = sparkMeshes.current[i];
       if (!mesh) {
         mesh = new THREE.Mesh(
-          new THREE.SphereGeometry(0.18, 6, 6),
+          SPARK_GEO,
           new THREE.MeshBasicMaterial({
             color: kind === 'cupid' ? '#ff66aa' : kind === 'space' ? '#ff6644' : '#ffe14a',
             transparent: true,
-            depthWrite: false,
+            depthWrite: false
           }),
         );
         root.current?.add(mesh);
@@ -649,22 +659,25 @@ const ShooterWorld = memo(function ShooterWorld({
     while (laserMeshes.current.length > lasers.current.length) {
       const m = laserMeshes.current.pop();
       if (m) {
-        m.visible = false;
+        (m.material as THREE.Material).dispose();
         root.current?.remove(m);
       }
     }
     lasers.current.forEach((l, i) => {
       let mesh = laserMeshes.current[i];
+      const wantW = l.color.startsWith('#ff');
       if (!mesh) {
-        mesh = new THREE.Mesh(
-          LASER_GEO,
-          l.color.startsWith('#ff') ? LASER_MAT_W : LASER_MAT_T,
-        );
+        // Per-beam material clone — shared mats can't fade independently
+        const mat = (wantW ? LASER_MAT_W : LASER_MAT_T).clone();
+        mesh = new THREE.Mesh(LASER_GEO, mat);
         root.current?.add(mesh);
         laserMeshes.current[i] = mesh;
+      } else {
+        (mesh.material as THREE.MeshBasicMaterial).color.copy(
+          wantW ? LASER_MAT_W.color : LASER_MAT_T.color,
+        );
       }
       mesh.visible = true;
-      mesh.material = l.color.startsWith('#ff') ? LASER_MAT_W : LASER_MAT_T;
       const dx = l.x1 - l.x0;
       const dy = l.y1 - l.y0;
       const dz = l.z1 - l.z0;
@@ -714,10 +727,10 @@ const ShooterWorld = memo(function ShooterWorld({
       <VehicleInterior kind={kind} muzzle={muzzle} />
       <EffectComposer multisampling={0}>
         <Bloom
-          intensity={kind === 'cupid' ? 1.05 : kind === 'space' ? 0.85 : 0.55}
-          luminanceThreshold={0.32}
-          luminanceSmoothing={0.4}
-          mipmapBlur
+          intensity={kind === 'cupid' ? 0.55 : kind === 'space' ? 0.45 : 0.3}
+          luminanceThreshold={0.55}
+          luminanceSmoothing={0.5}
+          mipmapBlur={false}
         />
       </EffectComposer>
     </>
@@ -726,130 +739,98 @@ const ShooterWorld = memo(function ShooterWorld({
 
 /** Shared materials — never disposed per-instance (avoid leaks). */
 const MAT = {
-  alienBody: new THREE.MeshPhysicalMaterial({
+  alienBody: new THREE.MeshStandardMaterial({
     color: '#ff1a1a',
     emissive: '#ff2200',
     emissiveIntensity: 0.55,
     roughness: 0.28,
-    metalness: 0.15,
-    clearcoat: 0.85,
-    clearcoatRoughness: 0.2,
-    sheen: 1,
-    sheenColor: new THREE.Color('#ff8866'),
-    sheenRoughness: 0.4,
+    metalness: 0.15
   }),
-  alienHead: new THREE.MeshPhysicalMaterial({
+  alienHead: new THREE.MeshStandardMaterial({
     color: '#ff5533',
     emissive: '#ffcc44',
     emissiveIntensity: 0.9,
     roughness: 0.22,
-    metalness: 0.1,
-    clearcoat: 1,
-    clearcoatRoughness: 0.12,
+    metalness: 0.1
   }),
-  alienGlow: new THREE.MeshPhysicalMaterial({
+  alienGlow: new THREE.MeshStandardMaterial({
     color: '#ffff88',
     emissive: '#ffee55',
     emissiveIntensity: 2.4,
     roughness: 0.15,
-    metalness: 0.05,
-    clearcoat: 1,
+    metalness: 0.05
   }),
-  trexSkin: new THREE.MeshPhysicalMaterial({
+  trexSkin: new THREE.MeshStandardMaterial({
     color: '#5f8a3c',
     roughness: 0.55,
-    metalness: 0.05,
-    clearcoat: 0.35,
-    clearcoatRoughness: 0.45,
-    sheen: 0.6,
-    sheenColor: new THREE.Color('#a8c878'),
+    metalness: 0.05
   }),
-  trexBelly: new THREE.MeshPhysicalMaterial({
+  trexBelly: new THREE.MeshStandardMaterial({
     color: '#e8dcb8',
     roughness: 0.65,
-    metalness: 0.02,
-    clearcoat: 0.25,
-    clearcoatRoughness: 0.5,
+    metalness: 0.02
   }),
-  trexStripe: new THREE.MeshPhysicalMaterial({
+  trexStripe: new THREE.MeshStandardMaterial({
     color: '#2a1c10',
     roughness: 0.7,
-    metalness: 0.08,
-    clearcoat: 0.2,
+    metalness: 0.08
   }),
-  trexEye: new THREE.MeshPhysicalMaterial({
+  trexEye: new THREE.MeshStandardMaterial({
     color: '#ffff66',
     emissive: '#ff9900',
     emissiveIntensity: 3.2,
     roughness: 0.12,
-    metalness: 0.1,
-    clearcoat: 1,
+    metalness: 0.1
   }),
-  raptor: new THREE.MeshPhysicalMaterial({
+  raptor: new THREE.MeshStandardMaterial({
     color: '#4e7a32',
     roughness: 0.5,
-    metalness: 0.06,
-    clearcoat: 0.4,
-    clearcoatRoughness: 0.4,
-    sheen: 0.5,
-    sheenColor: new THREE.Color('#88bb55'),
+    metalness: 0.06
   }),
-  raptorAccent: new THREE.MeshPhysicalMaterial({
+  raptorAccent: new THREE.MeshStandardMaterial({
     color: '#c04028',
     emissive: '#aa1810',
     emissiveIntensity: 0.55,
     roughness: 0.4,
-    metalness: 0.15,
-    clearcoat: 0.5,
+    metalness: 0.15
   }),
-  raptorEye: new THREE.MeshPhysicalMaterial({
+  raptorEye: new THREE.MeshStandardMaterial({
     color: '#ff2200',
     emissive: '#ff2200',
     emissiveIntensity: 2.6,
     roughness: 0.15,
-    metalness: 0.1,
-    clearcoat: 1,
+    metalness: 0.1
   }),
-  crate: new THREE.MeshPhysicalMaterial({
+  crate: new THREE.MeshStandardMaterial({
     color: '#6a6e72',
     roughness: 0.35,
-    metalness: 0.85,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.25,
+    metalness: 0.85
   }),
-  crateStripe: new THREE.MeshPhysicalMaterial({
+  crateStripe: new THREE.MeshStandardMaterial({
     color: '#f0c020',
     emissive: '#aa8800',
     emissiveIntensity: 0.55,
     roughness: 0.3,
-    metalness: 0.7,
-    clearcoat: 0.8,
+    metalness: 0.7
   }),
   alienHalo: new THREE.MeshBasicMaterial({ color: '#ff4422', transparent: true, opacity: 0.14, depthWrite: false }),
   trexRim: new THREE.MeshBasicMaterial({ color: '#88ff66', transparent: true, opacity: 0.08, depthWrite: false }),
   raptorRim: new THREE.MeshBasicMaterial({ color: '#ff8844', transparent: true, opacity: 0.1, depthWrite: false }),
-  heartBody: new THREE.MeshPhysicalMaterial({
+  heartBody: new THREE.MeshStandardMaterial({
     color: '#ff3366',
     emissive: '#ff1166',
     emissiveIntensity: 0.75,
     roughness: 0.25,
-    metalness: 0.12,
-    clearcoat: 0.95,
-    clearcoatRoughness: 0.15,
-    sheen: 1,
-    sheenColor: new THREE.Color('#ffc0d8'),
-    sheenRoughness: 0.35,
+    metalness: 0.12
   }),
-  bossHeartBody: new THREE.MeshPhysicalMaterial({
+  bossHeartBody: new THREE.MeshStandardMaterial({
     color: '#ff88cc',
     emissive: '#ff44aa',
     emissiveIntensity: 1.1,
     roughness: 0.2,
-    metalness: 0.35,
-    clearcoat: 1,
-    clearcoatRoughness: 0.1,
+    metalness: 0.35
   }),
-  heartGlow: new THREE.MeshBasicMaterial({ color: '#ff99cc', transparent: true, opacity: 0.18, depthWrite: false }),
+  heartGlow: new THREE.MeshBasicMaterial({ color: '#ff99cc', transparent: true, opacity: 0.18, depthWrite: false })
 };
 
 function disposeGroup(g: THREE.Group) {
@@ -1033,8 +1014,8 @@ function CupidEnvironment() {
       <pointLight position={[-3, 2, 4]} intensity={1.5} color="#ff66aa" />
       <pointLight position={[3, 1.5, 2]} intensity={1.0} color="#ffe14a" />
       <hemisphereLight args={['#ff99cc', '#2a1020', 0.45]} />
-      <Stars radius={90} depth={50} count={700} factor={3.2} saturation={0.6} fade speed={0.6} />
-      <Sparkles count={28} scale={[18, 10, 28]} size={3.5} speed={0.55} color="#ff99cc" opacity={0.4} />
+      <Stars radius={90} depth={50} count={380} factor={3.2} saturation={0.6} fade speed={0.55} />
+      <Sparkles count={16} scale={[18, 10, 28]} size={3.2} speed={0.5} color="#ff99cc" opacity={0.38} />
       <mesh position={[0, 2.2, -18]}>
         <torusGeometry args={[3.2, 0.08, 8, 48]} />
         <meshBasicMaterial color="#ff66aa" transparent opacity={0.35} />
@@ -1043,7 +1024,6 @@ function CupidEnvironment() {
         <planeGeometry args={[40, 60]} />
         <meshStandardMaterial color="#2a1430" roughness={0.72} metalness={0.28} />
       </mesh>
-      <ContactShadows position={[0, -1.38, -4]} opacity={0.4} scale={20} blur={2.2} far={14} color="#1a0818" />
     </>
   );
 }
@@ -1065,7 +1045,7 @@ function SpaceEnvironment() {
       <pointLight position={[-6, 2, -12]} intensity={1.5} color="#ff6644" />
       <spotLight position={[4, 8, 2]} angle={0.4} penumbra={0.6} intensity={1.1} color="#ffcc88" />
 
-      <Stars radius={90} depth={60} count={800} factor={3.2} saturation={0.3} fade speed={0.6} />
+      <Stars radius={90} depth={60} count={420} factor={3.2} saturation={0.3} fade speed={0.55} />
 
       <mesh position={[-11, 3.5, -38]} castShadow>
         <boxGeometry args={[7, 14, 4]} />
@@ -1098,8 +1078,6 @@ function SpaceEnvironment() {
         <planeGeometry args={[9, 90]} />
         <meshStandardMaterial color="#5a6678" metalness={0.45} roughness={0.45} />
       </mesh>
-
-      <ContactShadows position={[0, -1.48, -4]} opacity={0.4} scale={28} blur={2.2} far={18} color="#0a0812" />
     </>
   );
 }
@@ -1149,8 +1127,8 @@ function JeepEnvironment({ scroll }: { scroll: MutableRefObject<number> }) {
 
       {/* Moon */}
       <mesh position={[10, 14, -42]}>
-        <sphereGeometry args={[4.4, 32, 32]} />
-        <meshPhysicalMaterial
+        <sphereGeometry args={[4.4, 20, 20]} />
+        <meshStandardMaterial
           color="#fff8e0"
           emissive="#ffe8b0"
           emissiveIntensity={0.85}
@@ -1166,11 +1144,11 @@ function JeepEnvironment({ scroll }: { scroll: MutableRefObject<number> }) {
       {/* Volcano */}
       <mesh position={[-18, 2, -34]} castShadow>
         <coneGeometry args={[5, 12, 16]} />
-        <meshPhysicalMaterial color="#1a1008" emissive="#ff3300" emissiveIntensity={0.65} roughness={0.85} />
+        <meshStandardMaterial color="#1a1008" emissive="#ff3300" emissiveIntensity={0.65} roughness={0.85} />
       </mesh>
       <mesh position={[-18, 8.5, -34]}>
         <sphereGeometry args={[2.3, 16, 16]} />
-        <meshPhysicalMaterial
+        <meshStandardMaterial
           color="#ff8800"
           emissive="#ff4400"
           emissiveIntensity={1.8}
@@ -1183,11 +1161,11 @@ function JeepEnvironment({ scroll }: { scroll: MutableRefObject<number> }) {
       {/* Neon facility rails */}
       <mesh position={[7.5, 1.5, -18]}>
         <boxGeometry args={[0.22, 3.2, 40]} />
-        <meshPhysicalMaterial color="#220022" emissive="#ff44aa" emissiveIntensity={1.5} metalness={0.4} roughness={0.3} />
+        <meshStandardMaterial color="#220022" emissive="#ff44aa" emissiveIntensity={1.5} metalness={0.4} roughness={0.3} />
       </mesh>
       <mesh position={[-7.5, 1.5, -18]}>
         <boxGeometry args={[0.22, 3.2, 40]} />
-        <meshPhysicalMaterial color="#220022" emissive="#8844ff" emissiveIntensity={1.3} metalness={0.4} roughness={0.3} />
+        <meshStandardMaterial color="#220022" emissive="#8844ff" emissiveIntensity={1.3} metalness={0.4} roughness={0.3} />
       </mesh>
 
       <group ref={trees}>
@@ -1221,7 +1199,7 @@ function JeepEnvironment({ scroll }: { scroll: MutableRefObject<number> }) {
       </mesh>
       <mesh ref={stripes} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.3, -8]}>
         <planeGeometry args={[0.4, 100]} />
-        <meshPhysicalMaterial color="#c9a227" emissive="#886600" emissiveIntensity={0.55} metalness={0.4} roughness={0.4} />
+        <meshStandardMaterial color="#c9a227" emissive="#886600" emissiveIntensity={0.55} metalness={0.4} roughness={0.4} />
       </mesh>
 
       <group ref={rocks}>
@@ -1232,19 +1210,17 @@ function JeepEnvironment({ scroll }: { scroll: MutableRefObject<number> }) {
             position={[(i % 2 === 0 ? -1 : 1) * (3.2 + (i % 3) * 0.4), -0.7, -8 - i * 5]}
           >
             <dodecahedronGeometry args={[0.55 + (i % 3) * 0.15, 0]} />
-            <meshPhysicalMaterial color="#2a2420" roughness={0.8} clearcoat={0.2} metalness={0.1} />
+            <meshStandardMaterial color="#2a2420" roughness={0.8} metalness={0.1} />
           </mesh>
         ))}
       </group>
-
-      <ContactShadows position={[0, -1.32, -4]} opacity={0.55} scale={22} blur={2.2} far={16} color="#050308" />
     </>
   );
 }
 
 function VehicleInterior({
   kind,
-  muzzle,
+  muzzle
 }: {
   kind: ShooterKind;
   muzzle: MutableRefObject<{ Wideass: number; Tats: number }>;
@@ -1270,15 +1246,15 @@ function VehicleInterior({
       <group position={[0, -1.8, 3]}>
         <mesh>
           <boxGeometry args={[7, 1.2, 2.5]} />
-          <meshPhysicalMaterial color="#223344" metalness={0.75} roughness={0.25} clearcoat={0.7} />
+          <meshStandardMaterial color="#223344" metalness={0.75} roughness={0.25} />
         </mesh>
         <mesh position={[-1.2, 0.5, 0.8]}>
           <boxGeometry args={[0.5, 0.4, 1.2]} />
-          <meshPhysicalMaterial color="#555555" emissive="#00ffff" emissiveIntensity={0.45} metalness={0.6} roughness={0.3} clearcoat={0.5} />
+          <meshStandardMaterial color="#555555" emissive="#00ffff" emissiveIntensity={0.45} metalness={0.6} roughness={0.3} />
         </mesh>
         <mesh position={[1.2, 0.5, 0.8]}>
           <boxGeometry args={[0.5, 0.4, 1.2]} />
-          <meshPhysicalMaterial color="#555555" emissive="#ff4444" emissiveIntensity={0.45} metalness={0.6} roughness={0.3} clearcoat={0.5} />
+          <meshStandardMaterial color="#555555" emissive="#ff4444" emissiveIntensity={0.45} metalness={0.6} roughness={0.3} />
         </mesh>
         <mesh position={[-1.55, 0.85, 0.15]} ref={leftFlash}>
           <sphereGeometry args={[0.2, 10, 10]} />
@@ -1297,15 +1273,15 @@ function VehicleInterior({
       <group position={[0, -1.7, 3.1]}>
         <mesh>
           <boxGeometry args={[6.8, 1.1, 2.4]} />
-          <meshPhysicalMaterial color="#3a1830" metalness={0.55} roughness={0.3} clearcoat={0.75} />
+          <meshStandardMaterial color="#3a1830" metalness={0.55} roughness={0.3} />
         </mesh>
         <mesh position={[-1.35, 0.55, 0.85]}>
           <boxGeometry args={[0.45, 0.35, 1.15]} />
-          <meshPhysicalMaterial color="#552244" emissive="#ff66aa" emissiveIntensity={0.7} metalness={0.5} roughness={0.25} clearcoat={0.6} />
+          <meshStandardMaterial color="#552244" emissive="#ff66aa" emissiveIntensity={0.7} metalness={0.5} roughness={0.25} />
         </mesh>
         <mesh position={[1.35, 0.55, 0.85]}>
           <boxGeometry args={[0.45, 0.35, 1.15]} />
-          <meshPhysicalMaterial color="#442255" emissive="#ffe14a" emissiveIntensity={0.55} metalness={0.5} roughness={0.25} clearcoat={0.6} />
+          <meshStandardMaterial color="#442255" emissive="#ffe14a" emissiveIntensity={0.55} metalness={0.5} roughness={0.25} />
         </mesh>
         <mesh position={[-1.55, 0.9, 0.2]} ref={leftFlash}>
           <sphereGeometry args={[0.2, 10, 10]} />
@@ -1323,30 +1299,30 @@ function VehicleInterior({
     <group position={[0, -1.55, 3.4]}>
       <mesh position={[0, 0.15, 0.2]}>
         <boxGeometry args={[6.5, 0.35, 2.8]} />
-        <meshPhysicalMaterial color="#3a4a28" metalness={0.45} roughness={0.4} clearcoat={0.5} />
+        <meshStandardMaterial color="#3a4a28" metalness={0.45} roughness={0.4} />
       </mesh>
       <mesh position={[0, 0.45, -0.4]}>
         <boxGeometry args={[6.2, 0.25, 0.9]} />
-        <meshPhysicalMaterial color="#2a3220" metalness={0.55} roughness={0.35} clearcoat={0.6} />
+        <meshStandardMaterial color="#2a3220" metalness={0.55} roughness={0.35} />
       </mesh>
 
       <mesh position={[-2.8, 1.1, -0.6]}>
         <boxGeometry args={[0.12, 1.6, 0.12]} />
-        <meshPhysicalMaterial color="#1a1a14" metalness={0.7} roughness={0.3} />
+        <meshStandardMaterial color="#1a1a14" metalness={0.7} roughness={0.3} />
       </mesh>
       <mesh position={[2.8, 1.1, -0.6]}>
         <boxGeometry args={[0.12, 1.6, 0.12]} />
-        <meshPhysicalMaterial color="#1a1a14" metalness={0.7} roughness={0.3} />
+        <meshStandardMaterial color="#1a1a14" metalness={0.7} roughness={0.3} />
       </mesh>
       <mesh position={[0, 1.85, -0.6]}>
         <boxGeometry args={[5.7, 0.1, 0.1]} />
-        <meshPhysicalMaterial color="#1a1a14" metalness={0.7} roughness={0.3} />
+        <meshStandardMaterial color="#1a1a14" metalness={0.7} roughness={0.3} />
       </mesh>
 
       <group position={[-1.55, 0.55, 0.9]}>
         <mesh rotation={[0.15, 0, 0]}>
           <cylinderGeometry args={[0.12, 0.16, 1.4, 16]} />
-          <meshPhysicalMaterial color="#3a3a3a" metalness={0.9} roughness={0.18} clearcoat={0.8} />
+          <meshStandardMaterial color="#3a3a3a" metalness={0.9} roughness={0.18} />
         </mesh>
         <mesh position={[0, 0.55, -0.55]} ref={leftFlash}>
           <sphereGeometry args={[0.22, 12, 12]} />
@@ -1357,11 +1333,10 @@ function VehicleInterior({
       <group position={[1.55, 0.55, 0.9]}>
         <mesh rotation={[0.15, 0, 0]}>
           <boxGeometry args={[0.28, 0.28, 1.35]} />
-          <meshPhysicalMaterial
+          <meshStandardMaterial
             color="#2a4a55"
             metalness={0.8}
             roughness={0.22}
-            clearcoat={0.7}
             emissive="#004466"
             emissiveIntensity={0.5}
           />
@@ -1374,11 +1349,11 @@ function VehicleInterior({
 
       <mesh position={[-0.6, 0.55, 0.2]}>
         <boxGeometry args={[0.35, 0.18, 0.08]} />
-        <meshPhysicalMaterial color="#222" emissive="#ff3344" emissiveIntensity={1} metalness={0.5} roughness={0.3} />
+        <meshStandardMaterial color="#222" emissive="#ff3344" emissiveIntensity={1} metalness={0.5} roughness={0.3} />
       </mesh>
       <mesh position={[0.6, 0.55, 0.2]}>
         <boxGeometry args={[0.35, 0.18, 0.08]} />
-        <meshPhysicalMaterial color="#222" emissive="#00ccff" emissiveIntensity={1} metalness={0.5} roughness={0.3} />
+        <meshStandardMaterial color="#222" emissive="#00ccff" emissiveIntensity={1} metalness={0.5} roughness={0.3} />
       </mesh>
     </group>
   );
