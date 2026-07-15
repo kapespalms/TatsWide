@@ -1,12 +1,22 @@
+const MUTE_KEY = 'wa-adv-muted';
+
 /** Tiny WebAudio SFX + looping chiptune bed — no asset downloads. */
 export class AdventureAudio {
   private ctx: AudioContext | null = null;
-  private muted = false;
+  private muted = AdventureAudio.readSessionMuted();
   private musicNodes: AudioNode[] = [];
   private musicTimer: number | null = null;
   private musicOn = false;
   private pendingTimers: number[] = [];
   private disposed = false;
+
+  static readSessionMuted() {
+    try {
+      return sessionStorage.getItem(MUTE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
 
   isMuted() {
     return this.muted;
@@ -14,6 +24,11 @@ export class AdventureAudio {
 
   setMuted(next: boolean) {
     this.muted = next;
+    try {
+      sessionStorage.setItem(MUTE_KEY, next ? '1' : '0');
+    } catch {
+      /* private mode */
+    }
     if (next) this.stopMusic();
     else if (!this.disposed) this.startMusic();
   }
@@ -219,7 +234,7 @@ export class AdventureAudio {
 
   dispose() {
     this.disposed = true;
-    this.muted = true;
+    // Do NOT write session mute — disposal must not sticky-mute the next scene
     for (const id of this.pendingTimers) window.clearTimeout(id);
     this.pendingTimers = [];
     this.stopMusic();

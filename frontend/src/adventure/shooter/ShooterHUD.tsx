@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import type { CharacterId, ShooterKind, ShooterScores } from '../types';
 import type { DualReticles } from '../shooter/useShooterInput';
+import { AdventureAudio } from '../run/AdventureAudio';
 
 interface ShooterHUDProps {
   kind: ShooterKind;
@@ -56,6 +58,10 @@ export function ShooterHUD({
     : isCupid
       ? 'Pop floating HEARTS with dual arrow lasers'
       : 'Shoot the BRIGHT RED aliens — load both cannons';
+  const fireTip =
+    playerCount === 2
+      ? 'P1 FIRE SPACE/F · P2 FIRE ENTER/G · click left/right half · pads A/RT'
+      : 'FIRE SPACE/F · click to aim+fire · pad A/RT';
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden font-mono">
@@ -70,6 +76,8 @@ export function ShooterHUD({
           ZONE {level} · KILLS {kills}/{killQuota} · {timeLeft}s
         </p>
         <p className="mt-1 text-center text-[11px] font-bold text-[#ffee88]">{tip}</p>
+        <p className="mt-1 text-center text-[10px] font-black tracking-wide text-white/75">{fireTip}</p>
+        <MuteChip />
       </div>
 
       {(playerCount === 2 || primaryCharacter === 'Wideass') && (
@@ -212,6 +220,20 @@ export function ShooterHUD({
         </div>
       )}
     </div>
+  );
+}
+
+function MuteChip() {
+  const [muted, setMuted] = useState(() => AdventureAudio.readSessionMuted());
+  useEffect(() => {
+    const id = window.setInterval(() => setMuted(AdventureAudio.readSessionMuted()), 400);
+    return () => window.clearInterval(id);
+  }, []);
+  if (!muted) return null;
+  return (
+    <p className="mt-2 text-center text-[10px] font-black tracking-[0.3em] text-[#ff6688]">
+      MUTED · PRESS M
+    </p>
   );
 }
 

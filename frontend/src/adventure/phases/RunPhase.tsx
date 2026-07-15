@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
 import type { CharacterId, CollectibleCounts, LevelAuthoring, LevelTrigger } from '../types';
 import { createRunGame } from '../run/createRunGame';
 import type { RunProgress } from '../run/AdventureRunScene';
+import { AdventureAudio } from '../run/AdventureAudio';
 
 interface RunPhaseProps {
   level: LevelAuthoring;
@@ -79,6 +80,11 @@ export function RunPhase({
   const mm = Math.floor(timeSec / 60);
   const ss = String(Math.floor(timeSec % 60)).padStart(2, '0');
   const counts = hud?.counts ?? { pepper: 0, duck: 0, witchHat: 0 };
+  const [muted, setMuted] = useState(() => AdventureAudio.readSessionMuted());
+  useEffect(() => {
+    const id = window.setInterval(() => setMuted(AdventureAudio.readSessionMuted()), 400);
+    return () => window.clearInterval(id);
+  }, []);
 
   return (
     <div
@@ -118,6 +124,9 @@ export function RunPhase({
         <p className="mt-2 text-[10px] font-black tracking-wide text-[#ff8844]">50% · JEEP KEEP</p>
         <p className="text-[10px] font-black tracking-wide text-[#66ccff]">75% · STAR KEEP</p>
         <p className="text-[10px] font-black tracking-wide text-[#ff66aa]">88% · CUPID KEEP</p>
+        {muted ? (
+          <p className="mt-2 text-[10px] font-black tracking-[0.28em] text-[#ff6688]">MUTED · M</p>
+        ) : null}
       </div>
 
       <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 w-[94%] -translate-x-1/2 text-center">

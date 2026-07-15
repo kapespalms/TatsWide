@@ -99,6 +99,7 @@ export class AdventureRunScene extends Phaser.Scene {
   }[] = [];
   private ghosts: GhostState[] = [];
   private hazards: { x: number; y: number; r: number; ball: Phaser.GameObjects.Image }[] = [];
+  private keepBeacons: { atX: number; imgs: Phaser.GameObjects.Image[] }[] = [];
   private clouds!: Phaser.GameObjects.TileSprite;
   private brandClouds!: Phaser.GameObjects.TileSprite;
   private mountains!: Phaser.GameObjects.TileSprite;
@@ -141,6 +142,7 @@ export class AdventureRunScene extends Phaser.Scene {
     this.paused = false;
     this.ghosts = [];
     this.hazards = [];
+    this.keepBeacons = [];
     this.collectibles = [];
     this.springs = [];
     this.needSpeed = 0;
@@ -395,6 +397,7 @@ export class AdventureRunScene extends Phaser.Scene {
     const cupid = level.triggers.find((t) => t.kind === 'cupid');
     if (jeep) {
       this.placeKeep(
+        jeep.atX,
         jeep.atX - 160,
         jeep.boss ? 'BOSS KEEP' : 'HALF WAY',
         jeep.boss ? 'CYBER T-REX AHEAD' : 'JEEP KEEP · DINOS AHEAD',
@@ -403,6 +406,7 @@ export class AdventureRunScene extends Phaser.Scene {
     }
     if (space) {
       this.placeKeep(
+        space.atX,
         space.atX - 160,
         space.boss ? 'BOSS KEEP' : 'FINAL PUSH',
         space.boss ? 'DREADNOUGHT CORE' : 'STAR KEEP · ALIENS AHEAD',
@@ -411,6 +415,7 @@ export class AdventureRunScene extends Phaser.Scene {
     }
     if (cupid) {
       this.placeKeep(
+        cupid.atX,
         cupid.atX - 160,
         cupid.boss ? 'BOSS KEEP' : 'HEART GRID',
         cupid.boss ? 'HEART-BREAK ENGINE' : 'CUPID KEEP · HEARTS AHEAD',
@@ -420,10 +425,11 @@ export class AdventureRunScene extends Phaser.Scene {
     this.drawFinish(level.finishX);
   }
 
-  private placeKeep(x: number, title: string, subtitle: string, accent: number) {
+  private placeKeep(atX: number, x: number, title: string, subtitle: string, accent: number) {
     const gy = 620;
-    this.add.image(x - 90, gy - 40, 'px_keep').setDepth(4).setScale(2.2).setOrigin(0.5, 1);
-    this.add.image(x + 90, gy - 40, 'px_keep').setDepth(4).setScale(2.2).setOrigin(0.5, 1);
+    const left = this.add.image(x - 90, gy - 40, 'px_keep').setDepth(4).setScale(2.2).setOrigin(0.5, 1);
+    const right = this.add.image(x + 90, gy - 40, 'px_keep').setDepth(4).setScale(2.2).setOrigin(0.5, 1);
+    this.keepBeacons.push({ atX, imgs: [left, right] });
     // arch lintel
     this.add.rectangle(x, gy - 210, 220, 28, 0x284898).setDepth(4);
     this.add.rectangle(x, gy - 210, 200, 12, accent).setDepth(5);
@@ -1152,6 +1158,15 @@ export class AdventureRunScene extends Phaser.Scene {
     }
   }
 
+  private pulseKeepBeacons(leadX: number) {
+    for (const b of this.keepBeacons) {
+      const near = leadX > b.atX - 380 && leadX < b.atX + 60;
+      const scale = near ? 2.2 + Math.sin(this.elapsed * 9) * 0.18 : 2.2;
+      const alpha = near ? 0.85 + Math.sin(this.elapsed * 11) * 0.15 : 1;
+      for (const img of b.imgs) img.setScale(scale).setAlpha(alpha);
+    }
+  }
+
   update(_time: number, delta: number) {
     if (this.paused) {
       // Drop edge-pressed jump so pause can't queue a phantom leap on resume
@@ -1224,6 +1239,7 @@ export class AdventureRunScene extends Phaser.Scene {
     this.updateCamera();
     this.updateSpeedFx(lead);
     this.bobCollectibles();
+    this.pulseKeepBeacons(lead.x);
 
     const leadX = lead.x;
     this.checkTriggers(leadX);

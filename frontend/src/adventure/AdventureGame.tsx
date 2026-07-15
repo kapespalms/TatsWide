@@ -306,12 +306,14 @@ export function AdventureGame({
         title={failReason || 'MISSION FAILED'}
         subtitle={
           demoArmed
-            ? 'Demo keep failed. Continue retries the same keep — or refresh for the title screen.'
+            ? 'Demo keep failed. Retry the keep, or return to title.'
             : 'Quota or vehicle integrity collapsed. Continue from the checkpoint — pickups stay collected.'
         }
         embed={embed}
         buttonLabel={demoArmed ? 'RETRY KEEP' : 'CONTINUE'}
         onAction={retryFromFail}
+        secondaryLabel="TITLE"
+        onSecondary={exitToTitle}
       />
     );
   }
@@ -328,6 +330,8 @@ export function AdventureGame({
         embed={embed}
         buttonLabel={phase === 'victory' ? 'PLAY AGAIN' : `ZONE ${level + 1} →`}
         onAction={phase === 'victory' ? resetCampaign : nextLevel}
+        secondaryLabel="TITLE"
+        onSecondary={exitToTitle}
       />
     );
   }
@@ -432,18 +436,30 @@ function StoryBanner({ title, blurb, accent }: { title: string; blurb: string; a
   );
 }
 
+function exitToTitle() {
+  const params = new URLSearchParams(window.location.search);
+  params.delete('autostart');
+  params.delete('phase');
+  const q = params.toString();
+  window.location.assign(`${window.location.pathname}${q ? `?${q}` : ''}`);
+}
+
 function EndScreen({
   title,
   subtitle,
   embed,
   buttonLabel,
   onAction,
+  secondaryLabel,
+  onSecondary,
 }: {
   title: string;
   subtitle: string;
   embed?: boolean;
   buttonLabel: string;
   onAction: () => void;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
 }) {
   return (
     <div
@@ -455,13 +471,24 @@ function EndScreen({
         {title}
       </h1>
       <p className="max-w-lg text-center text-sm font-bold text-white/90">{subtitle}</p>
-      <button
-        type="button"
-        className="wa-cta wa-display bg-[#ffe14a] px-10 py-4 text-lg text-black shadow-[0_6px_0_#b89a10]"
-        onClick={onAction}
-      >
-        {buttonLabel}
-      </button>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <button
+          type="button"
+          className="wa-cta wa-display bg-[#ffe14a] px-10 py-4 text-lg text-black shadow-[0_6px_0_#b89a10]"
+          onClick={onAction}
+        >
+          {buttonLabel}
+        </button>
+        {secondaryLabel && onSecondary ? (
+          <button
+            type="button"
+            className="wa-display border-2 border-white/30 bg-black/50 px-8 py-4 text-lg text-white/90"
+            onClick={onSecondary}
+          >
+            {secondaryLabel}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

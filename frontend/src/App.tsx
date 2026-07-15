@@ -250,7 +250,7 @@ function App() {
           </div>
         ) : (
           <p className="border border-white/15 bg-black/40 px-3 py-2 text-center text-[11px] font-bold text-white/80">
-            2P SEATS · Wideass = ←→/WASD · Tats = J/L/I/K · pads 0 / 1
+            2P SEATS · Wideass ←→/WASD + SPACE/F · Tats J/L/I/K + ENTER/G · pads 0 / 1
           </p>
         )}
 
