@@ -37,7 +37,7 @@ function pointerNorm(e: PointerEvent) {
   };
 }
 
-/** Edge-triggered + light autofire (≈8/s while held) — not sticky every frame. */
+/** Edge-triggered + light autofire (≈5/s while held) — arcade cadence, not spray. */
 export function useShooterInput(
   active: boolean,
   playerCount: 1 | 2,
@@ -179,7 +179,7 @@ export function useShooterInput(
           fireAcc.current[who] = 0;
         } else if (isHeld) {
           fireAcc.current[who] += dt;
-          if (fireAcc.current[who] >= 0.12) {
+          if (fireAcc.current[who] >= 0.2) {
             fireAcc.current[who] = 0;
             pending.current[who] = true;
           }

@@ -85,7 +85,7 @@ export class AdventureAudio {
     };
 
     beat();
-    this.musicTimer = window.setInterval(beat, 320);
+    this.musicTimer = window.setInterval(beat, 260);
   }
 
   stopMusic() {
@@ -114,7 +114,9 @@ export class AdventureAudio {
     this.tone(220, 0.22, 'sawtooth', 0.09, 520);
   }
   collect() {
-    this.tone(880, 0.08, 'triangle', 0.07, 1320);
+    // Classic ring ping
+    this.tone(980, 0.06, 'square', 0.055, 1400);
+    this.tone(1480, 0.09, 'triangle', 0.04, 1880);
   }
   spring() {
     this.tone(300, 0.16, 'square', 0.07, 900);
@@ -136,6 +138,46 @@ export class AdventureAudio {
   }
   boost() {
     this.tone(360, 0.2, 'sawtooth', 0.06, 720);
+  }
+  duckChime() {
+    this.tone(880, 0.08, 'triangle', 0.05, 1320);
+    this.tone(1320, 0.1, 'square', 0.035, 1760);
+  }
+  pepperFizz() {
+    this.tone(190, 0.12, 'sawtooth', 0.055, 520);
+    this.tone(640, 0.18, 'square', 0.04, 980);
+  }
+  cupidPop() {
+    this.tone(520, 0.05, 'triangle', 0.045, 920);
+    this.tone(980, 0.07, 'sine', 0.035, 1400);
+  }
+  wipeWhoosh() {
+    this.tone(140, 0.28, 'sawtooth', 0.04, 60);
+    this.tone(420, 0.18, 'triangle', 0.03, 180);
+  }
+  sectorBed(sector: 'SAFARI' | 'NEBULA' | 'CUPID' | 'CYBER') {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const beds: Record<typeof sector, number[]> = {
+      SAFARI: [196, 220, 247, 262],
+      NEBULA: [165, 196, 233, 294],
+      CUPID: [262, 330, 392, 523],
+      CYBER: [220, 277, 330, 440],
+    };
+    const notes = beds[sector];
+    notes.forEach((f, i) => {
+      const t0 = ctx.currentTime + i * 0.07;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = sector === 'CUPID' ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(f, t0);
+      g.gain.setValueAtTime(0.028, t0);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.35);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.4);
+    });
   }
 
   clear() {

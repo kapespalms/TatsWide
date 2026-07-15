@@ -1,4 +1,13 @@
 import { Canvas, useFrame } from '@react-three/fiber';
+import {
+  ContactShadows,
+  Environment,
+  Float,
+  MeshReflectorMaterial,
+  SoftShadows,
+  Sparkles,
+  Stars,
+} from '@react-three/drei';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import {
   Suspense,
@@ -35,7 +44,15 @@ interface Enemy {
   y: number;
   z: number;
   hp: number;
-  kind: 'trex' | 'raptor' | 'alien' | 'crate';
+  kind: 'trex' | 'raptor' | 'alien' | 'crate' | 'heart' | 'bossHeart';
+}
+
+interface HitSpark {
+  id: number;
+  x: number;
+  y: number;
+  z: number;
+  life: number;
 }
 
 interface ShooterPhaseProps {
@@ -46,13 +63,19 @@ interface ShooterPhaseProps {
   playerCount: 1 | 2;
   primaryCharacter: CharacterId;
   embed?: boolean;
+  boss?: boolean;
   onComplete: (result: { scores: ShooterScores; won: boolean; reason: string }) => void;
 }
 
 const JEEP_HP_MAX = 100;
+const CAM_BASE = {
+  jeep: { y: 1.42, z: 6.9, fov: 48 },
+  space: { y: 1.52, z: 7.5, fov: 44 },
+  cupid: { y: 1.48, z: 7.15, fov: 46 },
+} as const;
 
 export function ShooterPhase(props: ShooterPhaseProps) {
-  const { kind, segment, level, intensity, playerCount, primaryCharacter, embed, onComplete } = props;
+  const { kind, segment, level, intensity, playerCount, primaryCharacter, embed, boss, onComplete } = props;
   const [scores, setScores] = useState<ShooterScores>({ Wideass: 0, Tats: 0 });
   const [streaks, setStreaks] = useState<ShooterScores>({ Wideass: 0, Tats: 0 });
   const [kills, setKills] = useState(0);
@@ -151,24 +174,30 @@ export function ShooterPhase(props: ShooterPhaseProps) {
   }, [jeepHp, kind, handleComplete]);
 
   useEffect(() => {
-    if (kind === 'space' && (p1Hp <= 0 || (playerCount === 2 && p2Hp <= 0))) {
-      handleComplete(false, 'SHIP HULL BREACHED — RETRY!');
+    if ((kind === 'space' || kind === 'cupid') && (p1Hp <= 0 || (playerCount === 2 && p2Hp <= 0))) {
+      handleComplete(
+        false,
+        kind === 'cupid' ? 'HEART BARRAGE OVERWHELMED YOU — RETRY!' : 'SHIP HULL BREACHED — RETRY!',
+      );
     }
   }, [kind, p1Hp, p2Hp, playerCount, handleComplete]);
 
-  const cam =
-    kind === 'jeep'
-      ? ({ position: [0, 1.05, 5.2] as [number, number, number], fov: 68 })
-      : ({ position: [0, 1.2, 6] as [number, number, number], fov: 60 });
+  const base = CAM_BASE[kind];
+  const cam = {
+    position: [0, base.y, base.z] as [number, number, number],
+    fov: base.fov,
+  };
 
   return (
     <div className={embed ? 'relative h-full w-full bg-black' : 'relative min-h-screen bg-black'}>
       <div className="absolute inset-0">
-        <Canvas camera={cam}>
+        <Canvas shadows camera={cam} gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}>
           <Suspense fallback={null}>
+            <SoftShadows size={18} samples={12} focus={0.85} />
             <ShooterWorld
               kind={kind}
               intensity={intensity}
+              boss={!!boss}
               input={input}
               onKill={handleKill}
               onMissPass={handleMissPass}
@@ -178,7 +207,7 @@ export function ShooterPhase(props: ShooterPhaseProps) {
               setTimeLeft={setTimeLeft}
               jeepHpRef={jeepHpRef}
               onComplete={handleComplete}
-              onFire={() => sfx.current?.shoot()}
+              onFire={() => (kind === 'cupid' ? sfx.current?.cupidPop() : sfx.current?.shoot())}
             />
           </Suspense>
         </Canvas>
@@ -198,6 +227,7 @@ export function ShooterPhase(props: ShooterPhaseProps) {
         jeepHpMax={JEEP_HP_MAX}
         p1Hp={p1Hp}
         p2Hp={p2Hp}
+        boss={boss}
       />
     </div>
   );
@@ -206,6 +236,7 @@ export function ShooterPhase(props: ShooterPhaseProps) {
 const ShooterWorld = memo(function ShooterWorld({
   kind,
   intensity,
+  boss,
   input,
   onKill,
   onMissPass,
@@ -219,6 +250,7 @@ const ShooterWorld = memo(function ShooterWorld({
 }: {
   kind: ShooterKind;
   intensity: number;
+  boss?: boolean;
   input: ReturnType<typeof useShooterInput>;
   onKill: (who: CharacterId, points: number, countsForQuota: boolean) => void;
   onMissPass: (damage: number) => void;
@@ -247,6 +279,8 @@ const ShooterWorld = memo(function ShooterWorld({
   const laserMeshes = useRef<THREE.Mesh[]>([]);
   const scratch = useRef(new THREE.Vector3());
   const ndcScratch = useRef(new THREE.Vector3());
+  const hitSparks = useRef<HitSpark[]>([]);
+  const [, bumpSparks] = useState(0);
 
   useLayoutEffect(() => {
     return () => {
@@ -262,24 +296,35 @@ const ShooterWorld = memo(function ShooterWorld({
       laserMeshes.current = [];
       enemies.current = [];
       lasers.current = [];
+      hitSparks.current = [];
     };
   }, []);
 
   useFrame((state, delta) => {
     if (completed.current) return;
     const dt = Math.min(delta, 0.05);
+    const camBase = CAM_BASE[kind];
 
-    roadScroll.current += dt * (kind === 'jeep' ? 22 : 8);
+    // Slow, cinematic rail scroll — arcade cabinet timing, not twitch bullet hell
+    roadScroll.current += dt * (kind === 'jeep' ? 9 : kind === 'cupid' ? 6.5 : 5);
 
-    // Soft camera bob / shake when jeep damaged
+    // Subtle dolly + sway — cinematic FOV already set on Camera
+    const dolly = Math.sin(state.clock.elapsedTime * 0.22) * 0.18;
     if (kind === 'jeep') {
       const hurt = 1 - jeepHpRef.current / JEEP_HP_MAX;
-      state.camera.position.x = Math.sin(state.clock.elapsedTime * 2.2) * 0.04 * (1 + hurt * 3);
-      state.camera.position.y = 1.05 + Math.sin(state.clock.elapsedTime * 3.1) * 0.03;
-      state.camera.rotation.z = Math.sin(state.clock.elapsedTime * 1.4) * 0.01 * (1 + hurt);
-    } else {
+      state.camera.position.x = Math.sin(state.clock.elapsedTime * 1.1) * 0.03 * (1 + hurt * 2);
+      state.camera.position.y = camBase.y + Math.sin(state.clock.elapsedTime * 1.6) * 0.02;
+      state.camera.position.z = camBase.z + dolly + hurt * 0.12;
+      state.camera.rotation.z = Math.sin(state.clock.elapsedTime * 0.9) * 0.008 * (1 + hurt);
+    } else if (kind === 'cupid') {
       state.camera.position.x = Math.sin(state.clock.elapsedTime * 0.7) * 0.08;
-      state.camera.position.y = 1.2 + Math.sin(state.clock.elapsedTime * 1.1) * 0.04;
+      state.camera.position.y = camBase.y + Math.sin(state.clock.elapsedTime * 1.1) * 0.04;
+      state.camera.position.z = camBase.z + dolly * 0.85;
+      state.camera.rotation.z = Math.sin(state.clock.elapsedTime * 0.55) * 0.012;
+    } else {
+      state.camera.position.x = Math.sin(state.clock.elapsedTime * 0.45) * 0.05;
+      state.camera.position.y = camBase.y + Math.sin(state.clock.elapsedTime * 0.7) * 0.025;
+      state.camera.position.z = camBase.z + dolly * 0.7;
     }
 
     timerAcc.current += dt;
@@ -291,37 +336,65 @@ const ShooterWorld = memo(function ShooterWorld({
     }
 
     spawnTimer.current += dt;
-    const spawnEvery = Math.max(0.22, (kind === 'jeep' ? 0.55 : 0.7) - intensity * 0.08);
-    if (spawnTimer.current >= spawnEvery) {
+    // Cap on-screen pressure so every target stays readable
+    const maxLive = kind === 'jeep' ? 4 : kind === 'cupid' ? (boss ? 6 : 5) : 5;
+    const spawnEvery = Math.max(
+      0.85,
+      (kind === 'jeep' ? 1.35 : kind === 'cupid' ? 1.15 : 1.5) - intensity * 0.12,
+    );
+    if (spawnTimer.current >= spawnEvery && enemies.current.length < maxLive) {
       spawnTimer.current = 0;
       const roll = Math.random();
-      let ekind: Enemy['kind'] = kind === 'space' ? 'alien' : 'trex';
+      let ekind: Enemy['kind'] =
+        kind === 'cupid' ? 'heart' : kind === 'space' ? 'alien' : 'trex';
       if (kind === 'jeep') {
-        if (roll < 0.18) ekind = 'crate';
-        else if (roll < 0.45) ekind = 'raptor';
+        if (roll < 0.14) ekind = 'crate';
+        else if (roll < 0.42) ekind = 'raptor';
         else ekind = 'trex';
+      } else if (kind === 'cupid') {
+        ekind = boss && roll < 0.22 ? 'bossHeart' : 'heart';
       }
+      // Lane-locked spawns so silhouettes don't stack into mush
+      const lanes =
+        kind === 'jeep' ? [-2.8, -1.1, 1.1, 2.8] : [-2.4, -0.8, 0.8, 2.4];
+      const laneX = lanes[Math.floor(Math.random() * lanes.length)];
       enemies.current.push({
         id: idRef.current++,
-        x: (Math.random() - 0.5) * (kind === 'jeep' ? 9 : 8),
+        x: laneX + (Math.random() - 0.5) * 0.35,
         y:
           ekind === 'crate'
-            ? -0.9
+            ? -0.85
             : kind === 'jeep'
-              ? -0.4 + Math.random() * 1.2
-              : (Math.random() - 0.5) * 3,
-        z: -58 - Math.random() * 22,
-        hp: ekind === 'trex' ? 4 : ekind === 'raptor' ? 2 : ekind === 'crate' ? 1 : 1,
+              ? -0.15 + (ekind === 'trex' ? 0 : 0.2)
+              : (Math.random() - 0.5) * 1.8,
+        z: -42 - Math.random() * 10,
+        hp:
+          ekind === 'trex'
+            ? 3
+            : ekind === 'raptor'
+              ? 2
+              : ekind === 'crate'
+                ? 1
+                : ekind === 'bossHeart'
+                  ? 4
+                  : ekind === 'heart'
+                    ? 1
+                    : 2,
         kind: ekind,
       });
     }
 
-    const speed = (kind === 'space' ? 14 : 12) + intensity * 2;
+    const speed =
+      (kind === 'space' ? 5.5 : kind === 'cupid' ? 5.8 : 4.6) + intensity * 0.9;
     const survivors: Enemy[] = [];
     for (const e of enemies.current) {
       e.z += speed * dt;
-      if (e.z >= 6.5) {
-        if (e.kind !== 'crate') onMissPass(e.kind === 'trex' ? 7 : 4);
+      // Mild side sway so motion feels alive without losing the silhouette
+      e.x += Math.sin(state.clock.elapsedTime * 1.4 + e.id) * dt * (kind === 'cupid' ? 0.55 : 0.35);
+      if (e.z >= 5.2) {
+        if (e.kind !== 'crate') {
+          onMissPass(e.kind === 'trex' ? 8 : e.kind === 'bossHeart' ? 10 : 5);
+        }
         continue;
       }
       survivors.push(e);
@@ -350,30 +423,59 @@ const ShooterWorld = memo(function ShooterWorld({
               ? buildRaptorMesh()
               : e.kind === 'crate'
                 ? buildCrateMesh()
-                : buildTreXMesh();
+                : e.kind === 'heart' || e.kind === 'bossHeart'
+                  ? buildHeartMesh(e.kind === 'bossHeart')
+                  : buildTreXMesh();
         g.userData.kind = e.kind;
         root.current?.add(g);
         enemyMeshes.current[i] = g;
       }
       g.visible = true;
       g.position.set(e.x, e.y, e.z);
+      // Keep targets large and readable from spawn to impact
+      const near = Math.min(1, Math.max(0, -e.z / 42));
       const scale =
         e.kind === 'trex'
-          ? Math.max(1.1, 2.4 + e.z * -0.025)
+          ? 2.6 + (1 - near) * 1.1
           : e.kind === 'raptor'
-            ? Math.max(0.7, 1.35 + e.z * -0.012)
-            : 1;
+            ? 1.7 + (1 - near) * 0.7
+            : e.kind === 'alien'
+              ? 1.55 + (1 - near) * 0.85
+              : e.kind === 'bossHeart'
+                ? 2.2 + (1 - near) * 1.0
+                : e.kind === 'heart'
+                  ? 1.35 + (1 - near) * 0.75
+                  : 1.15;
       g.scale.setScalar(scale);
-      g.rotation.y = Math.sin(state.clock.elapsedTime * 2 + e.id) * 0.15;
+      g.rotation.y = Math.sin(state.clock.elapsedTime * 1.2 + e.id) * 0.2;
+      if (e.kind === 'trex' || e.kind === 'raptor') {
+        g.rotation.x = Math.sin(state.clock.elapsedTime * 3 + e.id) * 0.04;
+      }
+      if (e.kind === 'heart' || e.kind === 'bossHeart') {
+        g.rotation.z = Math.sin(state.clock.elapsedTime * 2.2 + e.id) * 0.18;
+      }
     });
 
     const camera = state.camera;
     const fire = input.consumeFire();
     const ret = input.getReticles();
 
+    const pushSpark = (x: number, y: number, z: number) => {
+      hitSparks.current.push({ id: idRef.current++, x, y, z, life: 0.5 });
+      if (hitSparks.current.length > 6) hitSparks.current.shift();
+      bumpSparks((n) => n + 1);
+    };
+
     const checkHit = (who: CharacterId, nx: number, ny: number) => {
       muzzle.current[who] = 1;
-      const color = who === 'Wideass' ? '#ff6644' : '#66eeff';
+      const color =
+        kind === 'cupid'
+          ? who === 'Wideass'
+            ? '#ff6699'
+            : '#ffaad4'
+          : who === 'Wideass'
+            ? '#ff6644'
+            : '#66eeff';
       const ndc = ndcScratch.current.set(nx * 2 - 1, -(ny * 2 - 1), 0.85);
       ndc.unproject(camera);
       lasers.current.push({
@@ -391,15 +493,38 @@ const ShooterWorld = memo(function ShooterWorld({
       for (let i = enemies.current.length - 1; i >= 0; i -= 1) {
         const e = enemies.current[i];
         const projected = scratch.current
-          .set(e.x, e.y + (e.kind === 'trex' ? 1.2 : 0.4), e.z)
+          .set(
+            e.x,
+            e.y +
+              (e.kind === 'trex'
+                ? 1.2
+                : e.kind === 'bossHeart'
+                  ? 0.9
+                  : e.kind === 'heart'
+                    ? 0.5
+                    : 0.4),
+            e.z,
+          )
           .project(camera);
         if (projected.z > 1) continue;
         const sx = projected.x * 0.5 + 0.5;
         const sy = -projected.y * 0.5 + 0.5;
         const dist = Math.hypot(sx - nx, sy - ny);
-        const threshold = e.kind === 'trex' ? 0.13 : e.kind === 'crate' ? 0.09 : 0.1;
-        if (dist < threshold && e.z > -45) {
+        const threshold =
+          e.kind === 'trex'
+            ? 0.18
+            : e.kind === 'alien'
+              ? 0.15
+              : e.kind === 'crate'
+                ? 0.12
+                : e.kind === 'bossHeart'
+                  ? 0.2
+                  : e.kind === 'heart'
+                    ? 0.16
+                    : 0.14;
+        if (dist < threshold && e.z > -48) {
           e.hp -= 1;
+          pushSpark(e.x, e.y + 0.6, e.z);
           if (e.hp <= 0) {
             enemies.current.splice(i, 1);
             const g = enemyMeshes.current.splice(i, 1)[0];
@@ -408,7 +533,17 @@ const ShooterWorld = memo(function ShooterWorld({
               root.current?.remove(g);
             }
             const points =
-              e.kind === 'trex' ? 1000 : e.kind === 'raptor' ? 600 : e.kind === 'crate' ? 250 : 400;
+              e.kind === 'trex'
+                ? 1000
+                : e.kind === 'raptor'
+                  ? 600
+                  : e.kind === 'crate'
+                    ? 250
+                    : e.kind === 'bossHeart'
+                      ? 1500
+                      : e.kind === 'heart'
+                        ? 500
+                        : 400;
             onKill(who, points, e.kind !== 'crate');
           }
           break;
@@ -433,6 +568,15 @@ const ShooterWorld = memo(function ShooterWorld({
     lasers.current = lasers.current
       .map((l) => ({ ...l, life: l.life - dt }))
       .filter((l) => l.life > 0);
+
+    let sparksDirty = false;
+    hitSparks.current = hitSparks.current
+      .map((s) => ({ ...s, life: s.life - dt }))
+      .filter((s) => {
+        if (s.life <= 0) sparksDirty = true;
+        return s.life > 0;
+      });
+    if (sparksDirty) bumpSparks((n) => n + 1);
 
     while (laserMeshes.current.length > lasers.current.length) {
       const m = laserMeshes.current.pop();
@@ -479,15 +623,43 @@ const ShooterWorld = memo(function ShooterWorld({
 
   return (
     <>
-      <color attach="background" args={[kind === 'space' ? '#050510' : '#1a2818']} />
-      <fog attach="fog" args={[kind === 'space' ? '#050510' : '#2a3a22', 12, kind === 'jeep' ? 70 : 55]} />
-      {kind === 'space' ? <SpaceEnvironment /> : <JeepEnvironment scroll={roadScroll} />}
+      <color
+        attach="background"
+        args={[kind === 'cupid' ? '#2a1028' : kind === 'space' ? '#1a1428' : '#0a1220']}
+      />
+      <fog
+        attach="fog"
+        args={[
+          kind === 'cupid' ? '#3a1838' : kind === 'space' ? '#241830' : '#152030',
+          42,
+          kind === 'jeep' ? 95 : 88,
+        ]}
+      />
+      {kind === 'cupid' ? (
+        <CupidEnvironment />
+      ) : kind === 'space' ? (
+        <SpaceEnvironment />
+      ) : (
+        <JeepEnvironment scroll={roadScroll} />
+      )}
       <group ref={root} />
+      {hitSparks.current.map((s) => (
+        <Sparkles
+          key={s.id}
+          position={[s.x, s.y, s.z]}
+          count={28}
+          scale={1.4}
+          size={4}
+          speed={1.4}
+          opacity={Math.min(1, s.life * 2.2)}
+          color={kind === 'cupid' ? '#ff66aa' : kind === 'space' ? '#ff6644' : '#ffe14a'}
+        />
+      ))}
       <VehicleInterior kind={kind} muzzle={muzzle} />
       <EffectComposer multisampling={0}>
         <Bloom
-          intensity={kind === 'space' ? 0.55 : 0.35}
-          luminanceThreshold={0.45}
+          intensity={kind === 'cupid' ? 1.05 : kind === 'space' ? 0.85 : 0.55}
+          luminanceThreshold={0.32}
           luminanceSmoothing={0.4}
           mipmapBlur
         />
@@ -496,16 +668,132 @@ const ShooterWorld = memo(function ShooterWorld({
   );
 });
 
+/** Shared materials — never disposed per-instance (avoid leaks). */
 const MAT = {
-  alienBody: new THREE.MeshStandardMaterial({ color: '#cc2222', emissive: '#ff0000', emissiveIntensity: 0.5 }),
-  alienHead: new THREE.MeshStandardMaterial({ color: '#ff4444', emissive: '#ffff00', emissiveIntensity: 0.8 }),
-  trexSkin: new THREE.MeshStandardMaterial({ color: '#4a6b32', roughness: 0.85 }),
-  trexBelly: new THREE.MeshStandardMaterial({ color: '#8a9a60', roughness: 0.9 }),
-  trexEye: new THREE.MeshStandardMaterial({ color: '#ffff44', emissive: '#ffaa00', emissiveIntensity: 2 }),
-  raptor: new THREE.MeshStandardMaterial({ color: '#3d5a3a', roughness: 0.8 }),
-  raptorEye: new THREE.MeshStandardMaterial({ color: '#ff2200', emissive: '#ff2200', emissiveIntensity: 1.5 }),
-  crate: new THREE.MeshStandardMaterial({ color: '#8b5a2b', roughness: 0.95 }),
-  crateStripe: new THREE.MeshStandardMaterial({ color: '#c9a227', emissive: '#886600', emissiveIntensity: 0.3 }),
+  alienBody: new THREE.MeshPhysicalMaterial({
+    color: '#ff1a1a',
+    emissive: '#ff2200',
+    emissiveIntensity: 0.55,
+    roughness: 0.28,
+    metalness: 0.15,
+    clearcoat: 0.85,
+    clearcoatRoughness: 0.2,
+    sheen: 1,
+    sheenColor: new THREE.Color('#ff8866'),
+    sheenRoughness: 0.4,
+  }),
+  alienHead: new THREE.MeshPhysicalMaterial({
+    color: '#ff5533',
+    emissive: '#ffcc44',
+    emissiveIntensity: 0.9,
+    roughness: 0.22,
+    metalness: 0.1,
+    clearcoat: 1,
+    clearcoatRoughness: 0.12,
+  }),
+  alienGlow: new THREE.MeshPhysicalMaterial({
+    color: '#ffff88',
+    emissive: '#ffee55',
+    emissiveIntensity: 2.4,
+    roughness: 0.15,
+    metalness: 0.05,
+    clearcoat: 1,
+  }),
+  trexSkin: new THREE.MeshPhysicalMaterial({
+    color: '#5f8a3c',
+    roughness: 0.55,
+    metalness: 0.05,
+    clearcoat: 0.35,
+    clearcoatRoughness: 0.45,
+    sheen: 0.6,
+    sheenColor: new THREE.Color('#a8c878'),
+  }),
+  trexBelly: new THREE.MeshPhysicalMaterial({
+    color: '#e8dcb8',
+    roughness: 0.65,
+    metalness: 0.02,
+    clearcoat: 0.25,
+    clearcoatRoughness: 0.5,
+  }),
+  trexStripe: new THREE.MeshPhysicalMaterial({
+    color: '#2a1c10',
+    roughness: 0.7,
+    metalness: 0.08,
+    clearcoat: 0.2,
+  }),
+  trexEye: new THREE.MeshPhysicalMaterial({
+    color: '#ffff66',
+    emissive: '#ff9900',
+    emissiveIntensity: 3.2,
+    roughness: 0.12,
+    metalness: 0.1,
+    clearcoat: 1,
+  }),
+  raptor: new THREE.MeshPhysicalMaterial({
+    color: '#4e7a32',
+    roughness: 0.5,
+    metalness: 0.06,
+    clearcoat: 0.4,
+    clearcoatRoughness: 0.4,
+    sheen: 0.5,
+    sheenColor: new THREE.Color('#88bb55'),
+  }),
+  raptorAccent: new THREE.MeshPhysicalMaterial({
+    color: '#c04028',
+    emissive: '#aa1810',
+    emissiveIntensity: 0.55,
+    roughness: 0.4,
+    metalness: 0.15,
+    clearcoat: 0.5,
+  }),
+  raptorEye: new THREE.MeshPhysicalMaterial({
+    color: '#ff2200',
+    emissive: '#ff2200',
+    emissiveIntensity: 2.6,
+    roughness: 0.15,
+    metalness: 0.1,
+    clearcoat: 1,
+  }),
+  crate: new THREE.MeshPhysicalMaterial({
+    color: '#6a6e72',
+    roughness: 0.35,
+    metalness: 0.85,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.25,
+  }),
+  crateStripe: new THREE.MeshPhysicalMaterial({
+    color: '#f0c020',
+    emissive: '#aa8800',
+    emissiveIntensity: 0.55,
+    roughness: 0.3,
+    metalness: 0.7,
+    clearcoat: 0.8,
+  }),
+  alienHalo: new THREE.MeshBasicMaterial({ color: '#ff4422', transparent: true, opacity: 0.14, depthWrite: false }),
+  trexRim: new THREE.MeshBasicMaterial({ color: '#88ff66', transparent: true, opacity: 0.08, depthWrite: false }),
+  raptorRim: new THREE.MeshBasicMaterial({ color: '#ff8844', transparent: true, opacity: 0.1, depthWrite: false }),
+  heartBody: new THREE.MeshPhysicalMaterial({
+    color: '#ff3366',
+    emissive: '#ff1166',
+    emissiveIntensity: 0.75,
+    roughness: 0.25,
+    metalness: 0.12,
+    clearcoat: 0.95,
+    clearcoatRoughness: 0.15,
+    sheen: 1,
+    sheenColor: new THREE.Color('#ffc0d8'),
+    sheenRoughness: 0.35,
+  }),
+  bossHeartBody: new THREE.MeshPhysicalMaterial({
+    color: '#ff88cc',
+    emissive: '#ff44aa',
+    emissiveIntensity: 1.1,
+    roughness: 0.2,
+    metalness: 0.35,
+    clearcoat: 1,
+    clearcoatRoughness: 0.1,
+  }),
+  heartGlow: new THREE.MeshBasicMaterial({ color: '#ff99cc', transparent: true, opacity: 0.18, depthWrite: false }),
 };
 
 function disposeGroup(g: THREE.Group) {
@@ -516,112 +804,235 @@ function disposeGroup(g: THREE.Group) {
   });
 }
 
+function buildHeartMesh(boss = false) {
+  const g = new THREE.Group();
+  const mat = boss ? MAT.bossHeartBody : MAT.heartBody;
+  const left = new THREE.Mesh(new THREE.SphereGeometry(0.55, 18, 18), mat);
+  left.position.set(-0.32, 0.25, 0);
+  left.castShadow = true;
+  const right = new THREE.Mesh(new THREE.SphereGeometry(0.55, 18, 18), mat);
+  right.position.set(0.32, 0.25, 0);
+  right.castShadow = true;
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.72, 1.05, 4), mat);
+  tip.rotation.z = Math.PI;
+  tip.position.set(0, -0.35, 0);
+  tip.castShadow = true;
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(boss ? 1.55 : 1.15, 14, 14), MAT.heartGlow);
+  glow.position.y = 0.05;
+  g.add(left, right, tip, glow);
+  return g;
+}
+
 function buildAlienMesh() {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.7, 10, 10), MAT.alienBody);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 8), MAT.alienHead);
-  head.position.set(0, 0.5, 0.3);
-  g.add(body, head);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.85, 24, 24), MAT.alienBody);
+  body.scale.set(1.15, 0.85, 1.4);
+  body.castShadow = true;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.48, 20, 20), MAT.alienHead);
+  head.position.set(0, 0.55, 0.55);
+  head.castShadow = true;
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 12), MAT.alienGlow);
+  eyeL.position.set(-0.18, 0.65, 0.9);
+  const eyeR = eyeL.clone();
+  eyeR.position.x = 0.18;
+  for (let i = 0; i < 4; i += 1) {
+    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.85, 6, 10), MAT.alienBody);
+    const side = i < 2 ? -1 : 1;
+    const row = i % 2;
+    leg.position.set(side * 0.7, -0.35, -0.2 + row * 0.55);
+    leg.rotation.z = side * 0.7;
+    leg.rotation.x = 0.35;
+    leg.castShadow = true;
+    g.add(leg);
+  }
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(1.15, 16, 16), MAT.alienHalo);
+  g.add(body, head, eyeL, eyeR, halo);
   return g;
 }
 
 function buildTreXMesh() {
   const g = new THREE.Group();
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.8, 1.1), MAT.trexSkin);
-  torso.position.set(0, 1.4, 0);
-  const bellyMesh = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.3, 0.7), MAT.trexBelly);
-  bellyMesh.position.set(0.15, 1.3, 0.15);
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.0, 0.55), MAT.trexSkin);
-  neck.position.set(0.85, 2.2, 0);
-  neck.rotation.z = -0.4;
-  const head = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, 0.65), MAT.trexSkin);
-  head.position.set(1.55, 2.55, 0);
-  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.25, 0.5), MAT.trexBelly);
-  jaw.position.set(1.65, 2.2, 0);
-  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), MAT.trexEye);
-  eye.position.set(1.7, 2.7, 0.28);
-  const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.9, 0.45), MAT.trexSkin);
-  thigh.position.set(-0.2, 0.55, 0.25);
-  const calf = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.7, 0.35), MAT.trexSkin);
-  calf.position.set(0.1, 0.15, 0.35);
-  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.55, 0.2), MAT.trexSkin);
-  arm.position.set(0.7, 1.5, 0.45);
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.35, 0.35), MAT.trexSkin);
-  tail.position.set(-1.4, 1.3, 0);
-  tail.rotation.z = 0.25;
-  g.add(torso, bellyMesh, neck, head, jaw, eye, thigh, calf, arm, tail);
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.85, 1.1, 8, 16), MAT.trexSkin);
+  torso.position.set(0, 1.55, 0);
+  torso.scale.set(1.15, 1, 0.95);
+  torso.castShadow = true;
+  const bellyMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.55, 0.7, 6, 12), MAT.trexBelly);
+  bellyMesh.position.set(0.25, 1.4, 0.25);
+  bellyMesh.scale.set(1, 1.1, 0.85);
+  const stripe = new THREE.Mesh(new THREE.CapsuleGeometry(0.15, 1.5, 4, 10), MAT.trexStripe);
+  stripe.position.set(0, 2.15, 0);
+  stripe.rotation.z = Math.PI / 2;
+  const neck = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.7, 6, 12), MAT.trexSkin);
+  neck.position.set(1.0, 2.45, 0);
+  neck.rotation.z = -0.45;
+  neck.castShadow = true;
+  const head = new THREE.Mesh(new THREE.CapsuleGeometry(0.38, 0.55, 6, 14), MAT.trexSkin);
+  head.position.set(1.85, 2.85, 0);
+  head.rotation.z = -0.15;
+  head.scale.set(1.4, 0.95, 0.9);
+  head.castShadow = true;
+  const jaw = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.45, 4, 10), MAT.trexBelly);
+  jaw.position.set(2.05, 2.42, 0);
+  jaw.rotation.z = 0.2;
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), MAT.trexEye);
+  eye.position.set(2.05, 3.05, 0.35);
+  const eye2 = eye.clone();
+  eye2.position.z = -0.35;
+  const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.55, 6, 10), MAT.trexSkin);
+  thigh.position.set(-0.15, 0.6, 0.3);
+  thigh.castShadow = true;
+  const calf = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.4, 4, 10), MAT.trexSkin);
+  calf.position.set(0.15, 0.15, 0.4);
+  const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.35, 4, 8), MAT.trexSkin);
+  arm.position.set(0.85, 1.65, 0.55);
+  const tail = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 1.6, 4, 10), MAT.trexSkin);
+  tail.position.set(-1.65, 1.45, 0);
+  tail.rotation.z = 0.28;
+  tail.castShadow = true;
+  const rim = new THREE.Mesh(new THREE.SphereGeometry(2.4, 16, 16), MAT.trexRim);
+  rim.position.y = 1.4;
+  g.add(torso, bellyMesh, stripe, neck, head, jaw, eye, eye2, thigh, calf, arm, tail, rim);
   return g;
 }
 
 function buildRaptorMesh() {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.5), MAT.raptor);
-  body.position.y = 0.7;
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.4, 0.35), MAT.raptor);
-  head.position.set(0.55, 1.0, 0);
-  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), MAT.raptorEye);
-  eye.position.set(0.7, 1.1, 0.15);
-  const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.55, 0.2), MAT.raptor);
-  leg.position.set(-0.1, 0.25, 0.15);
-  g.add(body, head, eye, leg);
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.38, 0.55, 6, 14), MAT.raptor);
+  body.position.y = 0.85;
+  body.scale.set(1.4, 1, 0.9);
+  body.castShadow = true;
+  const stripe = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.9, 4, 8), MAT.raptorAccent);
+  stripe.position.set(0, 1.1, 0);
+  stripe.rotation.z = Math.PI / 2;
+  const head = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.28, 6, 12), MAT.raptor);
+  head.position.set(0.7, 1.2, 0);
+  head.scale.set(1.3, 1, 0.95);
+  head.castShadow = true;
+  const crest = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.35, 8), MAT.raptorAccent);
+  crest.position.set(0.85, 1.45, 0);
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 10), MAT.raptorEye);
+  eye.position.set(0.9, 1.3, 0.18);
+  const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.4, 4, 8), MAT.raptor);
+  leg.position.set(-0.1, 0.3, 0.18);
+  const leg2 = leg.clone();
+  leg2.position.z = -0.18;
+  const rim = new THREE.Mesh(new THREE.SphereGeometry(1.3, 12, 12), MAT.raptorRim);
+  rim.position.y = 0.8;
+  g.add(body, stripe, head, crest, eye, leg, leg2, rim);
   return g;
 }
 
 function buildCrateMesh() {
   const g = new THREE.Group();
-  const crate = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), MAT.crate);
-  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.12, 0.95), MAT.crateStripe);
-  stripe.position.y = 0.1;
-  g.add(crate, stripe);
+  const crate = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.0, 1.0), MAT.crate);
+  crate.castShadow = true;
+  crate.receiveShadow = true;
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.18, 1.08), MAT.crateStripe);
+  stripe.position.y = 0.15;
+  const stripe2 = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.18, 1.08), MAT.crateStripe);
+  stripe2.position.y = -0.2;
+  const cross = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.05, 1.05), MAT.crateStripe);
+  g.add(crate, stripe, stripe2, cross);
   return g;
 }
 
-function SpaceEnvironment() {
-  const points = useRef<THREE.Points>(null);
-  const positions = useRef<Float32Array | null>(null);
-  if (!positions.current) {
-    const arr = new Float32Array(240 * 3);
-    for (let i = 0; i < 240; i += 1) {
-      arr[i * 3] = (Math.random() - 0.5) * 90;
-      arr[i * 3 + 1] = (Math.random() - 0.5) * 50;
-      arr[i * 3 + 2] = -10 - Math.random() * 70;
-    }
-    positions.current = arr;
-  }
-
-  useFrame((_, dt) => {
-    const geo = points.current?.geometry;
-    const pos = geo?.attributes.position as THREE.BufferAttribute | undefined;
-    if (!pos) return;
-    for (let i = 0; i < pos.count; i += 1) {
-      let z = pos.getZ(i) + dt * 28;
-      if (z > 10) {
-        z = -70 - Math.random() * 10;
-        pos.setX(i, (Math.random() - 0.5) * 90);
-        pos.setY(i, (Math.random() - 0.5) * 50);
-      }
-      pos.setZ(i, z);
-    }
-    pos.needsUpdate = true;
-  });
-
+function CupidEnvironment() {
   return (
     <>
-      <ambientLight intensity={0.35} />
-      <pointLight position={[0, 3, 2]} intensity={1.2} color="#88ccff" />
-      <mesh position={[0, 0, -40]}>
-        <sphereGeometry args={[55, 16, 16]} />
-        <meshBasicMaterial color="#0a0618" side={THREE.BackSide} />
+      <Environment preset="sunset" environmentIntensity={0.65} />
+      <ambientLight intensity={0.55} />
+      <directionalLight
+        position={[4, 8, 2]}
+        intensity={1.15}
+        color="#ffb0d0"
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+      />
+      <pointLight position={[-3, 2, 4]} intensity={1.4} color="#ff66aa" />
+      <pointLight position={[3, 1.5, 2]} intensity={0.9} color="#ffe14a" />
+      <Stars radius={90} depth={50} count={1800} factor={3.2} saturation={0.6} fade speed={0.6} />
+      <Sparkles count={90} scale={[18, 10, 28]} size={3.5} speed={0.55} color="#ff99cc" opacity={0.55} />
+      <Float speed={1.2} rotationIntensity={0.2} floatIntensity={0.4}>
+        <mesh position={[0, 2.2, -18]}>
+          <torusGeometry args={[3.2, 0.08, 8, 48]} />
+          <meshBasicMaterial color="#ff66aa" transparent opacity={0.35} />
+        </mesh>
+      </Float>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.4, -8]} receiveShadow>
+        <planeGeometry args={[40, 60]} />
+        <MeshReflectorMaterial
+          blur={[200, 80]}
+          resolution={512}
+          mixStrength={0.55}
+          roughness={0.75}
+          metalness={0.25}
+          color="#2a1430"
+        />
       </mesh>
-      <points ref={points}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            args={[positions.current, 3]}
+      <ContactShadows position={[0, -1.38, -4]} opacity={0.45} scale={20} blur={2.4} far={14} color="#1a0818" />
+    </>
+  );
+}
+
+function SpaceEnvironment() {
+  return (
+    <>
+      <Environment preset="city" environmentIntensity={0.55} />
+      {/* Golden hour key + cool fill + rim */}
+      <ambientLight intensity={0.35} color="#ffd8a8" />
+      <directionalLight
+        position={[8, 10, 4]}
+        intensity={1.55}
+        color="#ffb070"
+        castShadow
+        shadow-mapSize={[1024, 1024]}
+      />
+      <directionalLight position={[-7, 4, -6]} intensity={0.7} color="#88aaff" />
+      <pointLight position={[0, 4, 3]} intensity={1.2} color="#a8d8ff" />
+      <pointLight position={[-6, 2, -12]} intensity={1.4} color="#ff6644" />
+      <spotLight position={[4, 8, 2]} angle={0.4} penumbra={0.6} intensity={1.1} color="#ffcc88" />
+
+      <Stars radius={90} depth={60} count={2200} factor={3.2} saturation={0.3} fade speed={0.6} />
+
+      <Float speed={0.6} rotationIntensity={0.08} floatIntensity={0.15}>
+        <mesh position={[-11, 3.5, -38]} castShadow>
+          <boxGeometry args={[7, 14, 4]} />
+          <meshPhysicalMaterial color="#4a5568" metalness={0.55} roughness={0.4} clearcoat={0.5} />
+        </mesh>
+      </Float>
+      <Float speed={0.45} rotationIntensity={0.05} floatIntensity={0.1}>
+        <mesh position={[1, 6, -42]} castShadow>
+          <boxGeometry args={[5, 18, 5]} />
+          <meshPhysicalMaterial
+            color="#3a4455"
+            metalness={0.6}
+            roughness={0.35}
+            clearcoat={0.6}
+            emissive="#224466"
+            emissiveIntensity={0.3}
           />
-        </bufferGeometry>
-        <pointsMaterial size={0.18} color="#d0e8ff" sizeAttenuation />
-      </points>
+        </mesh>
+      </Float>
+      <mesh position={[12, 4, -36]} castShadow>
+        <boxGeometry args={[7, 12, 4]} />
+        <meshPhysicalMaterial color="#556070" metalness={0.5} roughness={0.45} clearcoat={0.4} />
+      </mesh>
+      <mesh position={[-10, 9.5, -35.5]}>
+        <boxGeometry args={[3.2, 0.55, 0.2]} />
+        <meshPhysicalMaterial color="#111" emissive="#ffe14a" emissiveIntensity={1.1} metalness={0.4} roughness={0.3} />
+      </mesh>
+
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.5, -6]} receiveShadow>
+        <planeGeometry args={[28, 90]} />
+        <meshPhysicalMaterial color="#3a4555" metalness={0.65} roughness={0.35} clearcoat={0.4} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.48, -6]} receiveShadow>
+        <planeGeometry args={[9, 90]} />
+        <meshPhysicalMaterial color="#5a6678" metalness={0.5} roughness={0.4} clearcoat={0.5} />
+      </mesh>
+
+      <ContactShadows position={[0, -1.48, -4]} opacity={0.45} scale={28} blur={2.4} far={18} color="#0a0812" />
     </>
   );
 }
@@ -652,74 +1063,144 @@ function JeepEnvironment({ scroll }: { scroll: MutableRefObject<number> }) {
 
   return (
     <>
-      <ambientLight intensity={0.45} />
-      <directionalLight position={[8, 12, 4]} intensity={1.1} color="#ffe0a8" castShadow />
-      <pointLight position={[-4, 3, -8]} intensity={1.8} color="#ff6622" />
-      <pointLight position={[3, 2, 2]} intensity={0.6} color="#88ffaa" />
+      <Environment preset="night" environmentIntensity={0.4} />
+      {/* Moon key, volcano fill, neon rims */}
+      <ambientLight intensity={0.22} color="#a8b8d8" />
+      <directionalLight
+        position={[-6, 16, -4]}
+        intensity={0.65}
+        color="#d0e0ff"
+        castShadow
+        shadow-mapSize={[1024, 1024]}
+      />
+      <pointLight position={[8, 12, -30]} intensity={1.8} color="#fff6d0" distance={80} />
+      <pointLight position={[-18, 6, -28]} intensity={3.2} color="#ff5522" distance={50} />
+      <pointLight position={[0, 5, -2]} intensity={0.9} color="#c8d8ff" />
+      <spotLight position={[0, 7, 5]} angle={0.5} penumbra={0.55} intensity={1.6} color="#ffe8b0" />
+      <pointLight position={[7.5, 2.5, -10]} intensity={1.4} color="#ff44aa" />
+      <pointLight position={[-7.5, 2.5, -10]} intensity={1.2} color="#8844ff" />
 
-      <mesh position={[0, 10, -40]}>
-        <sphereGeometry args={[60, 16, 16]} />
-        <meshBasicMaterial color="#6aa0c8" side={THREE.BackSide} />
+      {/* Moon */}
+      <mesh position={[10, 14, -42]}>
+        <sphereGeometry args={[4.4, 32, 32]} />
+        <meshPhysicalMaterial
+          color="#fff8e0"
+          emissive="#ffe8b0"
+          emissiveIntensity={0.85}
+          roughness={0.9}
+          metalness={0}
+        />
+      </mesh>
+      <mesh position={[10, 14, -42]}>
+        <sphereGeometry args={[5.4, 24, 24]} />
+        <meshBasicMaterial color="#ddeeff" transparent opacity={0.16} depthWrite={false} />
       </mesh>
 
-      <mesh position={[14, 9, -35]}>
-        <sphereGeometry args={[3.2, 16, 16]} />
-        <meshBasicMaterial color="#fff3c0" />
+      {/* Volcano */}
+      <mesh position={[-18, 2, -34]} castShadow>
+        <coneGeometry args={[5, 12, 16]} />
+        <meshPhysicalMaterial color="#1a1008" emissive="#ff3300" emissiveIntensity={0.65} roughness={0.85} />
+      </mesh>
+      <mesh position={[-18, 8.5, -34]}>
+        <sphereGeometry args={[2.3, 16, 16]} />
+        <meshPhysicalMaterial
+          color="#ff8800"
+          emissive="#ff4400"
+          emissiveIntensity={1.8}
+          transparent
+          opacity={0.8}
+          roughness={0.4}
+        />
       </mesh>
 
-      <mesh position={[-16, 2, -32]}>
-        <coneGeometry args={[4.5, 11, 8]} />
-        <meshStandardMaterial color="#2a1810" emissive="#ff3300" emissiveIntensity={0.55} />
+      {/* Neon facility rails */}
+      <mesh position={[7.5, 1.5, -18]}>
+        <boxGeometry args={[0.22, 3.2, 40]} />
+        <meshPhysicalMaterial color="#220022" emissive="#ff44aa" emissiveIntensity={1.5} metalness={0.4} roughness={0.3} />
       </mesh>
-      <mesh position={[-16, 8, -32]}>
-        <sphereGeometry args={[1.8, 10, 10]} />
-        <meshStandardMaterial color="#ff8800" emissive="#ff4400" emissiveIntensity={1.2} transparent opacity={0.7} />
+      <mesh position={[-7.5, 1.5, -18]}>
+        <boxGeometry args={[0.22, 3.2, 40]} />
+        <meshPhysicalMaterial color="#220022" emissive="#8844ff" emissiveIntensity={1.3} metalness={0.4} roughness={0.3} />
       </mesh>
 
       <group ref={trees}>
         {Array.from({ length: 28 }, (_, i) => {
           const side = i % 2 === 0 ? -1 : 1;
           const z = -6 - (i % 14) * 4.2;
-          const x = side * (5.5 + (i % 5) * 1.1);
+          const x = side * (5.8 + (i % 5) * 1.1);
           return (
-            <group key={`tree-${i}`} position={[x, 0, z]}>
-              <mesh position={[0, 1.8, 0]}>
-                <cylinderGeometry args={[0.25, 0.4, 3.6, 6]} />
-                <meshStandardMaterial color="#2a1810" />
-              </mesh>
-              <mesh position={[0, 4.1, 0]}>
-                <coneGeometry args={[1.6, 3.2, 7]} />
-                <meshStandardMaterial color="#1a4d22" />
-              </mesh>
-            </group>
+            <Float key={`tree-${i}`} speed={0.4 + (i % 5) * 0.05} floatIntensity={0.08} rotationIntensity={0.04}>
+              <group position={[x, 0, z]}>
+                <mesh position={[0, 1.8, 0]} castShadow>
+                  <cylinderGeometry args={[0.22, 0.38, 3.6, 10]} />
+                  <meshPhysicalMaterial color="#1a1208" roughness={0.85} clearcoat={0.15} />
+                </mesh>
+                <mesh position={[0, 4.1, 0]} castShadow>
+                  <sphereGeometry args={[1.55, 14, 14]} />
+                  <meshPhysicalMaterial
+                    color="#0e3824"
+                    roughness={0.55}
+                    clearcoat={0.3}
+                    sheen={0.4}
+                    sheenColor="#2a6040"
+                  />
+                </mesh>
+              </group>
+            </Float>
           );
         })}
       </group>
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.35, -8]}>
+      {/* Soft reflective road */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.35, -8]} receiveShadow>
         <planeGeometry args={[18, 100]} />
-        <meshStandardMaterial color="#5a3a1e" roughness={1} />
+        <MeshReflectorMaterial
+          blur={[280, 80]}
+          resolution={512}
+          mixBlur={0.85}
+          mixStrength={0.45}
+          roughness={0.85}
+          depthScale={0.6}
+          minDepthThreshold={0.4}
+          maxDepthThreshold={1.2}
+          color="#2a1c10"
+          metalness={0.25}
+          mirror={0.2}
+        />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.33, -8]}>
-        <planeGeometry args={[5.5, 100]} />
-        <meshStandardMaterial color="#7a5530" roughness={1} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.325, -8]} receiveShadow>
+        <planeGeometry args={[5.8, 100]} />
+        <MeshReflectorMaterial
+          blur={[200, 60]}
+          resolution={384}
+          mixBlur={0.7}
+          mixStrength={0.55}
+          roughness={0.7}
+          depthScale={0.5}
+          color="#3a2818"
+          metalness={0.35}
+          mirror={0.28}
+        />
       </mesh>
-      <mesh ref={stripes} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.31, -8]}>
-        <planeGeometry args={[0.35, 100]} />
-        <meshStandardMaterial color="#c9a227" emissive="#886600" emissiveIntensity={0.25} />
+      <mesh ref={stripes} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.3, -8]}>
+        <planeGeometry args={[0.4, 100]} />
+        <meshPhysicalMaterial color="#c9a227" emissive="#886600" emissiveIntensity={0.55} metalness={0.4} roughness={0.4} />
       </mesh>
 
       <group ref={rocks}>
         {Array.from({ length: 10 }, (_, i) => (
           <mesh
             key={`rock-${i}`}
+            castShadow
             position={[(i % 2 === 0 ? -1 : 1) * (3.2 + (i % 3) * 0.4), -0.7, -8 - i * 5]}
           >
             <dodecahedronGeometry args={[0.55 + (i % 3) * 0.15, 0]} />
-            <meshStandardMaterial color="#4a4038" roughness={0.95} />
+            <meshPhysicalMaterial color="#2a2420" roughness={0.8} clearcoat={0.2} metalness={0.1} />
           </mesh>
         ))}
       </group>
+
+      <ContactShadows position={[0, -1.32, -4]} opacity={0.55} scale={22} blur={2.2} far={16} color="#050308" />
     </>
   );
 }
@@ -752,79 +1233,107 @@ function VehicleInterior({
       <group position={[0, -1.8, 3]}>
         <mesh>
           <boxGeometry args={[7, 1.2, 2.5]} />
-          <meshStandardMaterial color="#223344" metalness={0.7} roughness={0.3} />
+          <meshPhysicalMaterial color="#223344" metalness={0.75} roughness={0.25} clearcoat={0.7} />
         </mesh>
         <mesh position={[-1.2, 0.5, 0.8]}>
           <boxGeometry args={[0.5, 0.4, 1.2]} />
-          <meshStandardMaterial color="#555555" emissive="#00ffff" emissiveIntensity={0.3} />
+          <meshPhysicalMaterial color="#555555" emissive="#00ffff" emissiveIntensity={0.45} metalness={0.6} roughness={0.3} clearcoat={0.5} />
         </mesh>
         <mesh position={[1.2, 0.5, 0.8]}>
           <boxGeometry args={[0.5, 0.4, 1.2]} />
-          <meshStandardMaterial color="#555555" emissive="#ff4444" emissiveIntensity={0.3} />
+          <meshPhysicalMaterial color="#555555" emissive="#ff4444" emissiveIntensity={0.45} metalness={0.6} roughness={0.3} clearcoat={0.5} />
         </mesh>
       </group>
     );
   }
 
-  // Over-hood jeep dashboard + dual gun mounts
+  if (kind === 'cupid') {
+    return (
+      <group position={[0, -1.7, 3.1]}>
+        <mesh>
+          <boxGeometry args={[6.8, 1.1, 2.4]} />
+          <meshPhysicalMaterial color="#3a1830" metalness={0.55} roughness={0.3} clearcoat={0.75} />
+        </mesh>
+        <mesh position={[-1.35, 0.55, 0.85]}>
+          <boxGeometry args={[0.45, 0.35, 1.15]} />
+          <meshPhysicalMaterial color="#552244" emissive="#ff66aa" emissiveIntensity={0.7} metalness={0.5} roughness={0.25} clearcoat={0.6} />
+        </mesh>
+        <mesh position={[1.35, 0.55, 0.85]}>
+          <boxGeometry args={[0.45, 0.35, 1.15]} />
+          <meshPhysicalMaterial color="#442255" emissive="#ffe14a" emissiveIntensity={0.55} metalness={0.5} roughness={0.25} clearcoat={0.6} />
+        </mesh>
+        <mesh position={[-1.55, 0.9, 0.2]} ref={leftFlash}>
+          <sphereGeometry args={[0.2, 10, 10]} />
+          <meshBasicMaterial color="#ff99cc" transparent opacity={0} />
+        </mesh>
+        <mesh position={[1.55, 0.9, 0.2]} ref={rightFlash}>
+          <sphereGeometry args={[0.2, 10, 10]} />
+          <meshBasicMaterial color="#ffe14a" transparent opacity={0} />
+        </mesh>
+      </group>
+    );
+  }
+
   return (
     <group position={[0, -1.55, 3.4]}>
-      {/* Hood / dash */}
       <mesh position={[0, 0.15, 0.2]}>
         <boxGeometry args={[6.5, 0.35, 2.8]} />
-        <meshStandardMaterial color="#3a4a28" metalness={0.35} roughness={0.55} />
+        <meshPhysicalMaterial color="#3a4a28" metalness={0.45} roughness={0.4} clearcoat={0.5} />
       </mesh>
       <mesh position={[0, 0.45, -0.4]}>
         <boxGeometry args={[6.2, 0.25, 0.9]} />
-        <meshStandardMaterial color="#2a3220" metalness={0.5} roughness={0.4} />
+        <meshPhysicalMaterial color="#2a3220" metalness={0.55} roughness={0.35} clearcoat={0.6} />
       </mesh>
 
-      {/* Windshield frame */}
       <mesh position={[-2.8, 1.1, -0.6]}>
         <boxGeometry args={[0.12, 1.6, 0.12]} />
-        <meshStandardMaterial color="#1a1a14" />
+        <meshPhysicalMaterial color="#1a1a14" metalness={0.7} roughness={0.3} />
       </mesh>
       <mesh position={[2.8, 1.1, -0.6]}>
         <boxGeometry args={[0.12, 1.6, 0.12]} />
-        <meshStandardMaterial color="#1a1a14" />
+        <meshPhysicalMaterial color="#1a1a14" metalness={0.7} roughness={0.3} />
       </mesh>
       <mesh position={[0, 1.85, -0.6]}>
         <boxGeometry args={[5.7, 0.1, 0.1]} />
-        <meshStandardMaterial color="#1a1a14" />
+        <meshPhysicalMaterial color="#1a1a14" metalness={0.7} roughness={0.3} />
       </mesh>
 
-      {/* P1 cannon (left) */}
       <group position={[-1.55, 0.55, 0.9]}>
         <mesh rotation={[0.15, 0, 0]}>
-          <cylinderGeometry args={[0.12, 0.16, 1.4, 8]} />
-          <meshStandardMaterial color="#3a3a3a" metalness={0.8} roughness={0.25} />
+          <cylinderGeometry args={[0.12, 0.16, 1.4, 16]} />
+          <meshPhysicalMaterial color="#3a3a3a" metalness={0.9} roughness={0.18} clearcoat={0.8} />
         </mesh>
         <mesh position={[0, 0.55, -0.55]} ref={leftFlash}>
-          <sphereGeometry args={[0.22, 8, 8]} />
+          <sphereGeometry args={[0.22, 12, 12]} />
           <meshBasicMaterial color="#ffaa44" transparent opacity={0} />
         </mesh>
       </group>
 
-      {/* P2 energy gun (right) */}
       <group position={[1.55, 0.55, 0.9]}>
         <mesh rotation={[0.15, 0, 0]}>
           <boxGeometry args={[0.28, 0.28, 1.35]} />
-          <meshStandardMaterial color="#2a4a55" metalness={0.7} roughness={0.3} emissive="#004466" emissiveIntensity={0.4} />
+          <meshPhysicalMaterial
+            color="#2a4a55"
+            metalness={0.8}
+            roughness={0.22}
+            clearcoat={0.7}
+            emissive="#004466"
+            emissiveIntensity={0.5}
+          />
         </mesh>
         <mesh position={[0, 0.55, -0.55]} ref={rightFlash}>
-          <sphereGeometry args={[0.22, 8, 8]} />
+          <sphereGeometry args={[0.22, 12, 12]} />
           <meshBasicMaterial color="#66eeff" transparent opacity={0} />
         </mesh>
       </group>
 
-      {/* Gauge lights */}
       <mesh position={[-0.6, 0.55, 0.2]}>
         <boxGeometry args={[0.35, 0.18, 0.08]} />
-        <meshStandardMaterial color="#222" emissive="#ff3344" emissiveIntensity={0.8} />
+        <meshPhysicalMaterial color="#222" emissive="#ff3344" emissiveIntensity={1} metalness={0.5} roughness={0.3} />
       </mesh>
       <mesh position={[0.6, 0.55, 0.2]}>
         <boxGeometry args={[0.35, 0.18, 0.08]} />
-        <meshStandardMaterial color="#222" emissive="#00ccff" emissiveIntensity={0.8} />
+        <meshPhysicalMaterial color="#222" emissive="#00ccff" emissiveIntensity={1} metalness={0.5} roughness={0.3} />
       </mesh>
     </group>
   );

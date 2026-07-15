@@ -17,6 +17,8 @@ export interface LevelTrackKit {
   jeepResumeX: number;
   spaceAtX: number;
   spaceResumeX: number;
+  cupidAtX: number;
+  cupidResumeX: number;
   startS: number;
   worldWidth: number;
   finishX: number;
@@ -24,6 +26,7 @@ export interface LevelTrackKit {
   highX: number;
   loop1X: number;
   loop2X: number;
+  hillStart: number;
   tunnelX: number;
   grindX: number;
   grindLen: number;
@@ -175,23 +178,25 @@ export function buildZoneTracks(level: number): LevelTrackKit {
   const meta = ZONE_META[idx];
   const plan = themePlan(meta.theme, idx);
   const gy = GROUND_Y;
-  const worldWidth = Math.floor(8600 + idx * 260 + plan.stretch * 400);
-  const finishX = worldWidth - 400;
+  // Classic Sonic acts need runway — ~14k–18k px so loops and forks breathe
+  const worldWidth = Math.floor(14200 + idx * 320 + plan.stretch * 520);
+  const finishX = worldWidth - 480;
   const loopR = plan.loopR;
   const loop2R = loopR + (meta.theme === 'industrial' ? 6 : 12);
-  const stretch = plan.stretch;
 
-  const loop1X = Math.floor((plan.earlyLoop ? 850 : 1100) * stretch);
-  const hillStart = Math.floor(2100 * stretch);
-  const hillLen = Math.floor(plan.hillLen);
-  const tunnelX = Math.floor(3800 * stretch);
-  const highX = Math.floor(4600 * stretch);
-  const jeepX = Math.floor(5400 * stretch);
-  // Grind finishes before jeep trigger so you aren't yanked mid-rail
-  const grindLen = plan.grindLen;
-  const grindX = Math.floor(jeepX - grindLen - 220);
-  const loop2X = Math.floor(6100 * stretch);
-  const spaceX = Math.floor(7100 * stretch);
+  // Anchor set pieces as fractions of world so mid/late acts stay readable
+  const loop1X = Math.floor(worldWidth * (plan.earlyLoop ? 0.08 : 0.1));
+  const hillStart = Math.floor(worldWidth * 0.18);
+  const hillLen = Math.floor(plan.hillLen * 1.35);
+  const tunnelX = Math.floor(worldWidth * 0.32);
+  const highX = Math.floor(worldWidth * 0.4);
+  // ~50% jeep/dino · ~75% space · ~88% cupid hearts
+  const jeepX = Math.floor(worldWidth * 0.5);
+  const grindLen = Math.floor(plan.grindLen * 1.15);
+  const grindX = Math.floor(jeepX - grindLen - 280);
+  const loop2X = Math.floor(worldWidth * 0.62);
+  const spaceX = Math.floor(worldWidth * 0.75);
+  const cupidX = Math.floor(worldWidth * 0.88);
 
   // Build MAIN as one continuous polyline chain — no theme segment gaps.
   const mainSegs: TrackSegment[] = [];
@@ -396,23 +401,38 @@ export function buildZoneTracks(level: number): LevelTrackKit {
     },
   };
 
-  const pepperXs = [
-    400,
-    700,
-    loop1X + 180,
-    hillStart + 120,
-    hillStart + hillLen / 2,
-    tunnelX - 200,
-    highX - 100,
-    grindX + 100,
-    jeepX - 300,
-    loop2X + 200,
-    spaceX - 500,
-    finishX - 300,
-  ].map((x) => Math.min(worldWidth - 200, Math.floor(x)));
+  // Dense gold-ring lines (pepper kind) — Sonic readability
+  const pepperXs: number[] = [];
+  const ringBands = [
+    [220, 900, 90],
+    [loop1X + 160, loop1X + 520, 70],
+    [hillStart + 40, hillStart + hillLen - 40, 95],
+    [tunnelX - 360, tunnelX - 40, 80],
+    [highX - 80, highX + 420, 75],
+    [grindX + 60, grindX + grindLen - 80, 85],
+    [jeepX + 180, loop2X - 220, 100],
+    [loop2X + 180, spaceX - 280, 90],
+    [spaceX + 200, finishX - 200, 110],
+  ] as const;
+  for (const [lo, hi, step] of ringBands) {
+    for (let x = lo; x < hi; x += step) {
+      pepperXs.push(Math.min(worldWidth - 200, Math.floor(x)));
+    }
+  }
 
-  const ghostXs = [800, loop1X + 400, hillStart + 200, tunnelX - 100, highX, loop2X - 200, spaceX - 200]
-    .slice(0, 5 + Math.floor(level / 4))
+  const ghostXs = [
+    980,
+    loop1X + 520,
+    hillStart + hillLen * 0.4,
+    tunnelX - 160,
+    highX + 40,
+    jeepX - 420,
+    loop2X - 280,
+    loop2X + 480,
+    spaceX - 360,
+    spaceX + 520,
+  ]
+    .slice(0, 6 + Math.floor(level / 3))
     .map((x) => Math.floor(x));
 
   return {
@@ -429,6 +449,8 @@ export function buildZoneTracks(level: number): LevelTrackKit {
     jeepResumeX: jeepX + 120,
     spaceAtX: spaceX,
     spaceResumeX: spaceX + 120,
+    cupidAtX: cupidX,
+    cupidResumeX: cupidX + 120,
     startS: mainPath.project(120, gy).s,
     worldWidth,
     finishX,
@@ -436,6 +458,7 @@ export function buildZoneTracks(level: number): LevelTrackKit {
     highX,
     loop1X,
     loop2X,
+    hillStart,
     tunnelX,
     grindX,
     grindLen,

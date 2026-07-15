@@ -99,10 +99,10 @@ export function RunPhase({
         <p className="mb-2 wa-display text-xl leading-none text-[#ffe14a]">
           {mm}:{ss}
         </p>
-        <p className="text-[10px] font-black tracking-[0.28em] text-[#ffe14a]">ITEMS</p>
+        <p className="text-[10px] font-black tracking-[0.28em] text-[#ffe14a]">RINGS</p>
+        <p className="mb-1 wa-display text-2xl leading-none text-[#ffe14a]">{counts.pepper}</p>
+        <p className="text-[10px] font-black tracking-[0.2em] text-white/90">BONUS</p>
         <p className="text-xs font-black text-white">
-          <span className="text-[#ff8aa8]">PEP {counts.pepper}</span>
-          {' · '}
           <span className="text-[#ffd84a]">DUCK {counts.duck}</span>
           {' · '}
           <span className="text-[#d8a0ff]">HAT {counts.witchHat}</span>
@@ -115,11 +115,13 @@ export function RunPhase({
         <p className="mt-1 text-[10px] font-bold text-white/90">
           {playerCount === 2 ? 'WIDEASS + TATS' : `${primaryCharacter.toUpperCase()} SOLO`}
         </p>
+        <p className="mt-2 text-[10px] font-black tracking-wide text-[#ff8844]">50% · JEEP KEEP</p>
+        <p className="text-[10px] font-black tracking-wide text-[#66ccff]">75% · STAR KEEP</p>
       </div>
 
-      <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 w-[92%] -translate-x-1/2 text-center">
-        <p className="wa-hud-shadow text-[10px] font-bold text-white/85 sm:text-[11px]">
-          ←→ / A D run · SPACE jump · ↓+SPACE spindash · ↓ tunnel · JUMP near gold ramp = HIGH · BOOST into loops · ESC pause
+      <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 w-[94%] -translate-x-1/2 text-center">
+        <p className="wa-hud-shadow text-[10px] font-bold text-white/90 sm:text-[11px]">
+          Collect gold rings · grab ducks/hats for bonus · avoid red spike orbs (spin or stomp to smash) · ←→ run · SPACE jump · ↓+SPACE spindash · ESC pause
         </p>
       </div>
     </div>

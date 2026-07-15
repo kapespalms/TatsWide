@@ -142,6 +142,39 @@ function drawCloudStrip() {
   return c;
 }
 
+/** Parallax brand clouds spelling WIDEASS / TATS — 90s×2026 arcade sky. */
+function drawBrandCloudStrip() {
+  const c = canvas(512, 96);
+  const ctx = ctxOf(c);
+  const blob = (x: number, y: number, r: number) => {
+    rect(ctx, x - r, y - r / 2, r * 2, r, PAL.cloudShade);
+    rect(ctx, x - r + 2, y - r / 2 + 2, r * 2 - 4, r - 4, PAL.cloud);
+  };
+  // Soft cloud pillows under each word
+  for (const [x, y, r] of [
+    [70, 48, 34],
+    [110, 40, 40],
+    [155, 50, 30],
+    [320, 52, 28],
+    [355, 42, 34],
+    [395, 50, 26],
+  ] as const) {
+    blob(x, y, r);
+  }
+  ctx.fillStyle = '#101018';
+  ctx.font = 'bold 18px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('WIDEASS', 112, 46);
+  ctx.fillStyle = '#ff3a4a';
+  ctx.fillText('WIDEASS', 110, 44);
+  ctx.fillStyle = '#101018';
+  ctx.fillText('TATS', 358, 48);
+  ctx.fillStyle = '#00d8ff';
+  ctx.fillText('TATS', 356, 46);
+  return c;
+}
+
 function drawFarMountains() {
   const c = canvas(384, 140);
   const ctx = ctxOf(c);
@@ -325,45 +358,66 @@ function drawSeesaw() {
 }
 
 function drawSpring() {
-  const c = canvas(32, 28);
+  const c = canvas(32, 32);
   const ctx = ctxOf(c);
-  rect(ctx, 4, 18, 24, 10, '#ff3366');
-  rect(ctx, 2, 8, 28, 8, '#ffee55');
-  rect(ctx, 6, 4, 20, 6, '#ffffff');
-  rect(ctx, 8, 0, 16, 4, '#ff6688');
+  // Sonic red/yellow spring plate
+  rect(ctx, 2, 22, 28, 8, '#d01030');
+  rect(ctx, 4, 20, 24, 4, '#ff3050');
+  rect(ctx, 6, 10, 20, 12, '#ffe14a');
+  rect(ctx, 8, 12, 16, 8, '#fff3a0');
+  for (let i = 0; i < 4; i += 1) {
+    rect(ctx, 8 + i * 4, 8, 2, 4, '#ffffff');
+  }
+  rect(ctx, 10, 2, 12, 8, '#ff4060');
+  rect(ctx, 12, 0, 8, 4, '#ffffff');
   return c;
 }
 
+/** Classic badnik silhouette — spike orb you clearly want to avoid / stomp */
 function drawGhostFrame(frame: number) {
-  const c = canvas(32, 36);
+  const c = canvas(36, 36);
   const ctx = ctxOf(c);
   const bob = frame === 1 ? 1 : 0;
-  rect(ctx, 6, 4 + bob, 20, 18, PAL.ghost);
-  rect(ctx, 4, 14 + bob, 24, 14, PAL.ghost);
-  // wavy bottom
-  for (let i = 0; i < 4; i += 1) {
-    const ox = 4 + i * 6;
-    const oy = frame === 0 ? 28 : 30;
-    rect(ctx, ox, oy + bob, 5, 4, PAL.ghost);
+  // body
+  rect(ctx, 10, 10 + bob, 16, 16, '#e8e0ff');
+  rect(ctx, 12, 12 + bob, 12, 12, '#b8a0e8');
+  // red hazard spikes
+  const spikes: [number, number, number, number][] = [
+    [16, 2 + bob, 4, 8],
+    [16, 26 + bob, 4, 8],
+    [2, 16 + bob, 8, 4],
+    [26, 16 + bob, 8, 4],
+    [6, 6 + bob, 6, 6],
+    [24, 6 + bob, 6, 6],
+    [6, 24 + bob, 6, 6],
+    [24, 24 + bob, 6, 6],
+  ];
+  for (const [sx, sy, sw, sh] of spikes) {
+    rect(ctx, sx, sy, sw, sh, '#ff2244');
+    rect(ctx, sx + 1, sy + 1, Math.max(1, sw - 2), Math.max(1, sh - 2), '#ff6688');
   }
-  rect(ctx, 10, 12 + bob, 4, 5, PAL.ghostEye);
-  rect(ctx, 18, 12 + bob, 4, 5, PAL.ghostEye);
-  rect(ctx, 11, 13 + bob, 2, 2, PAL.white);
-  rect(ctx, 19, 13 + bob, 2, 2, PAL.white);
+  // angry eyes
+  rect(ctx, 13, 14 + bob, 4, 5, PAL.white);
+  rect(ctx, 19, 14 + bob, 4, 5, PAL.white);
+  rect(ctx, 14, 16 + bob, 2, 3, '#201018');
+  rect(ctx, 20, 16 + bob, 2, 3, '#201018');
   return c;
 }
 
+/** Gold ring — primary Sonic collectible (kept as `pepper` kind for score plumbing) */
 function drawPepper() {
-  const c = canvas(20, 28);
+  const c = canvas(24, 24);
   const ctx = ctxOf(c);
-  rect(ctx, 4, 2, 12, 22, PAL.pepper);
-  rect(ctx, 5, 4, 10, 4, '#a03050');
-  rect(ctx, 5, 10, 10, 8, PAL.white);
-  px(ctx, 7, 12, PAL.pepper);
-  px(ctx, 9, 13, PAL.pepper);
-  px(ctx, 11, 12, PAL.pepper);
-  rect(ctx, 3, 22, 14, 4, '#333333');
-  rect(ctx, 6, 0, 8, 3, '#dddddd');
+  // outer ring
+  rect(ctx, 4, 2, 16, 20, '#ffe14a');
+  rect(ctx, 2, 4, 20, 16, '#ffd020');
+  rect(ctx, 3, 3, 18, 18, '#ffee88');
+  // hole
+  rect(ctx, 8, 7, 8, 10, PAL.skyTop);
+  rect(ctx, 9, 8, 6, 8, '#3d8bff');
+  // shine
+  rect(ctx, 6, 5, 3, 3, '#fff8c8');
+  rect(ctx, 15, 14, 2, 3, '#c09000');
   return c;
 }
 
@@ -571,9 +625,25 @@ function drawCharacterSheet(who: 'Wideass' | 'Tats') {
 function drawRingHudIcon() {
   const c = canvas(16, 16);
   const ctx = ctxOf(c);
-  rect(ctx, 2, 2, 12, 12, PAL.gold);
-  rect(ctx, 4, 4, 8, 8, PAL.skyTop);
-  rect(ctx, 6, 6, 4, 4, PAL.gold);
+  rect(ctx, 3, 1, 10, 14, '#ffe14a');
+  rect(ctx, 1, 3, 14, 10, '#ffd020');
+  rect(ctx, 5, 5, 6, 6, '#3d8bff');
+  rect(ctx, 4, 3, 2, 2, '#fff8c8');
+  return c;
+}
+
+function drawKeepPillar() {
+  const c = canvas(48, 96);
+  const ctx = ctxOf(c);
+  rect(ctx, 8, 16, 32, 80, '#4a78d8');
+  rect(ctx, 10, 18, 28, 76, '#78a8f8');
+  rect(ctx, 12, 20, 24, 10, '#ffe14a');
+  for (let y = 36; y < 90; y += 12) {
+    rect(ctx, 14, y, 20, 8, y % 24 === 0 ? '#101018' : '#f0f0f8');
+  }
+  rect(ctx, 4, 8, 40, 12, '#284898');
+  rect(ctx, 6, 4, 8, 10, '#4a78d8');
+  rect(ctx, 34, 4, 8, 10, '#4a78d8');
   return c;
 }
 
@@ -607,6 +677,7 @@ export function createModern16BitAtlas(
   const [skyTop, skyBot] = themeSky(theme, skyColor);
   register(scene, 'px_sky', drawSky(8, 256, skyTop, skyBot));
   register(scene, 'px_clouds', drawCloudStrip());
+  register(scene, 'px_brand_clouds', drawBrandCloudStrip());
   register(scene, 'px_mountains', drawFarMountains());
   register(scene, 'px_pine', drawPine());
   register(scene, 'px_grass', drawGrassTile());
@@ -633,6 +704,7 @@ export function createModern16BitAtlas(
     register(scene, `px_tats_${i}`, drawCharacterFrame('Tats', i));
   }
   register(scene, 'px_ring_icon', drawRingHudIcon());
+  register(scene, 'px_keep', drawKeepPillar());
   register(scene, 'px_rail', drawGrindRail());
   register(scene, 'px_loop', drawLoopSegment());
 

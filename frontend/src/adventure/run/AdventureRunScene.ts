@@ -99,6 +99,7 @@ export class AdventureRunScene extends Phaser.Scene {
   }[] = [];
   private ghosts: GhostState[] = [];
   private clouds!: Phaser.GameObjects.TileSprite;
+  private brandClouds!: Phaser.GameObjects.TileSprite;
   private mountains!: Phaser.GameObjects.TileSprite;
   private counts: CollectibleCounts = { pepper: 0, duck: 0, witchHat: 0 };
   private score = 0;
@@ -121,6 +122,9 @@ export class AdventureRunScene extends Phaser.Scene {
   private speedLines!: Phaser.GameObjects.Graphics;
   private vignette!: Phaser.GameObjects.Rectangle;
   private lastBoostS = -1;
+  private pepperBoostUntil = 0;
+  private baseCfgW = DEFAULT_RIDER_CONFIG;
+  private baseCfgT = DEFAULT_RIDER_CONFIG;
 
   constructor() {
     super('AdventureRunScene');
@@ -167,6 +171,9 @@ export class AdventureRunScene extends Phaser.Scene {
     this.kit = getTrackKitForLevel(level.level);
     this.cfgW = riderConfigFor('Wideass');
     this.cfgT = riderConfigFor('Tats');
+    this.baseCfgW = { ...this.cfgW };
+    this.baseCfgT = { ...this.cfgT };
+    this.pepperBoostUntil = 0;
 
     this.cameras.main.setBackgroundColor(level.skyColor);
     this.physics.world.setBounds(0, 0, level.worldWidth, 780);
@@ -175,6 +182,8 @@ export class AdventureRunScene extends Phaser.Scene {
     this.buildParallax(level);
     this.buildDecor(level);
     this.drawAllTracks();
+    this.buildMilestoneKeeps(level);
+    this.buildSeesaws(level);
     this.buildSprings(level);
     this.buildGrindVisual(level);
     this.buildCollectibles(level);
@@ -225,9 +234,9 @@ export class AdventureRunScene extends Phaser.Scene {
       .setVisible(false);
 
     this.cameras.main.setBounds(0, 0, level.worldWidth, 780);
-    this.drawFinish(level.finishX);
     this.audio.unlock();
     this.audio.startMusic();
+    this.audio.sectorBed(level.story.sector);
   }
 
   private buildParallax(level: LevelAuthoring) {
@@ -243,14 +252,21 @@ export class AdventureRunScene extends Phaser.Scene {
       .tileSprite(640, 140, 1280, 96, 'px_clouds')
       .setScrollFactor(0)
       .setDepth(-10);
+    this.brandClouds = this.add
+      .tileSprite(640, 88, 1280, 96, 'px_brand_clouds')
+      .setScrollFactor(0)
+      .setDepth(-9)
+      .setAlpha(0.92);
     if (level.theme === 'haunted' || level.theme === 'alien') {
       this.mountains.setTint(0x8866aa);
       this.clouds.setTint(0xccaaff);
+      this.brandClouds.setTint(0xe8ccff);
     } else if (level.theme === 'snow') {
       this.mountains.setTint(0xddeeff);
     } else if (level.theme === 'industrial') {
       this.mountains.setTint(0x8899aa);
       this.clouds.setTint(0x8899aa);
+      this.brandClouds.setTint(0xaabbcc);
     } else if (level.theme === 'jungle') {
       this.mountains.setTint(0x66aa55);
     }
@@ -355,6 +371,97 @@ export class AdventureRunScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(6);
+
+    // Tutorial legend near start
+    this.add
+      .text(280, 360, '★ GOLD RINGS = SCORE\n★ DUCK / HAT = BONUS\n✕ SPIKE ORB = HURT (spin or stomp)', {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: '#fff8d0',
+        stroke: '#101018',
+        strokeThickness: 4,
+        align: 'left',
+        lineSpacing: 4,
+      })
+      .setDepth(12);
+  }
+
+  /** Keep gates at ~50% jeep · ~75% space · ~88% cupid */
+  private buildMilestoneKeeps(level: LevelAuthoring) {
+    const jeep = level.triggers.find((t) => t.kind === 'jeep');
+    const space = level.triggers.find((t) => t.kind === 'space');
+    const cupid = level.triggers.find((t) => t.kind === 'cupid');
+    if (jeep) {
+      this.placeKeep(
+        jeep.atX - 160,
+        jeep.boss ? 'BOSS KEEP' : 'HALF WAY',
+        jeep.boss ? 'CYBER T-REX AHEAD' : 'JEEP KEEP · DINOS AHEAD',
+        0xff8844,
+      );
+    }
+    if (space) {
+      this.placeKeep(
+        space.atX - 160,
+        space.boss ? 'BOSS KEEP' : 'FINAL PUSH',
+        space.boss ? 'DREADNOUGHT CORE' : 'STAR KEEP · ALIENS AHEAD',
+        0x66ccff,
+      );
+    }
+    if (cupid) {
+      this.placeKeep(
+        cupid.atX - 160,
+        cupid.boss ? 'BOSS KEEP' : 'HEART GRID',
+        cupid.boss ? 'HEART-BREAK ENGINE' : 'CUPID KEEP · HEARTS AHEAD',
+        0xff66aa,
+      );
+    }
+    this.drawFinish(level.finishX);
+  }
+
+  private placeKeep(x: number, title: string, subtitle: string, accent: number) {
+    const gy = 620;
+    this.add.image(x - 90, gy - 40, 'px_keep').setDepth(4).setScale(2.2).setOrigin(0.5, 1);
+    this.add.image(x + 90, gy - 40, 'px_keep').setDepth(4).setScale(2.2).setOrigin(0.5, 1);
+    // arch lintel
+    this.add.rectangle(x, gy - 210, 220, 28, 0x284898).setDepth(4);
+    this.add.rectangle(x, gy - 210, 200, 12, accent).setDepth(5);
+    for (let i = 0; i < 8; i += 1) {
+      const even = i % 2 === 0;
+      this.add
+        .rectangle(x - 100 + i * 28, gy - 248, 28, 40, even ? 0x101018 : 0xf0f0f8)
+        .setDepth(5);
+    }
+    this.add
+      .text(x, gy - 290, title, {
+        fontFamily: 'monospace',
+        fontSize: '22px',
+        color: '#ffe14a',
+        stroke: '#101018',
+        strokeThickness: 6,
+      })
+      .setOrigin(0.5)
+      .setDepth(12);
+    this.add
+      .text(x, gy - 262, subtitle, {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: '#ffffff',
+        stroke: '#101018',
+        strokeThickness: 4,
+      })
+      .setOrigin(0.5)
+      .setDepth(12);
+    // approach warning strip
+    this.add
+      .text(x - 420, gy - 72, '>>> KEEP AHEAD >>>', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#ffee88',
+        stroke: '#000',
+        strokeThickness: 4,
+      })
+      .setOrigin(0.5)
+      .setDepth(6);
   }
 
   /** Draw track as batched Graphics — thousands of Image sprites killed 60fps. */
@@ -422,10 +529,28 @@ export class AdventureRunScene extends Phaser.Scene {
     rail.strokePath();
   }
 
+  private buildSeesaws(level: LevelAuthoring) {
+    for (const s of level.seesaws) {
+      this.add.image(s.x, s.y, 'px_seesaw').setDepth(5).setScale(2.2);
+      // Hazard ball on the tip — readable like Sonic 3
+      this.add.circle(s.x + s.width * 0.35, s.y - 28, 14, 0xff2244).setDepth(6).setStrokeStyle(3, 0x101018);
+      this.add
+        .text(s.x, s.y - 56, 'SEESAW', {
+          fontFamily: 'monospace',
+          fontSize: '11px',
+          color: '#78a8ff',
+          stroke: '#000',
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5)
+        .setDepth(6);
+    }
+  }
+
   private buildSprings(level: LevelAuthoring) {
     this.springs = [];
     for (const s of level.springs) {
-      const img = this.add.image(s.x, s.y, 'px_spring').setDepth(5).setScale(2);
+      const img = this.add.image(s.x, s.y, 'px_spring').setDepth(5).setScale(2.3);
       this.springs.push({ x: s.x, y: s.y, power: s.power, img, coolUntil: 0 });
     }
   }
@@ -449,7 +574,12 @@ export class AdventureRunScene extends Phaser.Scene {
     for (const c of level.collectibles) {
       if (this.takenIds.has(c.id)) continue;
       const key = c.kind === 'pepper' ? 'px_pepper' : c.kind === 'duck' ? 'px_duck' : 'px_hat';
-      const img = this.add.image(c.x, c.y, key).setDepth(8).setScale(2);
+      // Rings slightly larger; brand bonuses extra punchy
+      const scale = c.kind === 'pepper' ? 2.35 : 2.7;
+      const img = this.add.image(c.x, c.y, key).setDepth(8).setScale(scale);
+      if (c.kind !== 'pepper') {
+        img.setTint(c.kind === 'duck' ? 0xffee88 : 0xe0a0ff);
+      }
       this.collectibles.push({ id: c.id, x: c.x, y: c.y, kind: c.kind, img });
     }
   }
@@ -459,8 +589,18 @@ export class AdventureRunScene extends Phaser.Scene {
     for (const g of level.ghosts) {
       if (this.killedGhostIds.has(g.id)) continue;
       const sprite = this.add.sprite(g.x, g.y, 'px_ghost_0');
-      sprite.setDepth(9).setScale(2);
+      sprite.setDepth(9).setScale(2.4);
       if (this.anims.exists('ghost-float')) sprite.play('ghost-float');
+      this.add
+        .text(g.x, g.y - 42, 'AVOID', {
+          fontFamily: 'monospace',
+          fontSize: '11px',
+          color: '#ff4466',
+          stroke: '#000',
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5)
+        .setDepth(10);
       this.ghosts.push({ id: g.id, sprite, homeX: g.x, homeY: g.y, patrol: g.patrol, dir: 1 });
     }
   }
@@ -651,9 +791,46 @@ export class AdventureRunScene extends Phaser.Scene {
         this.takenIds.add(c.id);
         this.counts[c.kind] += 1;
         this.score += c.kind === 'witchHat' ? 500 : c.kind === 'duck' ? 250 : 100;
-        this.audio.collect();
+        if (c.kind === 'duck') this.audio.duckChime();
+        else if (c.kind === 'pepper') {
+          this.audio.pepperFizz();
+          this.applyPepperBoost(rider);
+        } else this.audio.collect();
         this.dust.emitParticleAt(c.x, c.y, 8);
       }
+    }
+  }
+
+  /** Pepper (gold ring / Dr Pepper story) = temporary speed boost + camera punch */
+  private applyPepperBoost(rider: RiderState) {
+    this.pepperBoostUntil = this.time.now + 2800;
+    const dir = Math.sign(rider.gsp || rider.facing || 1);
+    rider.gsp = dir * Math.max(Math.abs(rider.gsp), 820);
+    this.cameras.main.shake(110, 0.007);
+    this.cameras.main.flash(70, 255, 80, 120);
+    this.cameras.main.zoomTo(1.07, 90);
+    this.time.delayedCall(160, () => {
+      if (this.cameras?.main) this.cameras.main.zoomTo(1, 180);
+    });
+    this.dust.emitParticleAt(rider.x, rider.y, 16);
+  }
+
+  private refreshPepperBoostConfigs() {
+    const boosted = this.time.now < this.pepperBoostUntil;
+    if (boosted) {
+      this.cfgW = {
+        ...this.baseCfgW,
+        topSpeed: this.baseCfgW.topSpeed * 1.38,
+        accel: this.baseCfgW.accel * 1.25,
+      };
+      this.cfgT = {
+        ...this.baseCfgT,
+        topSpeed: this.baseCfgT.topSpeed * 1.38,
+        accel: this.baseCfgT.accel * 1.25,
+      };
+    } else {
+      this.cfgW = this.baseCfgW;
+      this.cfgT = this.baseCfgT;
     }
   }
 
@@ -837,15 +1014,17 @@ export class AdventureRunScene extends Phaser.Scene {
     const partner = lead === this.riderW ? this.riderT : this.riderW;
     const midX = solo ? lead.x : (lead.x + partner.x) / 2;
     const midY = solo ? lead.y : (lead.y + partner.y) / 2;
-    const leadOffset = Phaser.Math.Clamp(lead.gsp * 0.25, -160, 260);
+    // Classic Sonic look-ahead: camera leads hard when speeding into the act
+    const boostMul = this.time.now < this.pepperBoostUntil ? 1.35 : 1;
+    const leadOffset = Phaser.Math.Clamp(lead.gsp * 0.38 * boostMul, -120, 380);
     const targetScrollX = Phaser.Math.Clamp(
-      midX - 420 + leadOffset,
+      midX - 380 + leadOffset,
       0,
       this.initData.level.worldWidth - 1280,
     );
-    const targetScrollY = Phaser.Math.Clamp(midY - 380, -220, 80);
-    this.cameras.main.scrollX = Phaser.Math.Linear(this.cameras.main.scrollX, targetScrollX, 0.12);
-    this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, targetScrollY, 0.14);
+    const targetScrollY = Phaser.Math.Clamp(midY - 360, -260, 100);
+    this.cameras.main.scrollX = Phaser.Math.Linear(this.cameras.main.scrollX, targetScrollX, 0.22);
+    this.cameras.main.scrollY = Phaser.Math.Linear(this.cameras.main.scrollY, targetScrollY, 0.2);
   }
 
   private checkTriggers(x: number) {
@@ -927,7 +1106,12 @@ export class AdventureRunScene extends Phaser.Scene {
     for (const c of this.collectibles) {
       if (!c.img.active) continue;
       c.img.y = c.y + Math.sin(this.elapsed * 5 + c.x * 0.02) * 5;
-      c.img.setScale(2 + Math.sin(this.elapsed * 6 + c.x) * 0.08);
+      const base = c.kind === 'pepper' ? 2.35 : 2.7;
+      c.img.setScale(base + Math.sin(this.elapsed * 8 + c.x) * 0.12);
+      // Rings sparkle; brand items pulse
+      if (c.kind === 'pepper') {
+        c.img.setAlpha(0.85 + Math.sin(this.elapsed * 10 + c.x) * 0.15);
+      }
     }
   }
 
@@ -945,6 +1129,8 @@ export class AdventureRunScene extends Phaser.Scene {
     const primary = this.initData.primaryCharacter;
 
     this.pollGamepad();
+
+    this.refreshPepperBoostConfigs();
 
     const inW = this.inputFor('Wideass');
     const inT = this.inputFor('Tats');
@@ -1012,6 +1198,9 @@ export class AdventureRunScene extends Phaser.Scene {
     }
 
     this.clouds.tilePositionX = this.cameras.main.scrollX * 0.15 + this.elapsed * 8;
+    if (this.brandClouds) {
+      this.brandClouds.tilePositionX = this.cameras.main.scrollX * 0.08 + this.elapsed * 14;
+    }
     this.mountains.tilePositionX = this.cameras.main.scrollX * 0.35;
 
     for (const rider of [this.riderW, this.riderT]) {

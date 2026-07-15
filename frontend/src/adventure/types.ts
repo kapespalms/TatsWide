@@ -1,13 +1,25 @@
 export type CharacterId = 'Wideass' | 'Tats';
-export type GamePhase = 'run' | 'jeep' | 'space' | 'levelComplete' | 'victory' | 'failed';
-export type ShooterKind = 'jeep' | 'space';
+export type GamePhase = 'run' | 'jeep' | 'space' | 'cupid' | 'levelComplete' | 'victory' | 'failed';
+export type ShooterKind = 'jeep' | 'space' | 'cupid';
 export type CollectibleKind = 'pepper' | 'duck' | 'witchHat';
+export type SectorId = 'SAFARI' | 'NEBULA' | 'CUPID' | 'CYBER';
 
 export interface AdventureLaunch {
   level: number;
   playerCount: 1 | 2;
   primaryCharacter: CharacterId;
   embed?: boolean;
+  /** Skip run and jump straight into a shooter demo (title ModeCards). */
+  forcePhase?: ShooterKind;
+}
+
+export interface ZoneStoryMeta {
+  sector: SectorId;
+  sectorLabel: string;
+  title: string;
+  blurb: string;
+  accent: string;
+  bossZone: boolean;
 }
 
 export interface LevelTrigger {
@@ -19,6 +31,8 @@ export interface LevelTrigger {
   resumeX: number;
   killQuota: number;
   durationSec: number;
+  /** Boss framing — higher HP targets / special banner */
+  boss?: boolean;
 }
 
 /** Surface drives Sonic lane art + collision: main ground, elevated road, tunnel, ramp, wall */
@@ -80,6 +94,7 @@ export interface LevelAuthoring {
   skyColor: string;
   worldWidth: number;
   finishX: number;
+  story: ZoneStoryMeta;
   platforms: PlatformRect[];
   loops: LoopDef[];
   springs: SpringDef[];

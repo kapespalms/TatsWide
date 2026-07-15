@@ -4,6 +4,7 @@ import type {
   CollectibleCounts,
   GamePhase,
   LevelTrigger,
+  ShooterKind,
   ShooterScores,
 } from './types';
 import { TOTAL_LEVELS } from './types';
@@ -11,6 +12,7 @@ import { getLevelAuthoring } from './levelAuthoring';
 import { RunPhase } from './phases/RunPhase';
 import { ShooterPhase } from './phases/ShooterPhase';
 import type { RunProgress } from './run/AdventureRunScene';
+import { AdventureAudio } from './run/AdventureAudio';
 
 interface AdventureGameProps extends AdventureLaunch {
   embed?: boolean;
@@ -18,22 +20,64 @@ interface AdventureGameProps extends AdventureLaunch {
 
 const EMPTY_COUNTS: CollectibleCounts = { pepper: 0, duck: 0, witchHat: 0 };
 
+function triggerBanner(trigger: LevelTrigger): string {
+  if (trigger.boss) {
+    if (trigger.kind === 'jeep') return 'BOSS KEEP — CYBER T-REX FIREWALL!';
+    if (trigger.kind === 'space') return 'BOSS KEEP — DREADNOUGHT CORE!';
+    return 'BOSS KEEP — HEART-BREAK ENGINE!';
+  }
+  if (trigger.kind === 'jeep') return 'JEEP KEEP CLEARED — SHOOT THE DINOSAURS!';
+  if (trigger.kind === 'space') return 'STAR KEEP CLEARED — LOAD YOUR WEAPON!';
+  return 'CUPID KEEP — POP THE HEARTS!';
+}
+
+function demoBanner(kind: ShooterKind): string {
+  if (kind === 'jeep') return 'JEEP DEMO — SHOOT THE DINOSAURS!';
+  if (kind === 'space') return 'SPACE DEMO — LOAD YOUR WEAPON!';
+  return 'CUPID DEMO — FREE THE HEARTS!';
+}
+
+function zoneEnterBanner(name: string, sectorLabel: string, boss: boolean): string {
+  return boss ? `BOSS ZONE · ${sectorLabel}` : `${sectorLabel} · ${name.toUpperCase()}`;
+}
+
 export function AdventureGame({
   level: startLevel,
   playerCount,
   primaryCharacter,
   embed = false,
+  forcePhase,
 }: AdventureGameProps) {
+  const startAuthoring = useMemo(() => getLevelAuthoring(startLevel), [startLevel]);
+  const demoTrigger = useMemo(() => {
+    if (!forcePhase) return null;
+    return startAuthoring.triggers.find((t) => t.kind === forcePhase) ?? null;
+  }, [startAuthoring.triggers, forcePhase]);
+
   const [level, setLevel] = useState(startLevel);
-  const [phase, setPhase] = useState<GamePhase>('run');
+  const [phase, setPhase] = useState<GamePhase>(() => (demoTrigger ? demoTrigger.kind : 'run'));
   const [resumeX, setResumeX] = useState(120);
   const [score, setScore] = useState(0);
   const [zoneScore, setZoneScore] = useState(0);
   const [counts, setCounts] = useState<CollectibleCounts>({ ...EMPTY_COUNTS });
-  const [activeTrigger, setActiveTrigger] = useState<LevelTrigger | null>(null);
+  const [activeTrigger, setActiveTrigger] = useState<LevelTrigger | null>(() => demoTrigger);
   const [doneTriggers, setDoneTriggers] = useState<Set<string>>(() => new Set());
   const [timeSec, setTimeSec] = useState(0);
-  const [banner, setBanner] = useState('');
+  const [banner, setBanner] = useState(() =>
+    demoTrigger
+      ? demoBanner(demoTrigger.kind)
+      : zoneEnterBanner(startAuthoring.name, startAuthoring.story.sectorLabel, startAuthoring.story.bossZone),
+  );
+  const [storyCard, setStoryCard] = useState(() =>
+    demoTrigger
+      ? null
+      : {
+          title: startAuthoring.story.title,
+          blurb: startAuthoring.story.blurb,
+          accent: startAuthoring.story.accent,
+        },
+  );
+  const [wipe, setWipe] = useState(false);
   const [failReason, setFailReason] = useState('');
   const runKey = useRef(0);
   const phaseRef = useRef(phase);
@@ -50,11 +94,27 @@ export function AdventureGame({
 
   const authoring = useMemo(() => getLevelAuthoring(level), [level]);
 
+  const playWipe = useCallback(() => {
+    setWipe(true);
+    const a = new AdventureAudio();
+    a.wipeWhoosh();
+    window.setTimeout(() => {
+      a.dispose();
+      setWipe(false);
+    }, 520);
+  }, []);
+
   useEffect(() => {
     if (!banner) return;
-    const t = window.setTimeout(() => setBanner(''), 2400);
+    const t = window.setTimeout(() => setBanner(''), 2600);
     return () => window.clearTimeout(t);
   }, [banner]);
+
+  useEffect(() => {
+    if (!storyCard) return;
+    const t = window.setTimeout(() => setStoryCard(null), 4200);
+    return () => window.clearTimeout(t);
+  }, [storyCard]);
 
   const handleProgress = useCallback(
     (progress: RunProgress) => {
@@ -69,6 +129,7 @@ export function AdventureGame({
       if (progress.finished && phaseRef.current === 'run' && !finishedHandled.current) {
         finishedHandled.current = true;
         setScore((s) => s + progress.score);
+        playWipe();
         if (level >= TOTAL_LEVELS) {
           phaseRef.current = 'victory';
           setPhase('victory');
@@ -80,23 +141,30 @@ export function AdventureGame({
         }
       }
     },
-    [level, authoring.name],
+    [level, authoring.name, playWipe],
   );
 
   const handleTrigger = useCallback(
     (trigger: LevelTrigger) => {
       if (doneTriggers.has(trigger.id) || phaseRef.current !== 'run') return;
-      // Sync immediately so Phaser can't double-fire before React commits
       phaseRef.current = trigger.kind;
-      // Keep flushed refs from reportProgress — do NOT stomp with stale React state
+      playWipe();
       setResumeX(trigger.resumeX);
       setActiveTrigger(trigger);
       setPhase(trigger.kind);
-      setBanner(
-        trigger.kind === 'jeep' ? 'JEEP ENGAGED — T-REX INCOMING!' : 'STARSHIP LAUNCH — ALIENS AHEAD!',
-      );
+      setBanner(triggerBanner(trigger));
+      setStoryCard({
+        title: authoring.story.title,
+        blurb:
+          trigger.kind === 'jeep'
+            ? 'Safari keep unlocked. Dual reticles — clear the dinosaur quarantine.'
+            : trigger.kind === 'space'
+              ? 'Nebula hangar open. Load both cannons on the alien wing.'
+              : 'Cupid grid online. Pop floating hearts before spite columns land.',
+        accent: authoring.story.accent,
+      });
     },
-    [doneTriggers],
+    [doneTriggers, playWipe, authoring.story],
   );
 
   const retryFromFail = () => {
@@ -104,6 +172,7 @@ export function AdventureGame({
     setActiveTrigger(null);
     runKey.current += 1;
     setTakenTick((t) => t + 1);
+    playWipe();
     phaseRef.current = 'run';
     setPhase('run');
     setBanner('CONTINUE — BACK ON THE TRACK!');
@@ -120,7 +189,6 @@ export function AdventureGame({
         setPhase('failed');
         return;
       }
-      // Bonus only into zone score — campaign absorbs it at zone clear (no double-count)
       const bonus = Math.floor((result.scores.Wideass + result.scores.Tats) / 10);
       const nextZone = Math.max(zoneScoreRef.current, zoneScore) + bonus;
       zoneScoreRef.current = nextZone;
@@ -132,19 +200,23 @@ export function AdventureGame({
       setBanner(`BACK TO ${authoring.name.toUpperCase()}!`);
       runKey.current += 1;
       setTakenTick((t) => t + 1);
+      playWipe();
       phaseRef.current = 'run';
       setPhase('run');
     },
-    [activeTrigger, authoring.name, zoneScore],
+    [activeTrigger, authoring.name, zoneScore, playWipe],
   );
 
-  const clearZoneState = () => {
+  const resetCampaign = () => {
+    setLevel(startLevel);
+    setScore(0);
+    playWipe();
+    const start = getLevelAuthoring(startLevel);
     setResumeX(120);
     setZoneScore(0);
     setCounts({ ...EMPTY_COUNTS });
     setDoneTriggers(new Set());
     setActiveTrigger(null);
-    setBanner('');
     setFailReason('');
     setTimeSec(0);
     finishedHandled.current = false;
@@ -156,24 +228,48 @@ export function AdventureGame({
     setTakenTick((t) => t + 1);
     phaseRef.current = 'run';
     setPhase('run');
-  };
-
-  const resetCampaign = () => {
-    setLevel(startLevel);
-    setScore(0);
-    clearZoneState();
+    setBanner(zoneEnterBanner(start.name, start.story.sectorLabel, start.story.bossZone));
+    setStoryCard({
+      title: start.story.title,
+      blurb: start.story.blurb,
+      accent: start.story.accent,
+    });
   };
 
   const nextLevel = () => {
-    setLevel((l) => Math.min(TOTAL_LEVELS, l + 1));
-    clearZoneState();
+    const next = Math.min(TOTAL_LEVELS, level + 1);
+    setLevel(next);
+    playWipe();
+    const auth = getLevelAuthoring(next);
+    setResumeX(120);
+    setZoneScore(0);
+    setCounts({ ...EMPTY_COUNTS });
+    setDoneTriggers(new Set());
+    setActiveTrigger(null);
+    setFailReason('');
+    setTimeSec(0);
+    finishedHandled.current = false;
+    zoneScoreRef.current = 0;
+    countsRef.current = { ...EMPTY_COUNTS };
+    takenIdsRef.current = new Set();
+    killedGhostsRef.current = new Set();
+    runKey.current += 1;
+    setTakenTick((t) => t + 1);
+    phaseRef.current = 'run';
+    setPhase('run');
+    setBanner(zoneEnterBanner(auth.name, auth.story.sectorLabel, auth.story.bossZone));
+    setStoryCard({
+      title: auth.story.title,
+      blurb: auth.story.blurb,
+      accent: auth.story.accent,
+    });
   };
 
   if (phase === 'failed') {
     return (
       <EndScreen
         title={failReason || 'MISSION FAILED'}
-        subtitle="Quota or jeep integrity collapsed. Continue from the checkpoint — pickups stay collected."
+        subtitle="Quota or vehicle integrity collapsed. Continue from the checkpoint — pickups stay collected."
         embed={embed}
         buttonLabel="CONTINUE"
         onAction={retryFromFail}
@@ -187,8 +283,8 @@ export function AdventureGame({
         title={phase === 'victory' ? 'WIDEASS & TATS FOREVER' : `${authoring.name.toUpperCase()} CLEAR`}
         subtitle={
           phase === 'victory'
-            ? `Campaign score ${score.toLocaleString()} · every zone beaten.`
-            : `Zone ${zoneScore.toLocaleString()} · Total ${score.toLocaleString()} · PEP ${counts.pepper} · DUCK ${counts.duck} · HAT ${counts.witchHat}`
+            ? `Campaign score ${score.toLocaleString()} · Sector Escape complete.`
+            : `Zone ${zoneScore.toLocaleString()} · Total ${score.toLocaleString()} · RINGS ${counts.pepper} · DUCK ${counts.duck} · HAT ${counts.witchHat}`
         }
         embed={embed}
         buttonLabel={phase === 'victory' ? 'PLAY AGAIN' : `ZONE ${level + 1} →`}
@@ -197,10 +293,15 @@ export function AdventureGame({
     );
   }
 
-  if ((phase === 'jeep' || phase === 'space') && activeTrigger) {
+  const shooterActive =
+    (phase === 'jeep' || phase === 'space' || phase === 'cupid') && activeTrigger;
+
+  if (shooterActive && activeTrigger) {
     return (
       <div className={embed ? 'relative h-full w-full' : 'relative min-h-screen'}>
-        {banner && <Banner text={banner} />}
+        {wipe && <WipeOverlay />}
+        {banner && <Banner text={banner} accent={authoring.story.accent} />}
+        {storyCard && <StoryBanner {...storyCard} />}
         <ShooterPhase
           kind={phase}
           segment={{
@@ -211,10 +312,11 @@ export function AdventureGame({
             durationSec: activeTrigger.durationSec,
           }}
           level={level}
-          intensity={0.7 + level * 0.05}
+          intensity={0.4 + level * 0.025 + (activeTrigger.boss ? 0.12 : 0)}
           playerCount={playerCount}
           primaryCharacter={primaryCharacter}
           embed={embed}
+          boss={!!activeTrigger.boss}
           onComplete={handleShooterDone}
         />
       </div>
@@ -223,7 +325,9 @@ export function AdventureGame({
 
   return (
     <div className={embed ? 'relative h-full w-full' : 'relative min-h-screen bg-[#1a3a6a]'}>
-      {banner && <Banner text={banner} />}
+      {wipe && <WipeOverlay />}
+      {banner && <Banner text={banner} accent={authoring.story.accent} />}
+      {storyCard && <StoryBanner {...storyCard} />}
       <RunPhase
         key={`${level}-${runKey.current}-${takenTick}`}
         level={authoring}
@@ -245,12 +349,45 @@ export function AdventureGame({
   );
 }
 
-function Banner({ text }: { text: string }) {
+function WipeOverlay() {
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 z-[60] animate-[waWipe_0.52s_ease-in-out]"
+      style={{
+        background:
+          'linear-gradient(105deg, transparent 0%, #0a0814 18%, #ffe14a 46%, #ff66aa 58%, #0a0814 82%, transparent 100%)',
+        backgroundSize: '220% 100%',
+        animation: 'waWipe 0.52s ease-in-out forwards',
+      }}
+    />
+  );
+}
+
+function Banner({ text, accent = '#ffe14a' }: { text: string; accent?: string }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-10 z-50 flex justify-center px-4">
-      <p className="wa-display animate-pulse border-2 border-[#ffe14a] bg-black/85 px-6 py-3 text-sm tracking-wide text-[#ffe14a] shadow-[0_6px_0_#101018] sm:text-lg">
+      <p
+        className="wa-display animate-pulse border-2 bg-black/85 px-6 py-3 text-sm tracking-wide shadow-[0_6px_0_#101018] sm:text-lg"
+        style={{ borderColor: accent, color: accent }}
+      >
         {text}
       </p>
+    </div>
+  );
+}
+
+function StoryBanner({ title, blurb, accent }: { title: string; blurb: string; accent: string }) {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-24 z-50 flex justify-center px-4">
+      <div
+        className="max-w-xl border-2 bg-black/80 px-5 py-3 text-center shadow-[0_6px_0_#101018]"
+        style={{ borderColor: accent }}
+      >
+        <p className="wa-display text-sm tracking-wide sm:text-base" style={{ color: accent }}>
+          {title}
+        </p>
+        <p className="mt-1 text-[11px] font-bold leading-snug text-white/90 sm:text-xs">{blurb}</p>
+      </div>
     </div>
   );
 }
